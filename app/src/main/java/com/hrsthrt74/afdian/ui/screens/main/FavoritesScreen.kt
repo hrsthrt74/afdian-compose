@@ -1,25 +1,25 @@
-package com.hrsthrt74.afdian.feature.main
+package com.hrsthrt74.afdian.ui.screens.main
 
-import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -28,17 +28,11 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 
 @Composable
-fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
-    val app = LocalContext.current.applicationContext as Application
-    val vm = providedViewModel ?: viewModel<OrderViewModel>(
-        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app)
-    )
-    val status by vm.status.collectAsState()
-    val orders by vm.orders.collectAsState()
-    val summary by vm.summary.collectAsState()
-    val loading by vm.loading.collectAsState()
-    val error by vm.error.collectAsState()
-    val filters = listOf("" to "全部", "1" to "待支付", "2" to "已支付", "8" to "待发货", "9" to "已收货")
+fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
+    val kind by viewModel.kind.collectAsState()
+    val items by viewModel.items.collectAsState()
+    val loading by viewModel.loading.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -46,7 +40,7 @@ fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = "全部订单",
+                title = "我的收藏",
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     Button(onClick = onBack) {
@@ -67,52 +61,54 @@ fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
                     end = 20.dp,
                     bottom = 24.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item {
-                    Text(summary)
-                }
-
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        filters.forEach { (value, title) ->
+                        listOf("创作者", "动态", "众筹").forEachIndexed { index, title ->
                             Button(
-                                onClick = { vm.load(value) },
-                                enabled = !loading
+                                onClick = { viewModel.select(index) },
+                                enabled = kind != index
                             ) {
-                                Text(if (status == value) "✓ $title" else title)
+                                Text(title)
                             }
                         }
                     }
                 }
 
-                item {
-                    when {
-                        loading -> Text("正在加载订单…")
-                        error != null -> {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(error!!)
-                                Button(onClick = { vm.load(status) }) { Text("重试") }
-                            }
+                if (loading) {
+                    item { Text("加载中…") }
+                } else if (error != null) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(error!!)
+                            Button(onClick = viewModel::load) { Text("重试") }
                         }
-                        orders.isEmpty() -> Text("暂无订单")
                     }
-                }
-
-                if (!loading && error == null) {
-                    items(orders, key = { it.id }) { order ->
-                        Column(
+                } else if (items.isEmpty()) {
+                    item { Text("还没有收藏内容") }
+                } else {
+                    items(items, key = { it.id }) { item ->
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp)
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(order.title)
-                            Text(order.creator)
-                            Text("¥${order.amount} · ${order.status}")
-                            Text("订单 ${order.id} · ${order.time}")
+                            AsyncImage(
+                                model = item.image,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                            )
+                            Column {
+                                Text(item.title)
+                                Text(item.subtitle)
+                            }
                         }
                     }
                 }

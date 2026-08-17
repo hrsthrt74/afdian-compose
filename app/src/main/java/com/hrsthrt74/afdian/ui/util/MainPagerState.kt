@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.feature.main
+package com.hrsthrt74.afdian.ui.util
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween

@@ -1,14 +1,14 @@
-package com.hrsthrt74.afdian.feature.main
+package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -26,18 +26,19 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import com.hrsthrt74.afdian.data.content.ManagementSection
 
 @Composable
-fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel? = null) {
-    val application = LocalContext.current.applicationContext as Application
-    val viewModel = providedViewModel ?: viewModel<ManagementViewModel>(
-        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application),
+fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
+    val app = LocalContext.current.applicationContext as Application
+    val vm = providedViewModel ?: viewModel<OrderViewModel>(
+        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app)
     )
-    val section by viewModel.section.collectAsState()
-    val result by viewModel.result.collectAsState()
-    val loading by viewModel.loading.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val status by vm.status.collectAsState()
+    val orders by vm.orders.collectAsState()
+    val summary by vm.summary.collectAsState()
+    val loading by vm.loading.collectAsState()
+    val error by vm.error.collectAsState()
+    val filters = listOf("" to "全部", "1" to "待支付", "2" to "已支付", "8" to "待发货", "9" to "已收货")
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -45,7 +46,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = "管理",
+                title = "全部订单",
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     Button(onClick = onBack) {
@@ -66,20 +67,23 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                     end = 20.dp,
                     bottom = 24.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                item {
+                    Text(summary)
+                }
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        ManagementSection.values().forEach { item ->
+                        filters.forEach { (value, title) ->
                             Button(
-                                onClick = { viewModel.load(item) },
-                                enabled = !loading,
-                                modifier = Modifier.padding(vertical = 2.dp),
+                                onClick = { vm.load(value) },
+                                enabled = !loading
                             ) {
-                                Text(if (item == section) "✓ ${item.title}" else item.title)
+                                Text(if (status == value) "✓ $title" else title)
                             }
                         }
                     }
@@ -87,26 +91,28 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
 
                 item {
                     when {
-                        loading -> Text("正在加载…")
+                        loading -> Text("正在加载订单…")
                         error != null -> {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(error!!)
-                                Button(onClick = { viewModel.load(section) }) { Text("重试") }
+                                Button(onClick = { vm.load(status) }) { Text("重试") }
                             }
                         }
-                        result == null -> Text("暂无数据")
+                        orders.isEmpty() -> Text("暂无订单")
                     }
                 }
 
                 if (!loading && error == null) {
-                    items(result?.rows.orEmpty(), key = { it.first }) { (title, value) ->
+                    items(orders, key = { it.id }) { order ->
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp)
                         ) {
-                            Text(title)
-                            Text(value)
+                            Text(order.title)
+                            Text(order.creator)
+                            Text("¥${order.amount} · ${order.status}")
+                            Text("订单 ${order.id} · ${order.time}")
                         }
                     }
                 }

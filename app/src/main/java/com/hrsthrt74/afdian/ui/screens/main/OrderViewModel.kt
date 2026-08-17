@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.feature.main
+package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel

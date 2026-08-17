@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.feature.main
+package com.hrsthrt74.afdian.ui.screens.main
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -23,6 +23,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem

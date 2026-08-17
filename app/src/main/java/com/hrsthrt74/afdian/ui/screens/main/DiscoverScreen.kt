@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.feature.main
+package com.hrsthrt74.afdian.ui.screens.main
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,14 +16,14 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 
 @Composable
-fun MessagesScreen() {
+fun DiscoverScreen() {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
 
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = "消息",
+                title = "发现",
                 scrollBehavior = scrollBehavior
             )
         }
@@ -42,7 +42,7 @@ fun MessagesScreen() {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    Text("消息会话将在这里显示")
+                    Text("搜索创作者和内容")
                 }
             }
         }

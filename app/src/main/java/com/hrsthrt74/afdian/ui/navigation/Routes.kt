@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.navigation
+package com.hrsthrt74.afdian.ui.navigation
 
 import kotlinx.serialization.Serializable
 import top.yukonga.miuix.kmp.nav.core.NavKey

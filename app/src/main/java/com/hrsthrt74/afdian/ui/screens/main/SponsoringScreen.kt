@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.feature.main
+package com.hrsthrt74.afdian.ui.screens.main
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,10 +28,9 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 
 @Composable
-fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
-    val kind by viewModel.kind.collectAsState()
-    val items by viewModel.items.collectAsState()
-    val loading by viewModel.loading.collectAsState()
+fun SponsoringScreen(viewModel: MainViewModel, onBack: () -> Unit) {
+    val sponsoring by viewModel.sponsoring.collectAsState()
+    val loading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
     val topAppBarState = rememberTopAppBarState()
@@ -40,7 +39,7 @@ fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = "我的收藏",
+                title = "我发电的",
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     Button(onClick = onBack) {
@@ -61,53 +60,43 @@ fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
                     end = 20.dp,
                     bottom = 24.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("创作者", "动态", "众筹").forEachIndexed { index, title ->
-                            Button(
-                                onClick = { viewModel.select(index) },
-                                enabled = kind != index
-                            ) {
-                                Text(title)
-                            }
-                        }
-                    }
+                    Text("共 ${sponsoring.size} 位创作者")
                 }
 
-                if (loading) {
-                    item { Text("加载中…") }
+                if (loading && sponsoring.isEmpty()) {
+                    item { Text("正在加载…") }
                 } else if (error != null) {
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(error!!)
-                            Button(onClick = viewModel::load) { Text("重试") }
+                            Button(onClick = viewModel::refresh) { Text("重试") }
                         }
                     }
-                } else if (items.isEmpty()) {
-                    item { Text("还没有收藏内容") }
+                } else if (sponsoring.isEmpty()) {
+                    item { Text("还没有发电记录") }
                 } else {
-                    items(items, key = { it.id }) { item ->
+                    items(sponsoring, key = { it.id }) { item ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(vertical = 8.dp)
                         ) {
                             AsyncImage(
-                                model = item.image,
-                                contentDescription = null,
+                                model = item.user.avatar,
+                                contentDescription = item.user.name,
                                 modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(28.dp)),
                             )
-                            Column {
-                                Text(item.title)
-                                Text(item.subtitle)
+                            Column(modifier = Modifier.padding(start = 12.dp)) {
+                                Text(item.user.name.ifBlank { "创作者" })
+                                Text(item.planName)
+                                if ((item.new_post_count ?: 0) > 0) {
+                                    Text("${item.new_post_count} 条新动态")
+                                }
                             }
                         }
                     }

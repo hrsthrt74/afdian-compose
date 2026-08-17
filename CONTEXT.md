@@ -90,15 +90,17 @@
 
 - [MainActivity.kt](app/src/main/java/com/hrsthrt74/afdian/MainActivity.kt)：应用入口、免责声明、认证分流。
 - `ui/theme/Theme.kt`：Miuix 根主题。
-- `navigation/Routes.kt`：Miuix 路由。
+- `ui/navigation/Routes.kt`：Miuix 路由。
+- `ui/screens/main/MainScreen.kt`：主导航、首页和我的页。
+- `ui/screens/main/MainViewModel.kt`：首页状态。
+- `ui/screens/main/ManagementScreen.kt`：管理页面。
+- `ui/screens/main/ManagementViewModel.kt`：管理页面状态。
+- `ui/screens/auth/LoginScreen.kt`、`ui/screens/auth/DisclaimerDialog.kt`：登录和免责声明。
+- `ui/util/MainPagerState.kt`：主页面 Pager 切换状态工具。
 - `data/auth/AuthSession.kt`：认证状态和 Token 存储。
 - `data/auth/AuthService.kt`：登录请求和加密载荷。
 - `data/content/AfadianContentService.kt`：首页接口和基础模型。
 - `data/content/ManagementService.kt`：管理接口。
-- `feature/main/MainScreen.kt`：主导航、首页和我的页。
-- `feature/main/MainViewModel.kt`：首页状态。
-- `feature/main/ManagementScreen.kt`：管理页面。
-- `feature/main/ManagementViewModel.kt`：管理页面状态。
 
 ## 迁移时必须遵守的规则
 

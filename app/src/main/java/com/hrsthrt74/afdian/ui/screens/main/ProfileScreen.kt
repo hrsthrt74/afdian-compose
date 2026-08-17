@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.feature.main
+package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +33,7 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
-import com.hrsthrt74.afdian.navigation.Route
+import com.hrsthrt74.afdian.ui.navigation.Route
 
 @Composable
 fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit) {

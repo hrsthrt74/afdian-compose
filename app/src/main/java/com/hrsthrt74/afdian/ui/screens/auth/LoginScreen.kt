@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.feature.auth
+package com.hrsthrt74.afdian.ui.screens.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

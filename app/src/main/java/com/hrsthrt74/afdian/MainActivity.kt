@@ -12,9 +12,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.auth.AuthSession
-import com.hrsthrt74.afdian.feature.auth.LoginScreen
-import com.hrsthrt74.afdian.feature.auth.DisclaimerDialog
-import com.hrsthrt74.afdian.feature.main.MainScreen
+import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
+import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerDialog
+import com.hrsthrt74.afdian.ui.screens.main.MainScreen
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
 
 class MainActivity : ComponentActivity() {
