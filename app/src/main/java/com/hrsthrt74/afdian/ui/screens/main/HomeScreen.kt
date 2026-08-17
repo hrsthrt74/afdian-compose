@@ -25,12 +25,16 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Refresh
 
 @Composable
 fun HomeScreen(viewModel: MainViewModel) {
@@ -39,6 +43,7 @@ fun HomeScreen(viewModel: MainViewModel) {
 
     val posts by viewModel.posts.collectAsState()
     val account by viewModel.account.collectAsState()
+    val profile by viewModel.profile.collectAsState()
     val sponsoring by viewModel.sponsoring.collectAsState()
     val error by viewModel.error.collectAsState()
     val loading by viewModel.isLoading.collectAsState()
@@ -47,7 +52,12 @@ fun HomeScreen(viewModel: MainViewModel) {
         topBar = {
             TopAppBar(
                 title = "首页",
-                scrollBehavior = scrollBehavior
+                scrollBehavior = scrollBehavior,
+                actions = {
+                    IconButton(onClick = viewModel::refresh) {
+                        Icon(MiuixIcons.Refresh, contentDescription = null)
+                    }
+                }
             )
         }
     ) { paddingValues ->
@@ -64,26 +74,6 @@ fun HomeScreen(viewModel: MainViewModel) {
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = account?.let { "你好，${it.displayName}" } ?: "正在加载账号信息",
-                                style = top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles.title3
-                            )
-                        }
-                        Button(
-                            onClick = viewModel::refresh,
-                            enabled = !loading
-                        ) {
-                            Text(if (loading) "加载中…" else "刷新")
-                        }
-                    }
-                }
-
                 item {
                     SmallTitle(text = "我发电的")
                 }

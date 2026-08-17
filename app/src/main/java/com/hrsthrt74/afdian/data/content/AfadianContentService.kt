@@ -18,6 +18,9 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
     suspend fun fetchAccount(): AfadianAccount = get("/api/my/account", AfadianAccountResponse.serializer()).data
         ?: error("账号信息加载失败")
 
+    suspend fun fetchProfile(): AfadianProfile = get("/api/my/profile", AfadianProfileResponse.serializer()).data
+        ?: error("个人信息加载失败")
+
     suspend fun fetchSponsoring(): List<SponsoringItem> = get("/api/my/sponsoring?need_sponsor_info=1", SponsoringResponse.serializer()).data?.sponsoring.orEmpty()
     suspend fun fetchMarkedCreators(): List<FavoriteItem> = fetchFavoriteList("/api/my/marked") { it["user"]?.jsonObject ?: it }
     suspend fun fetchMarkedPosts(): List<FavoriteItem> = fetchFavoriteList("/api/my/marked-post") { it["post"]?.jsonObject ?: it }
@@ -70,6 +73,8 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
 @Serializable data class FavoriteItem(val id: String, val title: String, val subtitle: String, val image: String? = null)
 
 @Serializable private data class AfadianAccountResponse(val ec: Int? = null, val data: AfadianAccount? = null)
+@Serializable private data class AfadianProfileResponse(val ec: Int? = null, val data: AfadianProfile? = null)
+@Serializable data class AfadianProfile(val user: AfadianUser = AfadianUser())
 @Serializable private data class SponsoringResponse(val ec: Int? = null, val data: SponsoringPayload? = null)
 @Serializable private data class SponsoringPayload(val sponsoring: List<SponsoringItem> = emptyList())
 @Serializable private data class RecommendedPostsResponse(val data: PostPayload? = null)

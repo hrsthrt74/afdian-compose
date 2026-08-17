@@ -7,6 +7,7 @@ import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.data.content.AfadianAccount
+import com.hrsthrt74.afdian.data.content.AfadianProfile
 import com.hrsthrt74.afdian.data.content.SponsoringItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val posts = _posts.asStateFlow()
     private val _account = MutableStateFlow<AfadianAccount?>(null)
     val account = _account.asStateFlow()
+    private val _profile = MutableStateFlow<AfadianProfile?>(null)
+    val profile = _profile.asStateFlow()
     private val _sponsoring = MutableStateFlow<List<SponsoringItem>>(emptyList())
     val sponsoring = _sponsoring.asStateFlow()
     private val _isLoading = MutableStateFlow(false)
@@ -35,15 +38,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val result = withContext(Dispatchers.IO) {
                     kotlinx.coroutines.coroutineScope {
-                        val account = async { service.fetchAccount() }
-                        val sponsoring = async { service.fetchSponsoring() }
-                        val posts = async { service.fetchRecommendedPosts() }
-                        Triple(account.await(), sponsoring.await(), posts.await())
+                        val accountDeferred = async { service.fetchAccount() }
+                        val profileDeferred = async { service.fetchProfile() }
+                        val sponsoringDeferred = async { service.fetchSponsoring() }
+                        val postsDeferred = async { service.fetchRecommendedPosts() }
+                        AccountResult(
+                            accountDeferred.await(),
+                            profileDeferred.await(),
+                            sponsoringDeferred.await(),
+                            postsDeferred.await()
+                        )
                     }
                 }
-                _account.value = result.first
-                _sponsoring.value = result.second
-                _posts.value = result.third
+                _account.value = result.account
+                _profile.value = result.profile
+                _sponsoring.value = result.sponsoring
+                _posts.value = result.posts
             } catch (e: Exception) {
                 _error.value = e.message ?: "首页内容加载失败"
             } finally {
@@ -52,3 +62,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 }
+
+private data class AccountResult(
+    val account: AfadianAccount,
+    val profile: AfadianProfile,
+    val sponsoring: List<SponsoringItem>,
+    val posts: List<RecommendedPost>,
+)

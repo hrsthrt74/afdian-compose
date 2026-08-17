@@ -6,29 +6,33 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
+import com.hrsthrt74.afdian.ui.navigation.Route
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import com.hrsthrt74.afdian.ui.navigation.Route
 
 @Composable
 fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
@@ -78,14 +82,24 @@ private fun ProfileMainScreen(
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
 
-    val account by viewModel.account.collectAsState()
+    val profile by viewModel.profile.collectAsState()
     val sponsoring by viewModel.sponsoring.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = "我的",
-                scrollBehavior = scrollBehavior
+                title = profile?.user?.name ?: "爱发电用户",
+                scrollBehavior = scrollBehavior,
+                navigationIcon = {
+                    AsyncImage(
+                        model = profile?.user?.avatar,
+                        contentDescription = "头像",
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(21.dp))
+                    )
+                }
             )
         }
     ) { paddingValues ->
@@ -101,16 +115,6 @@ private fun ProfileMainScreen(
                     bottom = 24.dp
                 ),
             ) {
-                item {
-                    Text(
-                        account?.displayName ?: "爱发电用户",
-                        style = top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles.title3
-                    )
-                    Text(
-                        account?.login?.email ?: account?.login?.phone ?: "账号信息"
-                    )
-                }
-
                 // 我的
                 item { SmallTitle(text = "我的") }
                 item {
