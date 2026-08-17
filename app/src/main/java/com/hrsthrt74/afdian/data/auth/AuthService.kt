@@ -1,0 +1,64 @@
+package com.hrsthrt74.afdian.data.auth
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import android.util.Base64
+import java.security.KeyFactory
+import java.security.SecureRandom
+import java.security.spec.X509EncodedKeySpec
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
+
+class AuthService(private val client: OkHttpClient = OkHttpClient()) {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    suspend fun passwordLogin(account: String, password: String): String? {
+        val aesKey = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        val keyText = aesKey.joinToString("") { "%02x".format(it) }
+        val body = json.encodeToString(LoginRequest(
+            account = aesEncrypt(account.trim(), keyText),
+            password = aesEncrypt(password, keyText),
+            mp_token = "",
+            ar_ept = rsaEncrypt(keyText),
+        ))
+            .toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url("https://afdian.com/api/passport/login").post(body)
+            .header("referer", "https://afdian.com").build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return null
+            val result = json.decodeFromString<LoginResponse>(response.body.string())
+            if (result.ec != 200) error(result.message ?: "登录失败，请检查账号或密码")
+            result.data?.authToken
+        }
+    }
+
+    private fun aesEncrypt(value: String, keyText: String): String {
+        val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(keyText.toByteArray(), "AES"), IvParameterSpec("7brVHncu7wIDAQAB".toByteArray()))
+        return Base64.encodeToString(cipher.doFinal(value.toByteArray()), Base64.NO_WRAP)
+    }
+
+    private fun rsaEncrypt(value: String): String {
+        val key = KeyFactory.getInstance("RSA").generatePublic(X509EncodedKeySpec(Base64.decode(PUBLIC_KEY, Base64.DEFAULT)))
+        return Base64.encodeToString(Cipher.getInstance("RSA/ECB/PKCS1Padding").apply { init(Cipher.ENCRYPT_MODE, key) }.doFinal(value.toByteArray()), Base64.NO_WRAP)
+    }
+
+    private companion object {
+        val PUBLIC_KEY = """
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4Top/Mt2ofZeAIMh9AHw4d6Q+iyBxXbou+1mbhclLsB3YSMbFD+X6QnlAY1vMHO7fteKevn25iVIELBXsmcQS5/oA2hO3VHi9uTG3XmYVcrw94cK5ppODeBOV0hV0dFS/NOT66pqPAuLW6HgRrntgznl4ju6ttOddDNJ7e97RH9qrZEpzjl9GqVZQ2sFdmmw4dNET9fP9HWq8VlfW+BF G7TuxzEjZNcxAgrG/f41Z0+G3RxAccF8LOxu4Ztk1ZDdv5xukdx2ukoEhgdmKUkDv/W5r3HPj1uX+buzDi/UsumMblWXb0Bys7ENhZ/n4+naZ3b3rJ32DnTF7brVHncu7wIDAQAB
+""".replace(" ", "").replace("\n", "")
+    }
+}
+
+@Serializable private data class LoginRequest(val account: String, val password: String, val mp_token: String, val ar_ept: String)
+@Serializable private data class LoginResponse(val ec: Int? = null, val em: String? = null, val msg: String? = null, val data: LoginData? = null) {
+    val message: String? get() = em ?: msg
+}
+@Serializable private data class LoginData(val auth_token: String? = null) {
+    val authToken: String get() = auth_token.orEmpty()
+}
