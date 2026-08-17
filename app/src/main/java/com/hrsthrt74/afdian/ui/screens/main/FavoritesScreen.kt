@@ -21,11 +21,16 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 
 @Composable
 fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
@@ -43,8 +48,11 @@ fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
                 title = "我的收藏",
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    Button(onClick = onBack) {
-                        Text("返回")
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "Back"
+                        )
                     }
                 }
             )
@@ -64,19 +72,11 @@ fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("创作者", "动态", "众筹").forEachIndexed { index, title ->
-                            Button(
-                                onClick = { viewModel.select(index) },
-                                enabled = kind != index
-                            ) {
-                                Text(title)
-                            }
-                        }
-                    }
+                    TabRow(
+                        tabs = listOf("创作者", "动态", "众筹"),
+                        selectedTabIndex = kind,
+                        onTabSelected = viewModel::select,
+                    )
                 }
 
                 if (loading) {

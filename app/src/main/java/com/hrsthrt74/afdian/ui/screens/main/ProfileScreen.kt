@@ -26,13 +26,14 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import com.hrsthrt74.afdian.ui.navigation.Route
 
 @Composable
@@ -106,7 +107,7 @@ private fun ProfileMainScreen(
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = "我的",
                 scrollBehavior = scrollBehavior
             )
@@ -123,7 +124,6 @@ private fun ProfileMainScreen(
                     end = 20.dp,
                     bottom = 24.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
                     Text(
@@ -138,55 +138,53 @@ private fun ProfileMainScreen(
                 // 我的
                 item { SmallTitle(text = "我的") }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            ProfileRow("我发电的", "${sponsoring.size} 位创作者") {
-                                onNavigate(Route.Sponsoring)
-                            }
-                            ProfileRow("购物车", "待结算商品") {
-                                onShowMessage("购物车页面将在下一步接入")
-                            }
-                        }
+                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                        ArrowPreference(
+                            title = "我发电的",
+                            summary = "${sponsoring.size} 位创作者",
+                            onClick = { onNavigate(Route.Sponsoring) }
+                        )
                     }
                 }
 
                 // 我的订单
                 item { SmallTitle(text = "我的订单") }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            ProfileRow("全部订单", "查看赞助和商品订单") {
-                                onNavigate(Route.Orders)
-                            }
-                            ProfileRow("待支付订单", "需要继续处理的订单") {
-                                onShowMessage("订单页面将在下一步接入")
-                            }
-                        }
+                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                        ArrowPreference(
+                            title = "全部订单",
+                            summary = "查看赞助和商品订单",
+                            onClick = { onNavigate(Route.Orders) }
+                        )
                     }
                 }
 
                 // 管理
                 item { SmallTitle(text = "管理") }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        ProfileRow("管理中心", "概况、收入、订单和赞助者") {
-                            onNavigate(Route.Management)
-                        }
+                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                        ArrowPreference(
+                            title = "管理中心",
+                            summary = "概况、收入、订单和赞助者",
+                            onClick = { onNavigate(Route.Management) }
+                        )
                     }
                 }
 
                 // 我的收藏
                 item { SmallTitle(text = "我的收藏") }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            ProfileRow("创作者 / 动态 / 众筹", "查看我的收藏") {
-                                onNavigate(Route.Favorites)
-                            }
-                            ProfileRow("设置", "偏好、安全和关于") {
-                                onShowMessage("设置页面将在下一步接入")
-                            }
-                        }
+                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                        ArrowPreference(
+                            title = "创作者 / 动态 / 众筹",
+                            summary = "查看我的收藏",
+                            onClick = { onNavigate(Route.Favorites) }
+                        )
+                        ArrowPreference(
+                            title = "设置",
+                            summary = "偏好、安全和关于",
+                            onClick = { onShowMessage("设置页面将在下一步接入") }
+                        )
                     }
                 }
 
@@ -200,23 +198,6 @@ private fun ProfileMainScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun ProfileRow(title: String, subtitle: String, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(title)
-            Text(
-                subtitle,
-                style = top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles.body2,
-                color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurfaceVariantSummary
-            )
         }
     }
 }

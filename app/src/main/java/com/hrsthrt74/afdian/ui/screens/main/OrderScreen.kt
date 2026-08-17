@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -21,11 +20,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 
 @Composable
 fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
@@ -49,8 +53,11 @@ fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
                 title = "全部订单",
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    Button(onClick = onBack) {
-                        Text("返回")
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "Back"
+                        )
                     }
                 }
             )
@@ -74,19 +81,11 @@ fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
                 }
 
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        filters.forEach { (value, title) ->
-                            Button(
-                                onClick = { vm.load(value) },
-                                enabled = !loading
-                            ) {
-                                Text(if (status == value) "✓ $title" else title)
-                            }
-                        }
-                    }
+                    TabRow(
+                        tabs = filters.map { it.second },
+                        selectedTabIndex = filters.indexOfFirst { it.first == status }.coerceAtLeast(0),
+                        onTabSelected = { index -> vm.load(filters[index].first) },
+                    )
                 }
 
                 item {

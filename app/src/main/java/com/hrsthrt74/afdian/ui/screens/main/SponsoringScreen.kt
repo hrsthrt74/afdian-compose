@@ -21,11 +21,15 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 
 @Composable
 fun SponsoringScreen(viewModel: MainViewModel, onBack: () -> Unit) {
@@ -42,8 +46,11 @@ fun SponsoringScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 title = "我发电的",
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    Button(onClick = onBack) {
-                        Text("返回")
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = "Back"
+                        )
                     }
                 }
             )
