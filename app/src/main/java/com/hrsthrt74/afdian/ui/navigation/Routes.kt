@@ -15,4 +15,5 @@ sealed interface Route : NavKey {
     @Serializable data object Sponsoring : Route
     @Serializable data object Orders : Route
     @Serializable data object Management : Route
+    @Serializable data object Settings : Route
 }

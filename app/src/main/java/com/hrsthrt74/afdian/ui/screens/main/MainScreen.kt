@@ -8,9 +8,11 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
@@ -44,8 +46,14 @@ private val mainTabs = listOf(
  */
 @Composable
 fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
+    val context = LocalContext.current
+    val startupPage = remember {
+        context.getSharedPreferences("settings", 0)
+            .getInt("startup_page", 0)
+            .coerceIn(0, mainTabs.lastIndex)
+    }
     val pagerState = rememberPagerState(
-        initialPage = 0,
+        initialPage = startupPage,
         pageCount = { mainTabs.size }
     )
     val mainPagerState = rememberMainPagerState(pagerState)

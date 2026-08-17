@@ -1,9 +1,7 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,9 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -29,7 +24,6 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
@@ -39,7 +33,6 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 @Composable
 fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
     val backStack = rememberNavBackStack<Route>(Route.Profile)
-    var message by remember { mutableStateOf<String?>(null) }
 
     NavDisplay(
         backStack = backStack,
@@ -51,7 +44,6 @@ fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
                 viewModel = viewModel,
                 onLogout = onLogout,
                 onNavigate = { route -> backStack.add(route) },
-                onShowMessage = { message = it }
             )
         }
         entry<Route.Favorites> {
@@ -71,23 +63,8 @@ fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
         entry<Route.Management> {
             ManagementScreen(onBack = { backStack.removeLastOrNull() })
         }
-    }
-
-    if (message != null) {
-        WindowDialog(
-            show = true,
-            onDismissRequest = { message = null },
-            title = "提示",
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(message!!)
-                Button(onClick = { message = null }) {
-                    Text("知道了")
-                }
-            }
+        entry<Route.Settings> {
+            SettingsScreen(onBack = { backStack.removeLastOrNull() })
         }
     }
 }
@@ -97,7 +74,6 @@ private fun ProfileMainScreen(
     viewModel: MainViewModel,
     onLogout: () -> Unit,
     onNavigate: (Route) -> Unit,
-    onShowMessage: (String) -> Unit,
 ) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -183,7 +159,7 @@ private fun ProfileMainScreen(
                         ArrowPreference(
                             title = "设置",
                             summary = "偏好、安全和关于",
-                            onClick = { onShowMessage("设置页面将在下一步接入") }
+                            onClick = { onNavigate(Route.Settings) }
                         )
                     }
                 }
