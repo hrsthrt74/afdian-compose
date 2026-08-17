@@ -6,28 +6,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Album
+import top.yukonga.miuix.kmp.icon.extended.Community
+import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.Home
+import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -36,11 +31,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private data class MainTab(val title: String, val icon: ImageVector)
 
 private val mainTabs = listOf(
-    MainTab("首页", Icons.Default.Home),
-    MainTab("发现", Icons.Default.Search),
-    MainTab("动态", Icons.Default.Bolt),
-    MainTab("消息", Icons.Default.Email),
-    MainTab("我的", Icons.Default.Person),
+    MainTab("首页", MiuixIcons.Home),
+    MainTab("发现", MiuixIcons.Search),
+    MainTab("动态", MiuixIcons.Album),
+    MainTab("消息", MiuixIcons.Community),
+    MainTab("我的", MiuixIcons.Contacts),
 )
 
 /**
