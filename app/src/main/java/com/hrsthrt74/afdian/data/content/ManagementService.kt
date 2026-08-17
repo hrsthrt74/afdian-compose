@@ -28,14 +28,16 @@ class ManagementService(
         val data = payload["data"]?.jsonObject ?: JsonObject(emptyMap())
         return when (section) {
             ManagementSection.Overview -> ManagementResult(section, listOf(
-                "余额" to data.text("balance"),
-                "税后余额" to data.text("balance_after_tax"),
-                "累计收入" to data.objectText("summary", "all_sum_amount"),
                 "本月收入" to data.objectText("summary", "month_amount"),
-                "赞助者" to data.objectText("summary", "all_sponsor_count"),
-                "本月赞助者" to data.objectText("summary", "month_sponsor_count"),
-                "访客 UV" to data.objectText("summary", "uv"),
-                "访客 PV" to data.objectText("summary", "pv"),
+                "累计收入" to data.objectText("summary", "all_sum_amount"),
+                "近 31 天赞助者" to data.objectText("summary", "month_sponsor_count"),
+                "历史赞助者" to data.objectText("summary", "all_sponsor_count"),
+                // 访客 UV
+                "主页访问人数" to data.objectText("summary", "uv"),
+                // 访客 PV
+                "主页访问次数" to data.objectText("summary", "pv"),
+                "当前可提现" to data.text("balance"),
+                "当前可提现（税后）" to data.text("balance_after_tax"),
             ))
             ManagementSection.Income -> ManagementResult(section, data.arrayTexts("list").take(30).mapIndexed { index, value -> "第 ${index + 1} 条" to value })
             ManagementSection.Received -> ManagementResult(section, listOf(

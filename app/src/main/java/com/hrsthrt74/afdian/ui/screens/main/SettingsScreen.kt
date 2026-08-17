@@ -28,6 +28,7 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 private val startupPageNames = listOf("首页", "发现", "动态", "消息", "我的")
 
@@ -41,6 +42,7 @@ fun SettingsScreen(
     )
 ) {
     val startupPage by viewModel.startupPage.collectAsState()
+    val useAfdianColor by viewModel.useAfdianColor.collectAsState()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -83,6 +85,17 @@ fun SettingsScreen(
                             items = startupPageNames,
                             selectedIndex = startupPage,
                             onSelectedIndexChange = viewModel::setStartupPage
+                        )
+                    }
+                }
+                item { SmallTitle(text = "外观") }
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        SwitchPreference(
+                            checked = useAfdianColor,
+                            onCheckedChange = viewModel::setUseAfdianColor,
+                            title = "使用爱发电主题色",
+                            summary = "用爱发电品牌紫作为主色"
                         )
                     }
                 }

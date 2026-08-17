@@ -10,9 +10,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val store = SettingsStore(application)
     private val _startupPage = MutableStateFlow(store.startupPage)
     val startupPage = _startupPage.asStateFlow()
+    private val _useAfdianColor = MutableStateFlow(store.useAfdianColor)
+    val useAfdianColor = _useAfdianColor.asStateFlow()
 
     fun setStartupPage(index: Int) {
         store.startupPage = index
         _startupPage.value = index
+    }
+
+    fun setUseAfdianColor(enabled: Boolean) {
+        store.useAfdianColor = enabled
+        _useAfdianColor.value = enabled
     }
 }
