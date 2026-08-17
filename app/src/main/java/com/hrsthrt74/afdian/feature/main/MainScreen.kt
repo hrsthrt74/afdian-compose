@@ -1,31 +1,104 @@
 package com.hrsthrt74.afdian.feature.main
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.hrsthrt74.afdian.navigation.Route
-import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.nav.core.NavDisplay
-import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.NavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+/**
+ * 底部导航 Tab 定义：标题 + 图标。
+ */
+private data class MainTab(val title: String, val icon: ImageVector)
+
+private val mainTabs = listOf(
+    MainTab("首页", Icons.Default.Home),
+    MainTab("发现", Icons.Default.Search),
+    MainTab("动态", Icons.Default.Bolt),
+    MainTab("消息", Icons.Default.Email),
+    MainTab("我的", Icons.Default.Person),
+)
+
+/**
+ * 主界面壳层：底部 [NavigationBar] + [HorizontalPager] 横滑切换（参考 exTile 布局模式）。
+ * 各页面自己再包一层 Scaffold + TopAppBar，通过 beyondViewportPageCount 保留全部页面状态。
+ */
 @Composable
 fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
-    val backStack = rememberNavBackStack<Route>(Route.Home)
-    val tabs = listOf("首页", "发现", "动态", "消息", "我的")
-    val icons = listOf(Icons.Default.Home, Icons.Default.Search, Icons.Default.Bolt, Icons.Default.Email, Icons.Default.Person)
-    val selected = when (backStack.last()) { Route.Home -> 0; Route.Discover -> 1; Route.Activity -> 2; Route.Messages -> 3; Route.Profile -> 4; else -> 0 }
-    Scaffold(bottomBar = { NavigationBar { tabs.forEachIndexed { index, title -> NavigationBarItem(selected == index, { backStack[backStack.lastIndex] = tabs[index].route() }, icons[index], title) } } }) { padding ->
-        NavDisplay(backStack = backStack, modifier = Modifier.padding(padding)) {
-            entry<Route.Home> { MainTab(0, onLogout, viewModel) }; entry<Route.Discover> { MainTab(1, onLogout, viewModel) }; entry<Route.Activity> { MainTab(2, onLogout, viewModel) }; entry<Route.Messages> { MainTab(3, onLogout, viewModel) }; entry<Route.Profile> { MainTab(4, onLogout, viewModel) }
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { mainTabs.size }
+    )
+    val mainPagerState = rememberMainPagerState(pagerState)
+
+    // 横滑翻页后把当前页回写到导航栏高亮
+    LaunchedEffect(pagerState.currentPage) {
+        mainPagerState.syncPage()
+    }
+
+    val haptic = LocalHapticFeedback.current
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                mainTabs.forEachIndexed { index, tab ->
+                    NavigationBarItem(
+                        selected = mainPagerState.selectedPage == index,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            mainPagerState.animateToPage(index)
+                        },
+                        icon = tab.icon,
+                        label = tab.title
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        HorizontalPager(
+            state = pagerState,
+            beyondViewportPageCount = mainTabs.size,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = padding.calculateBottomPadding())
+        ) { page ->
+            // 页面容器：全宽背景铺满，与各页面 Scaffold 背景同色
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MiuixTheme.colorScheme.surface)
+            ) {
+                when (page) {
+                    0 -> HomeScreen(viewModel)
+                    1 -> DiscoverScreen()
+                    2 -> ActivityScreen()
+                    3 -> MessagesScreen()
+                    else -> ProfileScreen(viewModel, onLogout)
+                }
+            }
         }
     }
 }
-private fun String.route(): Route = when (this) { "首页" -> Route.Home; "发现" -> Route.Discover; "动态" -> Route.Activity; "消息" -> Route.Messages; else -> Route.Profile }
-@Composable private fun MainTab(selected: Int, onLogout: () -> Unit, viewModel: MainViewModel) { Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { Text(listOf("首页", "发现", "动态", "消息", "我的")[selected]); when (selected) { 0 -> HomeScreen(viewModel); 1 -> Text("搜索创作者和内容"); 2 -> Text("发电动态将在这里显示"); 3 -> Text("消息会话将在这里显示"); else -> ProfileScreen(viewModel, onLogout) } } }

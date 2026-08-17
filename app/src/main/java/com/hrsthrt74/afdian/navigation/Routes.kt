@@ -10,4 +10,9 @@ sealed interface Route : NavKey {
     @Serializable data object Activity : Route
     @Serializable data object Messages : Route
     @Serializable data object Profile : Route
+
+    @Serializable data object Favorites : Route
+    @Serializable data object Sponsoring : Route
+    @Serializable data object Orders : Route
+    @Serializable data object Management : Route
 }
