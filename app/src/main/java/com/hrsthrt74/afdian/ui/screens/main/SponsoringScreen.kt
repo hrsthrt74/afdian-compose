@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.hrsthrt74.afdian.data.content.AfadianUser
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -33,7 +35,11 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 
 @Composable
-fun SponsoringScreen(viewModel: MainViewModel, onBack: () -> Unit) {
+fun SponsoringScreen(
+    viewModel: MainViewModel,
+    onOpenCreator: (AfadianUser) -> Unit,
+    onBack: () -> Unit,
+) {
     val sponsoring by viewModel.sponsoring.collectAsState()
     val loading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -91,6 +97,7 @@ fun SponsoringScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable { onOpenCreator(item.user) }
                                 .padding(vertical = 8.dp)
                         ) {
                             AsyncImage(

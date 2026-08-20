@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.hrsthrt74.afdian.data.content.AfadianUser
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -36,7 +38,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 
 @Composable
-fun HomeScreen(viewModel: MainViewModel) {
+fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
 
@@ -84,7 +86,7 @@ fun HomeScreen(viewModel: MainViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(sponsoring, key = { it.id }) { item ->
-                                Card(){
+                                Card(onClick = { onOpenCreator(item.user) }) {
                                     Column(modifier = Modifier.width(132.dp)) {
                                         AsyncImage(
                                             model = item.user.avatar,

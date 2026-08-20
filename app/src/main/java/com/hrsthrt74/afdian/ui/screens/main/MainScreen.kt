@@ -15,6 +15,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
@@ -24,6 +26,10 @@ import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Search
+import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
+import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
+import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -39,11 +45,37 @@ private val mainTabs = listOf(
 )
 
 /**
- * 主界面壳层：底部 [NavigationBar] + [HorizontalPager] 横滑切换（参考 exTile 布局模式）。
- * 各页面自己再包一层 Scaffold + TopAppBar，通过 beyondViewportPageCount 保留全部页面状态。
+ * 主界面壳层：全局 [NavDisplay] 管理创作者主页等覆盖路由，
+ * 根路由 [Route.MainTabs] 承载底部 [NavigationBar] + [HorizontalPager] 横滑切换。
  */
 @Composable
 fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
+    val backStack = rememberNavBackStack<Route>(Route.MainTabs)
+
+    NavDisplay(
+        backStack = backStack,
+        onBack = { backStack.removeLastOrNull() },
+        transition = NavTransitions.MiuixDefault,
+    ) {
+        entry<Route.MainTabs> {
+            MainTabsContent(
+                onLogout = onLogout,
+                viewModel = viewModel,
+                onOpenCreator = { user -> backStack.add(Route.CreatorDetail(user)) },
+            )
+        }
+        entry<Route.CreatorDetail>(swipeDismiss = NavSwipeDirection.LeftToRight) { route ->
+            CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() })
+        }
+    }
+}
+
+@Composable
+private fun MainTabsContent(
+    onLogout: () -> Unit,
+    viewModel: MainViewModel,
+    onOpenCreator: (AfadianUser) -> Unit,
+) {
     val context = LocalContext.current
     val startupPage = remember {
         context.getSharedPreferences("settings", 0)
@@ -94,10 +126,10 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
                     .background(MiuixTheme.colorScheme.surface)
             ) {
                 when (page) {
-                    0 -> HomeScreen(viewModel)
-                    1 -> DiscoverScreen(viewModel)
+                    0 -> HomeScreen(viewModel, onOpenCreator)
+                    1 -> DiscoverScreen(viewModel, onOpenCreator)
                     2 -> MessagesScreen()
-                    else -> ProfileScreen(viewModel, onLogout)
+                    else -> ProfileScreen(viewModel, onLogout, onOpenCreator)
                 }
             }
         }

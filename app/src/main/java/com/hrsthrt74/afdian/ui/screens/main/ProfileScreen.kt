@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.navigation.Route
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -35,7 +37,7 @@ import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 
 @Composable
-fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
+fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit, onOpenCreator: (AfadianUser) -> Unit) {
     val backStack = rememberNavBackStack<Route>(Route.Profile)
 
     NavDisplay(
@@ -48,6 +50,7 @@ fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
                 viewModel = viewModel,
                 onLogout = onLogout,
                 onNavigate = { route -> backStack.add(route) },
+                onOpenCreator = onOpenCreator,
             )
         }
         entry<Route.Favorites> {
@@ -56,10 +59,10 @@ fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
                     LocalContext.current.applicationContext as Application
                 )
             )
-            FavoritesScreen(vm) { backStack.removeLastOrNull() }
+            FavoritesScreen(vm, onOpenCreator) { backStack.removeLastOrNull() }
         }
         entry<Route.Sponsoring> {
-            SponsoringScreen(viewModel) { backStack.removeLastOrNull() }
+            SponsoringScreen(viewModel, onOpenCreator) { backStack.removeLastOrNull() }
         }
         entry<Route.Orders> {
             OrderScreen(onBack = { backStack.removeLastOrNull() })
@@ -78,6 +81,7 @@ private fun ProfileMainScreen(
     viewModel: MainViewModel,
     onLogout: () -> Unit,
     onNavigate: (Route) -> Unit,
+    onOpenCreator: (AfadianUser) -> Unit,
 ) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -98,6 +102,9 @@ private fun ProfileMainScreen(
                             .size(48.dp)
                             .padding(8.dp)
                             .clip(RoundedCornerShape(21.dp))
+                            .clickable {
+                                profile?.user?.takeIf { it.user_id.isNotBlank() }?.let(onOpenCreator)
+                            }
                     )
                 }
             )

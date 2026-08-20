@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.hrsthrt74.afdian.data.content.AfadianUser
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -34,7 +36,11 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 
 @Composable
-fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
+fun FavoritesScreen(
+    viewModel: FavoritesViewModel,
+    onOpenCreator: (AfadianUser) -> Unit,
+    onBack: () -> Unit,
+) {
     val kind by viewModel.kind.collectAsState()
     val items by viewModel.items.collectAsState()
     val loading by viewModel.loading.collectAsState()
@@ -94,9 +100,13 @@ fun FavoritesScreen(viewModel: FavoritesViewModel, onBack: () -> Unit) {
                     item { Text("还没有收藏内容") }
                 } else {
                     items(items, key = { it.id }) { item ->
+                        val onClick = if (kind == 0) {
+                            { onOpenCreator(item.user ?: AfadianUser(user_id = item.id, name = item.title, avatar = item.image)) }
+                        } else null
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
