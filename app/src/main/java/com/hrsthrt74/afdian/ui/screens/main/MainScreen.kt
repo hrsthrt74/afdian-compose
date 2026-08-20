@@ -8,6 +8,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -18,9 +20,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
+import top.yukonga.miuix.kmp.basic.Badge
+import top.yukonga.miuix.kmp.basic.BadgedBox
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
@@ -50,6 +56,7 @@ private val mainTabs = listOf(
  */
 @Composable
 fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
+    val messagesViewModel: MessagesViewModel = viewModel()
     val backStack = rememberNavBackStack<Route>(Route.MainTabs)
 
     NavDisplay(
@@ -61,11 +68,22 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
             MainTabsContent(
                 onLogout = onLogout,
                 viewModel = viewModel,
+                messagesViewModel = messagesViewModel,
                 onOpenCreator = { user -> backStack.add(Route.CreatorDetail(user)) },
+                onOpenConversation = { userId, userName, avatarUrl -> backStack.add(Route.MessageConversation(userId, userName, avatarUrl)) },
             )
         }
         entry<Route.CreatorDetail>(swipeDismiss = NavSwipeDirection.LeftToRight) { route ->
             CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() })
+        }
+        entry<Route.MessageConversation>(swipeDismiss = NavSwipeDirection.LeftToRight) { route ->
+            MessageConversationScreen(
+                userId = route.userId,
+                userName = route.userName,
+                avatarUrl = route.avatarUrl,
+                viewModel = messagesViewModel,
+                onBack = { backStack.removeLastOrNull() }
+            )
         }
     }
 }
@@ -74,7 +92,9 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
 private fun MainTabsContent(
     onLogout: () -> Unit,
     viewModel: MainViewModel,
+    messagesViewModel: MessagesViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
+    onOpenConversation: (String, String, String?) -> Unit,
 ) {
     val context = LocalContext.current
     val startupPage = remember {
@@ -94,6 +114,8 @@ private fun MainTabsContent(
     }
 
     val haptic = LocalHapticFeedback.current
+    val hasUnreadMessages by messagesViewModel.hasUnreadMessages.collectAsState()
+    val unreadCount by messagesViewModel.unreadCount.collectAsState()
 
     Scaffold(
         bottomBar = {
@@ -106,7 +128,12 @@ private fun MainTabsContent(
                             mainPagerState.animateToPage(index)
                         },
                         icon = tab.icon,
-                        label = tab.title
+                        label = tab.title,
+                        badge = if (index == 2 && hasUnreadMessages) {
+                            { Badge( containerColor = MiuixTheme.colorScheme.primary ) { Text("$unreadCount") } }
+                        } else {
+                            null
+                        }
                     )
                 }
             }
@@ -128,7 +155,12 @@ private fun MainTabsContent(
                 when (page) {
                     0 -> HomeScreen(viewModel, onOpenCreator)
                     1 -> DiscoverScreen(viewModel, onOpenCreator)
-                    2 -> MessagesScreen()
+                    2 -> MessagesScreen(messagesViewModel) { route ->
+                        when (route) {
+                            is Route.MessageConversation -> onOpenConversation(route.userId, route.userName, route.avatarUrl)
+                            else -> {}
+                        }
+                    }
                     else -> ProfileScreen(viewModel, onLogout, onOpenCreator)
                 }
             }

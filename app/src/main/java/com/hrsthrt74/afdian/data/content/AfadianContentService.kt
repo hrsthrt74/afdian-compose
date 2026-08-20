@@ -6,9 +6,14 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -19,8 +24,13 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
+private val json = Json { 
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+    isLenient = true
+}
+
 class AfadianContentService(private val tokenStore: AuthTokenStore, private val client: OkHttpClient = OkHttpClient()) {
-    private val json = Json { ignoreUnknownKeys = true }
 
     companion object {
         private const val AFDIAN_HOST = "https://afdian.com"
@@ -78,6 +88,176 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
     suspend fun markCreator(userID: String) = postUserAction("/api/user/mark", userID)
 
     suspend fun unmarkCreator(userID: String) = postUserAction("/api/user/unmark", userID)
+
+    suspend fun fetchMessageDialogs(page: Int = 1, unread: Int = 0): MessageDialogPage {
+        val url = (AFDIAN_HOST + "/api/message/dialogs").toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("page", page.toString())
+            .addQueryParameter("unread", unread.toString())
+            .build()
+        val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("消息列表加载失败 (${response.code})")
+            val body = response.body.string()
+            val root = try { json.parseToJsonElement(body).jsonObject } catch (_: Exception) { error("消息列表加载失败") }
+            val ec = root["ec"]?.jsonPrimitive?.content?.toIntOrNull()
+            if (ec != 200) error(root["message"]?.jsonPrimitive?.contentOrNull ?: "消息列表加载失败")
+            val data = root["data"]?.jsonObject ?: error("消息列表加载失败")
+            val list = data["list"]?.jsonArray?.mapNotNull { element ->
+                runCatching { parseMessageDialog(element.jsonObject) }.getOrNull()
+            }.orEmpty()
+            MessageDialogPage(
+                dialogs = list,
+                totalCount = data["total_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: list.size,
+                totalPage = data["total_page"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1,
+                hasMore = data["has_more"]?.jsonPrimitive?.content?.toIntOrNull() == 1
+            )
+        }
+    }
+
+    private fun parseMessageDialog(obj: JsonObject): MessageDialog {
+        val userObj = obj["user"]?.jsonObject
+        val user = if (userObj != null) {
+            val avatar = userObj["avatar"]?.jsonPrimitive?.contentOrNull
+                ?: userObj["headimgurl"]?.jsonPrimitive?.contentOrNull
+            AfadianUser(
+                user_id = userObj["user_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                name = userObj["name"]?.jsonPrimitive?.contentOrNull ?: "",
+                avatar = avatar,
+                url_slug = userObj["url_slug"]?.jsonPrimitive?.contentOrNull,
+                cover = userObj["cover"]?.jsonPrimitive?.contentOrNull,
+                is_verified = userObj["is_verified"]?.jsonPrimitive?.content?.toIntOrNull()
+            )
+        } else {
+            AfadianUser()
+        }
+        return MessageDialog(
+            latest_msg_id = obj["latest_msg_id"]?.jsonPrimitive?.content?.toIntOrNull(),
+            unread_count = obj["unread_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+            total_count = obj["total_count"]?.jsonPrimitive?.content?.toIntOrNull(),
+            status = obj["status"]?.jsonPrimitive?.content?.toIntOrNull(),
+            user = user,
+            desc = obj["desc"]?.jsonPrimitive?.contentOrNull,
+            send_time = obj["send_time"]?.jsonPrimitive?.content?.toDoubleOrNull()
+        )
+    }
+
+    suspend fun fetchMessages(userID: String, type: String = "old", messageID: String = ""): MessageConversation {
+        val url = (AFDIAN_HOST + "/api/message/messages").toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("user_id", userID)
+            .addQueryParameter("type", type)
+            .addQueryParameter("message_id", messageID)
+            .build()
+        val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("会话加载失败 (${response.code})")
+            val body = response.body.string()
+            val root = try { json.parseToJsonElement(body).jsonObject } catch (_: Exception) { error("会话加载失败") }
+            val ec = root["ec"]?.jsonPrimitive?.content?.toIntOrNull()
+            if (ec != 200) error(root["message"]?.jsonPrimitive?.contentOrNull ?: "会话加载失败")
+            val data = root["data"]?.jsonObject ?: error("会话加载失败")
+            val list = data["list"]?.jsonArray?.mapNotNull { element ->
+                runCatching { parseMessageItem(element.jsonObject) }.getOrNull()
+            }.orEmpty()
+            MessageConversation(
+                messages = list,
+                hasMore = data["has_more"]?.jsonPrimitive?.content?.toIntOrNull() == 1,
+                canSendPictureMessage = data["can_picture_message"]?.jsonPrimitive?.content?.toIntOrNull() == 1
+            )
+        }
+    }
+
+    private fun parseMessageItem(obj: JsonObject): MessageItem {
+        val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: ""
+        val messageObj = obj["message"]?.jsonObject ?: return MessageItem(type = type)
+        val contentElement = messageObj["content"]
+        
+        // 尝试从 content 对象或 message 对象获取 sku_detail
+        val skuDetailSource = if (contentElement is JsonObject) contentElement else messageObj
+        
+        val content = when {
+            contentElement == null || contentElement is JsonNull -> MessageContent.Empty
+            contentElement is JsonPrimitive && contentElement.isString -> MessageContent.Text(contentElement.content)
+            contentElement is JsonObject -> {
+                val skuDetail = skuDetailSource["sku_detail"]?.jsonArray?.mapNotNull { skuElement ->
+                    runCatching {
+                        val skuObj = skuElement.jsonObject
+                        MessageSKU(
+                            sku_id = skuObj["sku_id"]?.jsonPrimitive?.contentOrNull,
+                            count = skuObj["count"]?.jsonPrimitive?.content?.toIntOrNull(),
+                            name = skuObj["name"]?.jsonPrimitive?.contentOrNull,
+                            pic = skuObj["pic"]?.jsonPrimitive?.contentOrNull
+                        )
+                    }.getOrNull()
+                }
+                
+                // 解析 plan 对象
+                val planElement = contentElement["plan"]
+                val plan = if (planElement is JsonObject) {
+                    CreatorPlan(
+                        plan_id = planElement["plan_id"]?.jsonPrimitive?.contentOrNull,
+                        name = planElement["name"]?.jsonPrimitive?.contentOrNull,
+                        title = planElement["title"]?.jsonPrimitive?.contentOrNull,
+                        pic = planElement["pic"]?.jsonPrimitive?.contentOrNull,
+                        price = planElement["price"]?.jsonPrimitive?.contentOrNull,
+                        show_price = planElement["show_price"]?.jsonPrimitive?.contentOrNull
+                    )
+                } else null
+                
+                val objContent = MessageObjectContent(
+                    out_trade_no = contentElement["out_trade_no"]?.jsonPrimitive?.contentOrNull,
+                    show_amount = contentElement["show_amount"]?.jsonPrimitive?.contentOrNull,
+                    total_amount = contentElement["total_amount"]?.jsonPrimitive?.contentOrNull,
+                    per_month = contentElement["per_month"]?.jsonPrimitive?.contentOrNull,
+                    month = contentElement["month"]?.jsonPrimitive?.content?.toIntOrNull(),
+                    remark = contentElement["remark"]?.jsonPrimitive?.contentOrNull,
+                    plan = plan,
+                    sku_detail = skuDetail,
+                    product_type = contentElement["product_type"]?.jsonPrimitive?.content?.toIntOrNull()
+                )
+                MessageContent.Object(objContent)
+            }
+            else -> MessageContent.Empty
+        }
+        val record = MessageRecord(
+            msg_id = messageObj["msg_id"]?.jsonPrimitive?.content?.toIntOrNull(),
+            id = messageObj["id"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+            sender = messageObj["sender"]?.jsonPrimitive?.contentOrNull,
+            r_status = messageObj["r_status"]?.jsonPrimitive?.content?.toIntOrNull(),
+            type = messageObj["type"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+            content = content,
+            send_time = messageObj["send_time"]?.jsonPrimitive?.content?.toDoubleOrNull()
+        )
+        return MessageItem(type = type, message = record)
+    }
+
+    suspend fun fetchFAQs(userID: String): List<MessageFAQ> {
+        val response = get("/api/faq/list-faq?user_id=$userID", MessageFAQResponse.serializer())
+        if (response.ec != 200) error(response.message ?: "快捷回复加载失败")
+        return response.data?.other_list.orEmpty()
+    }
+
+    suspend fun sendMessage(userID: String, content: String): MessageItem {
+        val url = "$IFDIAN_HOST/api/message/send".toHttpUrl()
+        val body = json.encodeToString(
+            MessageSendRequest.serializer(),
+            MessageSendRequest(user_id = userID, type = "1", content = content, auth_token = tokenStore.token)
+        ).toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(url).post(body).header("Cookie", "auth_token=${tokenStore.token}").build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("消息发送失败 (${response.code})")
+            val result = json.decodeFromString<MessageSendResponse>(response.body.string())
+            if (result.ec != 200) error(result.message ?: "消息发送失败")
+            result.toMessageItem() ?: run {
+                val id = (System.currentTimeMillis() / 1000).toInt()
+                MessageItem(
+                    type = "send",
+                    message = MessageRecord(msg_id = id, id = id, r_status = 1, type = 1, content = MessageContent.Text(content), send_time = System.currentTimeMillis() / 1000.0)
+                )
+            }
+        }
+    }
 
     private fun fetchProfileBySlug(slug: String): AfadianUser =
         get("/api/user/get-profile-by-slug?url_slug=$slug", UserProfileResponse.serializer()).data?.user
@@ -300,3 +480,161 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
 @Serializable private data class CreatorAlbumsPayload(val list: List<CreatorAlbum>? = null, val albums: List<CreatorAlbum>? = null)
 @Serializable private data class CreatorProductsResponse(val ec: Int? = null, val data: CreatorProductsPayload? = null)
 @Serializable private data class CreatorProductsPayload(val list: List<CreatorProduct>? = null)
+
+@Serializable data class MessageDialogPage(
+    val dialogs: List<MessageDialog> = emptyList(),
+    val totalCount: Int = 0,
+    val totalPage: Int = 1,
+    val hasMore: Boolean = false
+)
+
+data class MessageConversation(
+    val messages: List<MessageItem> = emptyList(),
+    val hasMore: Boolean = false,
+    val canSendPictureMessage: Boolean = false
+)
+
+@Serializable data class MessageDialog(
+    val latest_msg_id: Int? = null,
+    val unread_count: Int = 0,
+    val total_count: Int? = null,
+    val status: Int? = null,
+    val user: AfadianUser = AfadianUser(),
+    val desc: String? = null,
+    val send_time: Double? = null
+) {
+    val id: String get() = user.user_id
+}
+
+data class MessageItem(
+    val type: String = "",
+    val message: MessageRecord = MessageRecord()
+) {
+    val id: Int get() = message.msg_id ?: message.id
+    val isSentByMe: Boolean get() = type == "send"
+}
+
+@Serializable
+private data class MessageItemRaw(
+    val type: String = "",
+    val message: MessageRecordRaw = MessageRecordRaw()
+) {
+    fun toMessageItem() = MessageItem(
+        type = type,
+        message = message.toMessageRecord()
+    )
+}
+
+data class MessageRecord(
+    val msg_id: Int? = null,
+    val id: Int = 0,
+    val sender: String? = null,
+    val r_status: Int? = null,
+    val type: Int = 0,
+    val content: MessageContent = MessageContent.Empty,
+    val send_time: Double? = null
+)
+
+sealed class MessageContent {
+    data class Text(val text: String) : MessageContent()
+    data class Object(val content: MessageObjectContent) : MessageContent()
+    data object Empty : MessageContent()
+}
+
+@Serializable
+private data class MessageRecordRaw(
+    val msg_id: Int? = null,
+    val id: Int = 0,
+    val sender: String? = null,
+    val r_status: Int? = null,
+    val type: Int = 0,
+    val content: JsonElement? = null,
+    val send_time: Double? = null
+)
+
+private fun MessageRecordRaw.toMessageRecord(): MessageRecord {
+    val messageContent = when {
+        content == null || content is JsonNull -> MessageContent.Empty
+        content is JsonPrimitive && content.isString -> MessageContent.Text(content.content)
+        content is JsonObject -> {
+            val obj = json.decodeFromJsonElement(MessageObjectContent.serializer(), content)
+            MessageContent.Object(obj)
+        }
+        else -> MessageContent.Empty
+    }
+    return MessageRecord(
+        msg_id = msg_id,
+        id = id,
+        sender = sender,
+        r_status = r_status,
+        type = type,
+        content = messageContent,
+        send_time = send_time
+    )
+}
+
+@Serializable data class MessageObjectContent(
+    val out_trade_no: String? = null,
+    val show_amount: String? = null,
+    val total_amount: String? = null,
+    val per_month: String? = null,
+    val month: Int? = null,
+    val remark: String? = null,
+    val plan: CreatorPlan? = null,
+    val sku_detail: List<MessageSKU>? = null,
+    val group: MessageGroup? = null,
+    val product_type: Int? = null
+)
+
+@Serializable data class MessageSKU(
+    val sku_id: String? = null,
+    val count: Int? = null,
+    val name: String? = null,
+    val pic: String? = null
+) {
+    val id: String get() = sku_id ?: listOfNotNull(name, pic).joinToString("-")
+}
+
+@Serializable data class MessageGroup(
+    val group_id: String? = null,
+    val title: String? = null,
+    val cover: String? = null,
+    val content: String? = null,
+    val member_count: Int? = null
+)
+
+@Serializable data class MessageFAQ(
+    val id: Int = 0,
+    val title: String = ""
+)
+
+@Serializable data class MessageSendRequest(
+    val user_id: String,
+    val type: String,
+    val content: String,
+    val auth_token: String?
+)
+
+@Serializable private data class MessageDialogsResponse(val ec: Int? = null, val message: String? = null, val data: MessageDialogsData? = null)
+@Serializable private data class MessageDialogsData(
+    val list: List<MessageDialog> = emptyList(),
+    val total_count: Int? = null,
+    val total_page: Int? = null,
+    val has_more: Int? = null
+)
+
+@Serializable private data class MessagesResponse(val ec: Int? = null, val message: String? = null, val data: MessagesData? = null)
+@Serializable private data class MessagesData(
+    val list: List<MessageItemRaw> = emptyList(),
+    val has_more: Int? = null,
+    val can_picture_message: Int? = null
+) {
+    fun toMessages() = list.map { it.toMessageItem() }
+}
+
+@Serializable private data class MessageFAQResponse(val ec: Int? = null, val message: String? = null, val data: MessageFAQData? = null)
+@Serializable private data class MessageFAQData(val other_list: List<MessageFAQ>? = null)
+
+@Serializable private data class MessageSendResponse(val ec: Int? = null, val message: String? = null, val data: MessageItemRaw? = null) {
+    fun toMessageItem() = data?.toMessageItem()
+}

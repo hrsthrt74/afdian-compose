@@ -15,6 +15,7 @@ sealed interface Route : NavKey {
     @Serializable data object Profile : Route
 
     @Serializable data class CreatorDetail(val user: AfadianUser) : Route
+    @Serializable data class MessageConversation(val userId: String, val userName: String, val avatarUrl: String? = null) : Route
 
     @Serializable data object Favorites : Route
     @Serializable data object Sponsoring : Route
