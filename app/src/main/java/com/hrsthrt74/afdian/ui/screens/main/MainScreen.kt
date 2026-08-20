@@ -95,7 +95,7 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
             ) {
                 when (page) {
                     0 -> HomeScreen(viewModel)
-                    1 -> DiscoverScreen()
+                    1 -> DiscoverScreen(viewModel)
                     2 -> MessagesScreen()
                     else -> ProfileScreen(viewModel, onLogout)
                 }

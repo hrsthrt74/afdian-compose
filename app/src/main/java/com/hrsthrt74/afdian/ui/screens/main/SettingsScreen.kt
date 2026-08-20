@@ -31,7 +31,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
-private val startupPageNames = listOf("首页", "发现", "动态", "消息", "我的")
+private val startupPageNames = listOf("首页", "发现", "消息", "我的")
 
 @Composable
 fun SettingsScreen(
@@ -83,7 +83,6 @@ fun SettingsScreen(
                     Card(modifier = Modifier.fillMaxWidth()) {
                         OverlayDropdownPreference(
                             title = "打开 App 后默认进入",
-//                            summary = "打开 App 后默认进入 ${startupPageNames.getOrElse(startupPage) { "首页" }}",
                             items = startupPageNames,
                             selectedIndex = startupPage,
                             onSelectedIndexChange = viewModel::setStartupPage
@@ -97,7 +96,7 @@ fun SettingsScreen(
                             checked = useAfdianColor,
                             onCheckedChange = viewModel::setUseAfdianColor,
                             title = "使用爱发电主题色",
-                            summary = "用爱发电品牌紫作为主色"
+//                            summary = "用爱发电品牌紫作为主色"
                         )
                     }
                 }

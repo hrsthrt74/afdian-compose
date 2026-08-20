@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -42,11 +40,7 @@ fun HomeScreen(viewModel: MainViewModel) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
 
-    val posts by viewModel.posts.collectAsState()
-    val account by viewModel.account.collectAsState()
-    val profile by viewModel.profile.collectAsState()
     val sponsoring by viewModel.sponsoring.collectAsState()
-    val error by viewModel.error.collectAsState()
     val loading by viewModel.isLoading.collectAsState()
 
     Scaffold(
@@ -108,67 +102,6 @@ fun HomeScreen(viewModel: MainViewModel) {
 
                                 }
                             }
-                        }
-                    }
-                }
-
-                item {
-                    SmallTitle(text = "全站精选")
-                }
-
-                if (error != null) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(error!!)
-                            Button(onClick = viewModel::refresh) {
-                                Text("重试")
-                            }
-                        }
-                    }
-                } else if (posts.isEmpty()) {
-                    item {
-                        Text(if (loading) "正在加载精选内容…" else "暂无精选内容")
-                    }
-                } else {
-                    items(posts, key = { it.id }) { post ->
-                        Card() {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                            ) {
-                                Row {
-                                    AsyncImage(
-                                        model = post.user.avatar,
-                                        contentDescription = post.user.name,
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(18.dp))
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(post.user.name.ifBlank { "爱发电用户" })
-                                        Text(post.title)
-                                    }
-                                }
-                                if (!post.cover.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    AsyncImage(
-                                        model = post.cover,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(180.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                    )
-                                }
-                                if (post.summary.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(post.summary, maxLines = 3)
-                                }
-                                Text("点赞 ${post.like_count ?: 0}   评论 ${post.comment_count ?: 0}")
-                            }
-
                         }
                     }
                 }
