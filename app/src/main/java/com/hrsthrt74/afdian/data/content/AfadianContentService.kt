@@ -61,7 +61,7 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                     id = value.string("post_id") ?: value.string("user_id") ?: value.string("crowdfunding_id") ?: value.string("id") ?: return@mapNotNull null,
                     title = value.string("title") ?: value.string("name") ?: "未命名内容",
                     subtitle = value.string("preview") ?: value.string("preview_text") ?: value.string("desc") ?: value.string("doing") ?: "",
-                    image = value.string("cover") ?: value.string("avatar")
+                    image = value.string("avatar") ?: value.string("cover")
                 )
             }
         }

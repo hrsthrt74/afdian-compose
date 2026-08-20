@@ -20,7 +20,6 @@ import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Album
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Home
@@ -35,7 +34,6 @@ private data class MainTab(val title: String, val icon: ImageVector)
 private val mainTabs = listOf(
     MainTab("首页", MiuixIcons.Home),
     MainTab("发现", MiuixIcons.Search),
-    MainTab("动态", MiuixIcons.Album),
     MainTab("消息", MiuixIcons.Community),
     MainTab("我的", MiuixIcons.Contacts),
 )
@@ -98,8 +96,7 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
                 when (page) {
                     0 -> HomeScreen(viewModel)
                     1 -> DiscoverScreen()
-                    2 -> ActivityScreen()
-                    3 -> MessagesScreen()
+                    2 -> MessagesScreen()
                     else -> ProfileScreen(viewModel, onLogout)
                 }
             }

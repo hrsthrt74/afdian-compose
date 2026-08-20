@@ -25,6 +25,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -72,7 +73,6 @@ fun HomeScreen(viewModel: MainViewModel) {
                     end = 20.dp,
                     bottom = 24.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
                     SmallTitle(text = "我发电的")
@@ -90,19 +90,22 @@ fun HomeScreen(viewModel: MainViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(sponsoring, key = { it.id }) { item ->
-                                Column(modifier = Modifier.width(132.dp)) {
-                                    AsyncImage(
-                                        model = item.user.avatar,
-                                        contentDescription = item.user.name,
-                                        modifier = Modifier
-                                            .size(56.dp)
-                                            .clip(RoundedCornerShape(28.dp))
-                                    )
-                                    Text(item.user.name.ifBlank { "创作者" })
-                                    Text(item.planName)
-                                    if ((item.new_post_count ?: 0) > 0) {
-                                        Text("${item.new_post_count} 条新动态")
+                                Card(){
+                                    Column(modifier = Modifier.width(132.dp)) {
+                                        AsyncImage(
+                                            model = item.user.avatar,
+                                            contentDescription = item.user.name,
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(16.dp))
+                                        )
+                                        Text(item.user.name.ifBlank { "创作者" })
+                                        Text(item.planName)
+                                        if ((item.new_post_count ?: 0) > 0) {
+                                            Text("${item.new_post_count} 条新动态")
+                                        }
                                     }
+
                                 }
                             }
                         }
@@ -128,41 +131,44 @@ fun HomeScreen(viewModel: MainViewModel) {
                     }
                 } else {
                     items(posts, key = { it.id }) { post ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Row {
-                                AsyncImage(
-                                    model = post.user.avatar,
-                                    contentDescription = post.user.name,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(RoundedCornerShape(18.dp))
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(post.user.name.ifBlank { "爱发电用户" })
-                                    Text(post.title)
+                        Card() {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Row {
+                                    AsyncImage(
+                                        model = post.user.avatar,
+                                        contentDescription = post.user.name,
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(18.dp))
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(post.user.name.ifBlank { "爱发电用户" })
+                                        Text(post.title)
+                                    }
                                 }
+                                if (!post.cover.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    AsyncImage(
+                                        model = post.cover,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(180.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                    )
+                                }
+                                if (post.summary.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(post.summary, maxLines = 3)
+                                }
+                                Text("点赞 ${post.like_count ?: 0}   评论 ${post.comment_count ?: 0}")
                             }
-                            if (!post.cover.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                AsyncImage(
-                                    model = post.cover,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(180.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                )
-                            }
-                            if (post.summary.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(post.summary, maxLines = 3)
-                            }
-                            Text("点赞 ${post.like_count ?: 0}   评论 ${post.comment_count ?: 0}")
+
                         }
                     }
                 }

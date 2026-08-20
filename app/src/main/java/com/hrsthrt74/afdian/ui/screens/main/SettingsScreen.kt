@@ -82,8 +82,8 @@ fun SettingsScreen(
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         OverlayDropdownPreference(
-                            title = "启动时显示的页面",
-                            summary = "打开 App 后默认进入 ${startupPageNames.getOrElse(startupPage) { "首页" }}",
+                            title = "打开 App 后默认进入",
+//                            summary = "打开 App 后默认进入 ${startupPageNames.getOrElse(startupPage) { "首页" }}",
                             items = startupPageNames,
                             selectedIndex = startupPage,
                             onSelectedIndexChange = viewModel::setStartupPage
