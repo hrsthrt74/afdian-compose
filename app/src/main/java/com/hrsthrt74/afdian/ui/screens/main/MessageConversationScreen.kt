@@ -372,12 +372,13 @@ private fun MessageBubble(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(MiuixTheme.colorScheme.onSurface),
+                        .background(MiuixTheme.colorScheme.surface),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = userName.take(1),
-                        style = MiuixTheme.textStyles.body1
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onPrimary
                     )
                 }
             }
@@ -416,7 +417,8 @@ private fun MessageBubble(
             ) {
                 Text(
                     text = "我",
-                    style = MiuixTheme.textStyles.body1
+                    style = MiuixTheme.textStyles.body1,
+                    color = MiuixTheme.colorScheme.onPrimary
                 )
             }
         }
