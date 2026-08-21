@@ -24,6 +24,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.ui.components.Avatar
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -103,12 +104,10 @@ fun SponsoringScreen(
                                 .clickable { onOpenCreator(item.user) }
                                 .padding(vertical = 8.dp)
                         ) {
-                            AsyncImage(
+                            Avatar(
                                 model = item.user.avatar,
+                                size = 56.dp,
                                 contentDescription = item.user.name,
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .clip(RoundedCornerShape(28.dp)),
                             )
                             Column(modifier = Modifier.padding(start = 12.dp)) {
                                 Text(item.user.name.ifBlank { "创作者" })

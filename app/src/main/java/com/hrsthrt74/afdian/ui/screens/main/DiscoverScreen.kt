@@ -25,6 +25,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.ui.components.Avatar
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -97,12 +98,10 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                                         .fillMaxWidth()
                                         .clickable { onOpenCreator(post.user) }
                                 ) {
-                                    AsyncImage(
+                                    Avatar(
                                         model = post.user.avatar,
+                                        size = 36.dp,
                                         contentDescription = post.user.name,
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(18.dp))
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {

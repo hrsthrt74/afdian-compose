@@ -34,8 +34,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.MessageDialog
+import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.navigation.Route
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -218,13 +218,10 @@ private fun MessageDialogRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 1. 头像
-            AsyncImage(
+            Avatar(
                 model = dialog.user.avatar,
+                size = 48.dp,
                 contentDescription = dialog.user.name,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
             )
 
             Spacer(modifier = Modifier.width(12.dp))

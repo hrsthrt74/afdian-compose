@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.MessageContent
+import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MessageObjectContent
@@ -359,13 +360,10 @@ private fun MessageBubble(
         // 头像
         if (!isSentByMe) {
             if (avatarUrl != null) {
-                AsyncImage(
+                Avatar(
                     model = avatarUrl,
+                    size = 42.dp,
                     contentDescription = userName,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
                 )
             } else {
                 Box(

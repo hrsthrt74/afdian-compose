@@ -26,6 +26,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.ui.components.Avatar
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -88,12 +89,10 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
                             items(sponsoring, key = { it.id }) { item ->
                                 Card(onClick = { onOpenCreator(item.user) }) {
                                     Column(modifier = Modifier.width(132.dp)) {
-                                        AsyncImage(
+                                        Avatar(
                                             model = item.user.avatar,
+                                            size = 32.dp,
                                             contentDescription = item.user.name,
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(16.dp))
                                         )
                                         Text(item.user.name.ifBlank { "创作者" })
                                         Text(item.planName)

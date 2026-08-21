@@ -1,0 +1,60 @@
+package com.hrsthrt74.afdian.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * 圆形头像组件
+ *
+ * 自动将图片居中裁剪为正方形，并显示为圆形。
+ * 支持自定义大小、占位符、错误状态和点击事件。
+ *
+ * @param model 图片URL、Uri或Coil支持的任意数据源
+ * @param size 头像尺寸（宽高相等），默认48dp
+ * @param contentDescription 无障碍描述
+ * @param onClick 点击回调，传null则不可点击
+ * @param modifier 修饰符
+ */
+@Composable
+fun Avatar(
+    model: Any?,
+    size: Dp = 48.dp,
+    contentDescription: String? = null,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    // 根据是否有点击事件决定修饰符链
+    val clickableModifier = if (onClick != null) {
+        Modifier.clickable(onClick = onClick)
+    } else {
+        Modifier
+    }
+
+    // Box 负责圆形裁剪、背景填充和点击涟漪，图片只管填充
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(MiuixTheme.colorScheme.disabledSecondary)
+            .then(clickableModifier),
+    ) {
+        AsyncImage(
+            model = model,
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+    }
+}
