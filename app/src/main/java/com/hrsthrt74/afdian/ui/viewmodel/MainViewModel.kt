@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
@@ -28,9 +29,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val sponsoring = _sponsoring.asStateFlow()
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore = _isLoadingMore.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+    private val _hasMore = MutableStateFlow(true)
+    val hasMore = _hasMore.asStateFlow()
+    private var nextPublishSN = ""
+
     init { refresh() }
+
     fun refresh() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -53,11 +61,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _account.value = result.account
                 _profile.value = result.profile
                 _sponsoring.value = result.sponsoring
-                _posts.value = result.posts
+                _posts.value = result.postsPage.posts
+                nextPublishSN = result.postsPage.nextPublishSN
+                _hasMore.value = result.postsPage.hasMore
+                Log.d("Discover", "refresh: posts=${result.postsPage.posts.size}, nextSN=$nextPublishSN, hasMore=${result.postsPage.hasMore}")
             } catch (e: Exception) {
                 _error.value = e.message ?: "首页内容加载失败"
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun loadMore() {
+        Log.d("Discover", "loadMore called: isLoadingMore=${_isLoadingMore.value}, hasMore=${_hasMore.value}, nextSN=$nextPublishSN")
+        if (_isLoadingMore.value || !_hasMore.value || nextPublishSN.isBlank()) return
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            try {
+                val page = withContext(Dispatchers.IO) { service.fetchRecommendedPosts(nextPublishSN) }
+                Log.d("Discover", "loadMore result: newPosts=${page.posts.size}, nextSN=${page.nextPublishSN}, hasMore=${page.hasMore}")
+                _posts.value = _posts.value + page.posts
+                nextPublishSN = page.nextPublishSN
+                _hasMore.value = page.hasMore
+            } catch (e: Exception) {
+                Log.e("Discover", "loadMore failed", e)
+            } finally {
+                _isLoadingMore.value = false
             }
         }
     }
@@ -67,5 +97,5 @@ private data class AccountResult(
     val account: AfadianAccount,
     val profile: AfadianProfile,
     val sponsoring: List<SponsoringItem>,
-    val posts: List<RecommendedPost>,
+    val postsPage: com.hrsthrt74.afdian.data.content.RecommendedPostsPage,
 )

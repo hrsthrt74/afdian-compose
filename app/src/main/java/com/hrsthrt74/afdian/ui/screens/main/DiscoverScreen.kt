@@ -1,41 +1,37 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
-import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.PostCard
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 
 @Composable
 fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
@@ -45,6 +41,13 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
     val posts by viewModel.posts.collectAsState()
     val error by viewModel.error.collectAsState()
     val loading by viewModel.isLoading.collectAsState()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasMore by viewModel.hasMore.collectAsState()
+
+    val listState = rememberLazyListState()
+
+    // 滚动到底部附近时触发加载更多
+    LoadMoreEffect(listState, hasMore, isLoadingMore) { viewModel.loadMore() }
 
     Scaffold(
         topBar = {
@@ -56,6 +59,7 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -90,51 +94,46 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                     }
                 } else {
                     items(posts, key = { it.id }) { post ->
-                        Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onOpenCreator(post.user) }
-                                ) {
-                                    Avatar(
-                                        model = post.user.avatar,
-                                        size = 36.dp,
-                                        contentDescription = post.user.name,
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(post.user.name.ifBlank { "爱发电用户" })
-                                        Text(post.title)
-                                    }
-                                }
-                                if (!post.cover.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    AsyncImage(
-                                        model = post.cover,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(180.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                    )
-                                }
-                                if (post.summary.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(post.summary, maxLines = 3)
-                                }
-                                Text("点赞 ${post.like_count ?: 0}   评论 ${post.comment_count ?: 0}")
-                            }
-
-                        }
+                        PostCard(
+                            post = post,
+                            profile = post.user,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                            onCreatorClick = { onOpenCreator(post.user) },
+                            showDoing = true,
+                        )
+                    }
+                    // 底部加载指示器
+                    if (isLoadingMore) {
+                        item { LoadingComponent(modifier = Modifier.padding(vertical = 16.dp)) }
                     }
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
+    }
+}
+
+/**
+ * 当列表滚动到倒数第 [threshold] 个元素时，触发 [onLoadMore]。
+ * 仅在有更多数据且当前未加载中时触发。
+ */
+@Composable
+private fun LoadMoreEffect(
+    listState: LazyListState,
+    hasMore: Boolean,
+    isLoadingMore: Boolean,
+    threshold: Int = 3,
+    onLoadMore: () -> Unit,
+) {
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val total = layoutInfo.totalItemsCount
+            hasMore && !isLoadingMore && total > 0 && lastVisible >= total - threshold
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) onLoadMore()
     }
 }

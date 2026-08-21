@@ -47,14 +47,21 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
     suspend fun fetchMarkedCreators(): List<FavoriteItem> = fetchFavoriteList("/api/my/marked") { it["user"]?.jsonObject ?: it }
     suspend fun fetchMarkedPosts(): List<FavoriteItem> = fetchFavoriteList("/api/my/marked-post") { it["post"]?.jsonObject ?: it }
     suspend fun fetchMarkedCrowdfundings(): List<FavoriteItem> = fetchFavoriteList("/api/user/marked-crowdfunding") { it["crowdfunding"]?.jsonObject ?: it }
-    suspend fun fetchRecommendedPosts(publishSN: String = ""): List<RecommendedPost> {
+    suspend fun fetchRecommendedPosts(publishSN: String = ""): RecommendedPostsPage {
         val url = "https://afdian.com/api/post/get-rec-list".toHttpUrl().newBuilder()
             .addQueryParameter("auth_token", tokenStore.token).addQueryParameter("publish_sn", publishSN)
             .addQueryParameter("type", "old").addQueryParameter("all", "1").build()
         val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
         return client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("内容加载失败 (${response.code})")
-            json.decodeFromString<RecommendedPostsResponse>(response.body.string()).data?.list.orEmpty()
+            val payload = json.decodeFromString<RecommendedPostsResponse>(response.body.string()).data
+            val posts = payload?.list.orEmpty()
+            val nextSN = posts.lastOrNull()?.publish_sn?.toString().orEmpty()
+            RecommendedPostsPage(
+                posts = posts,
+                nextPublishSN = nextSN,
+                hasMore = (payload?.has_more ?: 0) == 1,
+            )
         }
     }
 
@@ -287,11 +294,27 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         return payload.list ?: payload.albums ?: emptyList()
     }
 
-    private fun fetchUserPosts(userID: String): List<RecommendedPost> =
-        get(
-            "/api/post/get-list?user_id=$userID&type=old&publish_sn=&per_page=10&group_id=&all=1&is_public=&plan_id=&title=&name=",
-            RecommendedPostsResponse.serializer()
-        ).data?.list.orEmpty()
+    /** 获取用户动态：先获取相册列表，再遍历每个相册拉取帖子，合并去重后按时间倒序排列 */
+    private suspend fun fetchUserPosts(userID: String): List<RecommendedPost> {
+        // 1. 获取该用户的所有相册（每个相册就是一组动态）
+        val albums = fetchAlbums(userID)
+        if (albums.isEmpty()) return emptyList()
+        // 2. 并发获取每个相册下的帖子
+        return coroutineScope {
+            albums.mapNotNull { it.album_id }.map { albumID ->
+                async {
+                    runCatching {
+                        get(
+                            "/api/user/get-album-post?album_id=$albumID",
+                            AlbumPostsResponse.serializer()
+                        ).data?.list.orEmpty()
+                    }.getOrDefault(emptyList())
+                }
+            }.flatMap { it.await() }
+              .distinctBy { it.post_id }
+              .sortedByDescending { it.publish_time ?: 0L }
+        }
+    }
 
     private fun fetchCreatorProducts(userID: String): List<CreatorProduct> =
         get(
@@ -364,15 +387,38 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
 @Serializable private data class SponsoringResponse(val ec: Int? = null, val data: SponsoringPayload? = null)
 @Serializable private data class SponsoringPayload(val sponsoring: List<SponsoringItem> = emptyList())
 @Serializable private data class RecommendedPostsResponse(val data: PostPayload? = null)
-@Serializable private data class PostPayload(val list: List<RecommendedPost> = emptyList())
+@Serializable private data class PostPayload(
+    val list: List<RecommendedPost> = emptyList(),
+    val has_more: Int? = null,
+)
+@Serializable private data class AlbumPostsResponse(val data: AlbumPostsPayload? = null)
+@Serializable private data class AlbumPostsPayload(val list: List<RecommendedPost> = emptyList(), val has_more: Int? = null)
+
+/** 推荐帖子分页结果 */
+data class RecommendedPostsPage(
+    val posts: List<RecommendedPost>,
+    val nextPublishSN: String,
+    val hasMore: Boolean,
+)
 @Serializable data class RecommendedPost(
     val post_id: String = "", val title: String = "", val preview: String? = null,
     val content: String? = null, val cover: String? = null, val like_count: Int? = null,
     val comment_count: Int? = null, val user: AfadianUser = AfadianUser(),
+    val pics: List<String>? = null,           // 动态图片列表
+    val publish_time: Long? = null,           // 发布时间（Unix 秒）
+    val publish_sn: Long? = null,             // 发布序号（用于分页游标）
+    val is_public: Int? = null,               // 是否公开
+    val min_price: String? = null,            // 最低价格（付费内容）
+    val albums: List<PostAlbum>? = null,      // 所属相册列表
 ) {
     val id: String get() = post_id
     val summary: String get() = (preview ?: content).orEmpty()
 }
+
+/** 动态所属相册的精简信息 */
+@Serializable data class PostAlbum(
+    val album_id: String = "", val title: String = "", val post_count: Int? = null,
+)
 
 @Serializable data class AfadianUser(
     val user_id: String = "", val name: String = "", val avatar: String? = null, val url_slug: String? = null,
