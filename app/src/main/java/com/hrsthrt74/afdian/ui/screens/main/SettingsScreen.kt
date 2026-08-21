@@ -30,6 +30,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
 
 private val startupPageNames = listOf("首页", "发现", "消息", "我的")
 

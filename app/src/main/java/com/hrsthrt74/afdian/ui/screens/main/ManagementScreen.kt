@@ -40,6 +40,7 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.hrsthrt74.afdian.ui.viewmodel.ManagementViewModel
 
 @Composable
 fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel? = null) {

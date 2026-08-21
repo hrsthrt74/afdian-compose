@@ -33,6 +33,8 @@ import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 
 @Composable
 fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit, onOpenCreator: (AfadianUser) -> Unit) {

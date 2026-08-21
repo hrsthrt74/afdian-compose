@@ -34,6 +34,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import com.hrsthrt74.afdian.ui.viewmodel.OrderViewModel
 
 @Composable
 fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {

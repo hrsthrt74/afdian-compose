@@ -37,6 +37,8 @@ import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 
 /**
  * 底部导航 Tab 定义：标题 + 图标。

@@ -35,6 +35,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 
 @Composable
 fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
