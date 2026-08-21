@@ -155,16 +155,7 @@ fun MessagesScreen(
                         }
 
                         if (isLoadingMore) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("加载更多...", style = MiuixTheme.textStyles.body2)
-                                }
-                            }
+                            item { LoadingComponent() }
                         }
                     }
                 }
