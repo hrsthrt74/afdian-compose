@@ -57,19 +57,20 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding() + 12.dp,
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = 24.dp
-                ),
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = paddingValues.calculateBottomPadding()
+                )
             ) {
                 item {
-                    SmallTitle(text = "全站精选")
+                    SmallTitle(text = "全站精选", modifier = Modifier.padding(start = 4.dp))
                 }
 
                 if (error != null) {
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        ) {
                             Text(error!!)
                             Button(onClick = viewModel::refresh) {
                                 Text("重试")
@@ -78,11 +79,14 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                     }
                 } else if (posts.isEmpty()) {
                     item {
-                        Text(if (loading) "正在加载精选内容…" else "暂无精选内容")
+                        Text(
+                            if (loading) "正在加载精选内容…" else "暂无精选内容",
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
                     }
                 } else {
                     items(posts, key = { it.id }) { post ->
-                        Card() {
+                        Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -127,6 +131,7 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                         }
                     }
                 }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }

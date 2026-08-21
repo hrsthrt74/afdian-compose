@@ -1,11 +1,11 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
@@ -71,16 +71,13 @@ fun SettingsScreen(
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding() + 12.dp,
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = 24.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = paddingValues.calculateBottomPadding()
+                )
             ) {
-                item { SmallTitle(text = "启动") }
+                item { SmallTitle(text = "启动", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                         OverlayDropdownPreference(
                             title = "打开 App 后默认进入",
                             items = startupPageNames,
@@ -89,9 +86,9 @@ fun SettingsScreen(
                         )
                     }
                 }
-                item { SmallTitle(text = "外观") }
+                item { SmallTitle(text = "外观", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp)) {
                         SwitchPreference(
                             checked = useAfdianColor,
                             onCheckedChange = viewModel::setUseAfdianColor,
@@ -100,6 +97,7 @@ fun SettingsScreen(
                         )
                     }
                 }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }

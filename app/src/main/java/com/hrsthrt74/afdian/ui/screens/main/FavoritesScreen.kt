@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -72,12 +74,9 @@ fun FavoritesScreen(
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding() + 12.dp,
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = 24.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = paddingValues.calculateBottomPadding()
+                )
             ) {
                 item {
                     TabRow(
@@ -88,16 +87,19 @@ fun FavoritesScreen(
                 }
 
                 if (loading) {
-                    item { Text("加载中…") }
+                    item { Text("加载中…", modifier = Modifier.padding(horizontal = 12.dp)) }
                 } else if (error != null) {
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        ) {
                             Text(error!!)
                             Button(onClick = viewModel::load) { Text("重试") }
                         }
                     }
                 } else if (items.isEmpty()) {
-                    item { Text("还没有收藏内容") }
+                    item { Text("还没有收藏内容", modifier = Modifier.padding(horizontal = 12.dp)) }
                 } else {
                     items(items, key = { it.id }) { item ->
                         val onClick = if (kind == 0) {
@@ -106,6 +108,7 @@ fun FavoritesScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(horizontal = 12.dp)
                                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -124,6 +127,7 @@ fun FavoritesScreen(
                         }
                     }
                 }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }

@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -116,16 +118,14 @@ private fun ProfileMainScreen(
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding() + 12.dp,
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = 24.dp
-                ),
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = paddingValues.calculateBottomPadding()
+                )
             ) {
                 // 我的
-                item { SmallTitle(text = "我的") }
+                item { SmallTitle(text = "我的", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                         ArrowPreference(
                             title = "我发电的",
                             summary = "${sponsoring.size} 位创作者",
@@ -135,9 +135,9 @@ private fun ProfileMainScreen(
                 }
 
                 // 我的订单
-                item { SmallTitle(text = "我的订单") }
+                item { SmallTitle(text = "我的订单", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                         ArrowPreference(
                             title = "全部订单",
                             summary = "查看赞助和商品订单",
@@ -147,9 +147,9 @@ private fun ProfileMainScreen(
                 }
 
                 // 管理
-                item { SmallTitle(text = "管理") }
+                item { SmallTitle(text = "管理", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                         ArrowPreference(
                             title = "管理中心",
                             summary = "概况、收入、订单和赞助者",
@@ -159,9 +159,9 @@ private fun ProfileMainScreen(
                 }
 
                 // 我的收藏
-                item { SmallTitle(text = "我的收藏") }
+                item { SmallTitle(text = "我的收藏", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                         ArrowPreference(
                             title = "创作者 / 动态 / 众筹",
                             summary = "查看我的收藏",
@@ -179,11 +179,12 @@ private fun ProfileMainScreen(
                 item {
                     Button(
                         onClick = onLogout,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     ) {
                         Text("退出登录")
                     }
                 }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }

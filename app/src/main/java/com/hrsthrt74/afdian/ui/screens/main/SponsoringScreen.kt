@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -70,33 +72,34 @@ fun SponsoringScreen(
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding() + 12.dp,
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = 24.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = paddingValues.calculateBottomPadding()
+                )
             ) {
                 item {
-                    Text("共 ${sponsoring.size} 位创作者")
+                    Text("共 ${sponsoring.size} 位创作者", modifier = Modifier.padding(horizontal = 12.dp))
                 }
 
                 if (loading && sponsoring.isEmpty()) {
-                    item { Text("正在加载…") }
+                    item { Text("正在加载…", modifier = Modifier.padding(horizontal = 12.dp)) }
                 } else if (error != null) {
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        ) {
                             Text(error!!)
                             Button(onClick = viewModel::refresh) { Text("重试") }
                         }
                     }
                 } else if (sponsoring.isEmpty()) {
-                    item { Text("还没有发电记录") }
+                    item { Text("还没有发电记录", modifier = Modifier.padding(horizontal = 12.dp)) }
                 } else {
                     items(sponsoring, key = { it.id }) { item ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(horizontal = 12.dp)
                                 .clickable { onOpenCreator(item.user) }
                                 .padding(vertical = 8.dp)
                         ) {
@@ -117,6 +120,7 @@ fun SponsoringScreen(
                         }
                     }
                 }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }

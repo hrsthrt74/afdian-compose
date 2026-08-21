@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -64,14 +65,12 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding() + 12.dp,
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = 24.dp
-                ),
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = paddingValues.calculateBottomPadding()
+                )
             ) {
                 item {
-                    SmallTitle(text = "我发电的")
+                    SmallTitle(text = "我发电的", modifier = Modifier.padding(start = 4.dp))
                 }
 
                 if (sponsoring.isEmpty()) {
@@ -83,6 +82,7 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
                 } else {
                     item {
                         LazyRow(
+                            modifier = Modifier.padding(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(sponsoring, key = { it.id }) { item ->
@@ -107,6 +107,7 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
                         }
                     }
                 }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }
