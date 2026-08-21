@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.MessageContent
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MessageObjectContent
@@ -216,7 +217,7 @@ fun MessageConversationScreen(
                                 .padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("加载中...", style = MiuixTheme.textStyles.body2)
+                            LoadingComponent()
                         }
                     }
                 }

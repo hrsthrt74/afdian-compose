@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.ManagementSection
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -95,7 +96,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
 
                 item {
                     when {
-                        loading -> Text("正在加载…", modifier = Modifier.padding(horizontal = 12.dp))
+                        loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                         error != null -> {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),

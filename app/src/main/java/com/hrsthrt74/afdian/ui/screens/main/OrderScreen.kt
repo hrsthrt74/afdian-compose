@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -91,7 +92,7 @@ fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
 
                 item {
                     when {
-                        loading -> Text("正在加载订单…", modifier = Modifier.padding(horizontal = 12.dp))
+                        loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                         error != null -> {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),

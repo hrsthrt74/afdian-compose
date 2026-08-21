@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -80,10 +81,11 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                     }
                 } else if (posts.isEmpty()) {
                     item {
-                        Text(
-                            if (loading) "正在加载精选内容…" else "暂无精选内容",
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        )
+                        if (loading) {
+                            LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
+                        } else {
+                            Text("暂无精选内容", modifier = Modifier.padding(horizontal = 12.dp))
+                        }
                     }
                 } else {
                     items(posts, key = { it.id }) { post ->

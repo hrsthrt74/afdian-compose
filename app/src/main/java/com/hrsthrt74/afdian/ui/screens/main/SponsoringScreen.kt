@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -82,7 +83,7 @@ fun SponsoringScreen(
                 }
 
                 if (loading && sponsoring.isEmpty()) {
-                    item { Text("正在加载…", modifier = Modifier.padding(horizontal = 12.dp)) }
+                    item { LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp)) }
                 } else if (error != null) {
                     item {
                         Column(
