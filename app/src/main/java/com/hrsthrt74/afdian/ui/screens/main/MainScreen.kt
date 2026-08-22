@@ -70,6 +70,13 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
     val messagesViewModel: MessagesViewModel = viewModel()
     val backStack = rememberNavBackStack<Route>(Route.MainTabs)
 
+    // 包装登出回调：先把本地资料清掉（内存态 + 磁盘缓存），再执行真正的登出，
+    // 避免 Activity 级 MainViewModel 的旧资料在换账号登录后短暂显示上一个账号的名字
+    val handleLogout: () -> Unit = {
+        viewModel.onLoggedOut()
+        onLogout()
+    }
+
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
@@ -77,7 +84,7 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
     ) {
         entry<Route.MainTabs> {
             MainTabsContent(
-                onLogout = onLogout,
+                onLogout = handleLogout,
                 viewModel = viewModel,
                 messagesViewModel = messagesViewModel,
                 onOpenCreator = { user -> backStack.add(Route.CreatorDetail(user)) },

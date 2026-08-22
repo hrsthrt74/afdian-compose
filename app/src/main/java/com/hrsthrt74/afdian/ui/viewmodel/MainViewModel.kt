@@ -9,6 +9,7 @@ import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.data.content.AfadianAccount
 import com.hrsthrt74.afdian.data.content.AfadianProfile
+import com.hrsthrt74.afdian.data.content.ProfileCache
 import com.hrsthrt74.afdian.data.content.SponsoringItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +20,8 @@ import kotlinx.coroutines.withContext
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
+    // 个人资料磁盘缓存：冷启动先回填，消除「我的」页用户名/头像闪烁
+    private val profileCache = ProfileCache(application)
     private val _posts = MutableStateFlow<List<RecommendedPost>>(emptyList())
     val posts = _posts.asStateFlow()
     private val _account = MutableStateFlow<AfadianAccount?>(null)
@@ -37,7 +40,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val hasMore = _hasMore.asStateFlow()
     private var nextPublishSN = ""
 
-    init { refresh() }
+    init {
+        // 先异步回填上次的资料缓存，让「我的」页立即显示真实用户名/头像；
+        // 随后的 refresh() 拿到网络结果后会覆盖（失败时保留缓存，断网也能显示）
+        viewModelScope.launch { profileCache.load()?.let { _profile.value = it } }
+        refresh()
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -60,6 +68,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _account.value = result.account
                 _profile.value = result.profile
+                // 刷新成功后把资料写回磁盘缓存，供下次冷启动回填（内部已容错，失败不影响主流程）
+                profileCache.save(result.profile)
                 _sponsoring.value = result.sponsoring
                 _posts.value = result.postsPage.posts
                 nextPublishSN = result.postsPage.nextPublishSN
@@ -71,6 +81,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _isLoading.value = false
             }
         }
+    }
+
+    /** 登出时清理本地资料：内存态立即置空 + 异步清空磁盘缓存，避免换账号后串显旧名字 */
+    fun onLoggedOut() {
+        _profile.value = null
+        viewModelScope.launch { profileCache.clear() }
     }
 
     fun loadMore() {
