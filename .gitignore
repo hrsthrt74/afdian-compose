@@ -24,3 +24,4 @@ adb
 .agents
 .idea/deploymentTargetSelector.xml
 /.idea/markdown.xml
+/.idea/deviceManager.xml
