@@ -1,30 +1,25 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
-import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.CreatorListItem
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
@@ -34,6 +29,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -79,9 +75,8 @@ fun SponsoringScreen(
                     bottom = paddingValues.calculateBottomPadding()
                 )
             ) {
-                item {
-                    Text("共 ${sponsoring.size} 位创作者", modifier = Modifier.padding(horizontal = 12.dp))
-                }
+
+                item { Spacer(Modifier.height(4.dp)) }   // 为了视觉上好看
 
                 if (loading && sponsoring.isEmpty()) {
                     item { LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp)) }
@@ -96,29 +91,42 @@ fun SponsoringScreen(
                         }
                     }
                 } else if (sponsoring.isEmpty()) {
-                    item { Text("还没有发电记录", modifier = Modifier.padding(horizontal = 12.dp)) }
-                } else {
-                    items(sponsoring, key = { it.id }) { item ->
-                        Row(
+                    item {
+                        Text(
+                            "还没有发电记录",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                                .clickable { onOpenCreator(item.user) }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Avatar(
-                                model = item.user.avatar,
-                                size = 56.dp,
-                                contentDescription = item.user.name,
-                            )
-                            Column(modifier = Modifier.padding(start = 12.dp)) {
-                                Text(item.user.name.ifBlank { "创作者" })
-                                Text(item.planName)
-                                if ((item.new_post_count ?: 0) > 0) {
-                                    Text("${item.new_post_count} 条新动态")
-                                }
-                            }
-                        }
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    items(sponsoring, key = { it.id }) { item ->
+                        // 长条形创作者卡片，副标题显示发电计划名
+                        CreatorListItem(
+                            avatarUrl = item.user.avatar,
+                            creatorName = item.user.name.ifBlank { "创作者" },
+                            summary = "我发电了 ${item.planName}",
+                            onClick = { onOpenCreator(item.user) },
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .padding(vertical = 4.dp)
+                        )
+                    }
+
+                    // 创作者总数放在卡片列表下面
+                    item {
+                        Text(
+                            "共 ${sponsoring.size} 位创作者",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }

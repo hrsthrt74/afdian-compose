@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,28 +74,41 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
             )
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        // 垂直布局：TabRow 放在列表外面，结构上永远固定在列表上方（同 FavoritesScreen）
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 顶部留出 TopAppBar 的高度（随折叠动画动态变化）
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(paddingValues.calculateTopPadding())
+            )
+
+            // 固定的 TabRow，加背景色防止列表内容透出
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MiuixTheme.colorScheme.surface)
+                    .padding(vertical = 8.dp, horizontal = 16.dp)
+            ) {
+                TabRow(
+                    tabs = ManagementSection.values().map { it.title },
+                    selectedTabIndex = ManagementSection.values().indexOf(section),
+                    onTabSelected = { index ->
+                        viewModel.load(ManagementSection.values()[index])
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    minWidth = 110.dp
+                )
+            }
+
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding(),
                     bottom = paddingValues.calculateBottomPadding()
                 )
             ) {
-                item {
-                    TabRow(
-                        tabs = ManagementSection.values().map { it.title },
-                        selectedTabIndex = ManagementSection.values().indexOf(section),
-                        onTabSelected = { index ->
-                            viewModel.load(ManagementSection.values()[index])
-                        },
-                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 16.dp),
-                        minWidth = 110.dp
-                    )
-                }
-
                 item {
                     when {
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))

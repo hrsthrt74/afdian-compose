@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -34,6 +35,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.hrsthrt74.afdian.ui.viewmodel.OrderViewModel
 
 @Composable
@@ -69,28 +71,44 @@ fun OrderScreen(onBack: () -> Unit, providedViewModel: OrderViewModel? = null) {
             )
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
+        // 垂直布局：摘要 + TabRow 固定在列表上方（同 FavoritesScreen 的做法）
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 顶部留出 TopAppBar 的高度（随折叠动画动态变化）
+            Spacer(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
-                contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding()
-                )
-            ) {
-                item {
-                    Text(summary, modifier = Modifier.padding(horizontal = 12.dp))
-                }
+                    .fillMaxWidth()
+                    .height(paddingValues.calculateTopPadding())
+            )
 
-                item {
+            // 固定头部：订单摘要 + TabRow
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MiuixTheme.colorScheme.surface)
+            ) {
+                Text(summary, modifier = Modifier.padding(horizontal = 16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp, horizontal = 16.dp)
+                ) {
                     TabRow(
                         tabs = filters.map { it.second },
                         selectedTabIndex = filters.indexOfFirst { it.first == status }.coerceAtLeast(0),
                         onTabSelected = { index -> vm.load(filters[index].first) },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
 
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                contentPadding = PaddingValues(
+                    bottom = paddingValues.calculateBottomPadding()
+                )
+            ) {
                 item {
                     when {
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))

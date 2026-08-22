@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,9 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.CreatorListItem
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
@@ -39,6 +42,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 
 @Composable
@@ -72,24 +76,40 @@ fun FavoritesScreen(
             )
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        // 垂直布局：TabRow 放在列表外面，结构上永远固定在列表上方，
+        // 不依赖 stickyHeader（miuix Scaffold 的内容是全屏铺开、被 TopAppBar
+        // 覆盖的，sticky 吸附点会被顶栏挡住）
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 顶部留出 TopAppBar 的高度（随折叠动画动态变化）
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(paddingValues.calculateTopPadding())
+            )
+
+            // 固定的 TabRow，加背景色防止列表内容透出
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MiuixTheme.colorScheme.surface)
+                    .padding(vertical = 8.dp, horizontal = 16.dp)
+            ) {
+                TabRow(
+                    tabs = listOf("创作者", "动态", "众筹"),
+                    selectedTabIndex = kind,
+                    onTabSelected = viewModel::select,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding(),
                     bottom = paddingValues.calculateBottomPadding()
                 )
             ) {
-                item {
-                    TabRow(
-                        tabs = listOf("创作者", "动态", "众筹"),
-                        selectedTabIndex = kind,
-                        onTabSelected = viewModel::select,
-                    )
-                }
-
                 if (loading) {
                     item {
                         Box(
@@ -112,27 +132,59 @@ fun FavoritesScreen(
                         }
                     }
                 } else if (items.isEmpty()) {
-                    item { Text("还没有收藏内容", modifier = Modifier.padding(horizontal = 12.dp)) }
+                    item {
+                        Text(
+                            "还没有收藏内容",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 } else {
                     items(items, key = { it.id }) { item ->
                         val onClick = if (kind == 0) {
                             { onOpenCreator(item.user ?: AfadianUser(user_id = item.id, name = item.title, avatar = item.image)) }
                         } else null
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Avatar(
-                                model = item.image,
-                                size = 48.dp,
+
+                        // 创作者 tab 使用长条形卡片组件，其他 tab 保持普通列表行
+                        if (kind == 0 && onClick != null) {
+                            // 创作内容：subtitle 为空时回退到创作者简介（doing）和分区名，
+                            // 由组件自动拼成「正在创作 xxx」
+                            val doing = item.subtitle.ifBlank {
+                                listOfNotNull(
+                                    item.user?.creator?.doing,
+                                    item.user?.creator?.category?.name
+                                ).joinToString(" · ").ifBlank { null }
+                            }
+                            CreatorListItem(
+                                avatarUrl = item.image,
+                                creatorName = item.title,
+                                doing = doing,
+                                onClick = onClick,
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp)
+                                    .padding(vertical = 4.dp)
                             )
-                            Column {
-                                Text(item.title)
-                                Text(item.subtitle)
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp)
+                                    .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Avatar(
+                                    model = item.image,
+                                    size = 48.dp,
+                                )
+                                Column {
+                                    Text(item.title)
+                                    Text(item.subtitle)
+                                }
                             }
                         }
                     }
