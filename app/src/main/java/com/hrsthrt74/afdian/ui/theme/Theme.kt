@@ -23,20 +23,29 @@ val LocalThemeSettings = staticCompositionLocalOf<ThemeSettings> {
 @Composable
 fun AfdianTheme(
     primaryColor: Color? = null,
+    // 配色模式：0=跟随系统 1=浅色 2=深色（与 SettingsStore 的约定一致）
+    colorMode: Int = 0,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val themeSettings by ThemeRepository.settings(context).collectAsState(initial = null)
     val currentSettings = themeSettings ?: return
-    val controller = remember(primaryColor) {
+    // 把 colorMode 也作为 remember 键，切换模式时重建 controller 立即生效
+    val controller = remember(primaryColor, colorMode) {
+        // 自定义主题色时需要同时定制明暗两套色板，否则用默认色板即可
+        val mode = when (colorMode) {
+            1 -> ColorSchemeMode.Light
+            2 -> ColorSchemeMode.Dark
+            else -> ColorSchemeMode.System
+        }
         if (primaryColor != null) {
             ThemeController(
-                colorSchemeMode = ColorSchemeMode.System,
+                colorSchemeMode = mode,
                 lightColors = lightColorScheme(primary = primaryColor),
                 darkColors = darkColorScheme(primary = primaryColor),
             )
         } else {
-            ThemeController(ColorSchemeMode.System)
+            ThemeController(mode)
         }
     }
     // DataStore 首次读取完成后再组合内容，确保全局模糊状态不会出现首帧闪烁。

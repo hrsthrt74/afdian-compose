@@ -5,25 +5,35 @@ import androidx.lifecycle.AndroidViewModel
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val store = SettingsStore(application)
-    private val _startupPage = MutableStateFlow(store.startupPage)
-    val startupPage = _startupPage.asStateFlow()
-    private val _useAfdianColor = MutableStateFlow(store.useAfdianColor)
-    val useAfdianColor = _useAfdianColor.asStateFlow()
+
+    // 直接把 DataStore 的 flow 转成 StateFlow，写入后自动回推 UI
+    val startupPage: StateFlow<Int> = store.startupPage
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val useAfdianColor: StateFlow<Boolean> = store.useAfdianColor
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** 配色模式：0=跟随系统 1=浅色 2=深色 */
+    val colorMode: StateFlow<Int> = store.colorMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    fun setColorMode(mode: Int) {
+        viewModelScope.launch { store.setColorMode(mode) }
+    }
 
     fun setStartupPage(index: Int) {
-        store.startupPage = index
-        _startupPage.value = index
+        viewModelScope.launch { store.setStartupPage(index) }
     }
 
     fun setUseAfdianColor(enabled: Boolean) {
-        store.useAfdianColor = enabled
-        _useAfdianColor.value = enabled
+        viewModelScope.launch { store.setUseAfdianColor(enabled) }
     }
 
     fun setEnableBlur(enabled: Boolean) {

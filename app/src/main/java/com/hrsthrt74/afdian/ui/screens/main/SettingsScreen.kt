@@ -39,6 +39,8 @@ import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 
 private val startupPageNames = listOf("首页", "发现", "消息", "我的")
+// 配色模式选项，索引与 SettingsStore 的 0/1/2 约定一致
+private val colorModeNames = listOf("跟随系统", "浅色模式", "深色模式")
 
 @Composable
 fun SettingsScreen(
@@ -51,6 +53,7 @@ fun SettingsScreen(
 ) {
     val startupPage by viewModel.startupPage.collectAsState()
     val useAfdianColor by viewModel.useAfdianColor.collectAsState()
+    val colorMode by viewModel.colorMode.collectAsState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
@@ -102,6 +105,12 @@ fun SettingsScreen(
                 item { SmallTitle(text = "外观", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        OverlayDropdownPreference(
+                            title = "配色模式",
+                            items = colorModeNames,
+                            selectedIndex = colorMode.coerceIn(0, colorModeNames.lastIndex),
+                            onSelectedIndexChange = viewModel::setColorMode
+                        )
                         SwitchPreference(
                             checked = useAfdianColor,
                             onCheckedChange = viewModel::setUseAfdianColor,

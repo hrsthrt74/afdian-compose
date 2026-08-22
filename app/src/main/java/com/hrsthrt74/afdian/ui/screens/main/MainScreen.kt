@@ -9,8 +9,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -18,15 +22,22 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.ui.components.AppBlurRadius
+import com.hrsthrt74.afdian.ui.components.blurBarColors
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import top.yukonga.miuix.kmp.basic.Badge
-import top.yukonga.miuix.kmp.basic.BadgedBox
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
@@ -37,15 +48,6 @@ import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
-import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
-import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
-import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import com.hrsthrt74.afdian.ui.components.AppBlurRadius
-import com.hrsthrt74.afdian.ui.components.blurBarColor
-import com.hrsthrt74.afdian.ui.components.blurBarColors
 
 /**
  * 底部导航 Tab 定义：标题 + 图标。
@@ -106,13 +108,13 @@ private fun MainTabsContent(
     onOpenConversation: (String, String, String?) -> Unit,
 ) {
     val context = LocalContext.current
-    val startupPage = remember {
-        context.getSharedPreferences("settings", 0)
-            .getInt("startup_page", 0)
-            .coerceIn(0, mainTabs.lastIndex)
-    }
+    // 启动页订阅 DataStore；加载完成（null -> 值）之前不创建 pager，
+    // 否则 rememberPagerState 会用占位值定格在第 0 页。
+    val settingsStore = remember { SettingsStore(context) }
+    val startupPage by settingsStore.startupPage.collectAsState(initial = null)
+    val initialPage = startupPage?.coerceIn(0, mainTabs.lastIndex) ?: return
     val pagerState = rememberPagerState(
-        initialPage = startupPage,
+        initialPage = initialPage,
         pageCount = { mainTabs.size }
     )
     val mainPagerState = rememberMainPagerState(pagerState)
@@ -127,8 +129,18 @@ private fun MainTabsContent(
     val unreadCount by messagesViewModel.unreadCount.collectAsState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
+    var layoutReady by remember { mutableStateOf(false) }
+
+    // Miuix Scaffold 的 PaddingValues 会在首轮测量后更新；等待两帧后再显示，
+    // 避免用户看到顶栏/底栏边距从旧值跳到最终值的过程。
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        withFrameNanos { }
+        layoutReady = true
+    }
 
     Scaffold(
+        modifier = Modifier.alpha(if (layoutReady) 1f else 0f),
         bottomBar = {
             NavigationBar(
                 modifier = if (backdrop != null) Modifier.textureBlur(
@@ -162,7 +174,9 @@ private fun MainTabsContent(
     ) { _ ->
         HorizontalPager(
             state = pagerState,
-            beyondViewportPageCount = mainTabs.size,
+            // 每个页面的顶栏都会创建 RuntimeShader backdrop；只预加载相邻页，
+            // 避免四个页面同时初始化模糊层造成首帧布局卡顿和边距跳动。
+            beyondViewportPageCount = 1,
             modifier = Modifier
                 .fillMaxSize()
                 // Pager 延伸到导航栏后方，底栏才能捕获真实滚动内容；页面自身再预留遮挡空间。

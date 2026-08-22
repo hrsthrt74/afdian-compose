@@ -7,7 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-/** 只保存模糊相关设置，旧的 SharedPreferences 设置继续由 SettingsStore 管理。 */
+/** 只保存模糊相关设置。 */
 data class ThemeSettings(
     val enableBlur: Boolean = true,
     val progressiveBlur: Boolean = false,
