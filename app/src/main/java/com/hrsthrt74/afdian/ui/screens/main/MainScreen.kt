@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.settings.SettingsStore
@@ -29,6 +31,7 @@ import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
+import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import top.yukonga.miuix.kmp.basic.Badge
@@ -43,6 +46,7 @@ import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Search
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
@@ -60,6 +64,15 @@ private val mainTabs = listOf(
     MainTab("消息", MiuixIcons.Community),
     MainTab("我的", MiuixIcons.Contacts),
 )
+
+/**
+ * 去重 push：miuix-nav 要求 back stack 内 contentKey 互不相等，
+ * 相同路由被 push 两次会直接抛 "Duplicate contentKey" 异常闪退。
+ * 全栈已有相等 route 时静默忽略，顺带挡掉过渡动画期间的快速连点。
+ */
+private fun NavBackStack.pushUnique(route: Route) {
+    if (none { it == route }) add(route)
+}
 
 /**
  * 主界面壳层：全局 [NavDisplay] 管理创作者主页等覆盖路由，
@@ -87,8 +100,11 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
                 onLogout = handleLogout,
                 viewModel = viewModel,
                 messagesViewModel = messagesViewModel,
-                onOpenCreator = { user -> backStack.add(Route.CreatorDetail(user)) },
-                onOpenConversation = { userId, userName, avatarUrl -> backStack.add(Route.MessageConversation(userId, userName, avatarUrl)) },
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+                onOpenConversation = { userId, userName, avatarUrl -> backStack.pushUnique(Route.MessageConversation(userId, userName, avatarUrl)) },
+                // 「我的」的二级路由（收藏/我发电的/订单/管理/设置）统一走外层栈全屏覆盖，
+                // 不再在 Pager 页内嵌套 NavDisplay，避免过渡层平移溢出泄漏到相邻 tab
+                onNavigate = { route -> backStack.pushUnique(route) },
             )
         }
         entry<Route.CreatorDetail>(swipeDismiss = NavSwipeDirection.LeftToRight) { route ->
@@ -103,6 +119,33 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
                 onBack = { backStack.removeLastOrNull() }
             )
         }
+
+        // =====「我的」的二级屏幕：全部提升到外层栈，push 时盖住底部导航栏 =====
+
+        entry<Route.Favorites>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+            val vm: FavoritesViewModel = viewModel(
+                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
+                    LocalContext.current.applicationContext as Application
+                )
+            )
+            FavoritesScreen(vm, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }) {
+                backStack.removeLastOrNull()
+            }
+        }
+        entry<Route.Sponsoring>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+            SponsoringScreen(viewModel, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }) {
+                backStack.removeLastOrNull()
+            }
+        }
+        entry<Route.Orders>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+            OrderScreen(onBack = { backStack.removeLastOrNull() })
+        }
+        entry<Route.Management>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+            ManagementScreen(onBack = { backStack.removeLastOrNull() })
+        }
+        entry<Route.Settings>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+            SettingsScreen(onBack = { backStack.removeLastOrNull() })
+        }
     }
 }
 
@@ -113,6 +156,7 @@ private fun MainTabsContent(
     messagesViewModel: MessagesViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
     onOpenConversation: (String, String, String?) -> Unit,
+    onNavigate: (Route) -> Unit,
 ) {
     val context = LocalContext.current
     // 启动页订阅 DataStore；加载完成（null -> 值）之前不创建 pager，
@@ -181,9 +225,10 @@ private fun MainTabsContent(
     ) { _ ->
         HorizontalPager(
             state = pagerState,
-            // 每个页面的顶栏都会创建 RuntimeShader backdrop；只预加载相邻页，
-            // 避免四个页面同时初始化模糊层造成首帧布局卡顿和边距跳动。
-            beyondViewportPageCount = 1,
+            // 四个 tab 页全部常驻组合：切换时零组合成本，nav 点击的翻页动画才能
+            // 流畅滑过中间页（按需加载时中间页要在 350ms 动画中即时组合，掉帧严重
+            // 视觉上像瞬移）。代价是启动首帧一次性初始化四份模糊层，可接受。
+            beyondViewportPageCount = mainTabs.lastIndex,
             modifier = Modifier
                 .fillMaxSize()
                 // Pager 延伸到导航栏后方，底栏才能捕获真实滚动内容；页面自身再预留遮挡空间。
@@ -204,7 +249,7 @@ private fun MainTabsContent(
                             else -> {}
                         }
                     }
-                    else -> ProfileScreen(viewModel, onLogout, onOpenCreator)
+                    else -> ProfileScreen(viewModel, onLogout, onOpenCreator, onNavigate)
                 }
             }
         }

@@ -1,6 +1,5 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -14,10 +13,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.navigation.Route
@@ -29,12 +25,8 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.nav.core.NavDisplay
-import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
-import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
-import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
@@ -42,44 +34,24 @@ import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 
+/**
+ * 「我的」tab 的内容页。二级路由（收藏/我发电的/订单/管理/设置）不再在这里嵌套
+ * NavDisplay，而是通过 [onNavigate] 提升到 MainScreen 外层栈全屏覆盖，
+ * 避免 Pager 页内过渡层平移溢出泄漏到相邻 tab 并触发重复 contentKey 闪退。
+ */
 @Composable
-fun ProfileScreen(viewModel: MainViewModel, onLogout: () -> Unit, onOpenCreator: (AfadianUser) -> Unit) {
-    val backStack = rememberNavBackStack<Route>(Route.Profile)
-
-    NavDisplay(
-        backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
-        transition = NavTransitions.MiuixDefault,
-    ) {
-        entry<Route.Profile> {
-            ProfileMainScreen(
-                viewModel = viewModel,
-                onLogout = onLogout,
-                onNavigate = { route -> backStack.add(route) },
-                onOpenCreator = onOpenCreator,
-            )
-        }
-        entry<Route.Favorites> {
-            val vm: FavoritesViewModel = viewModel(
-                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
-                    LocalContext.current.applicationContext as Application
-                )
-            )
-            FavoritesScreen(vm, onOpenCreator) { backStack.removeLastOrNull() }
-        }
-        entry<Route.Sponsoring> {
-            SponsoringScreen(viewModel, onOpenCreator) { backStack.removeLastOrNull() }
-        }
-        entry<Route.Orders> {
-            OrderScreen(onBack = { backStack.removeLastOrNull() })
-        }
-        entry<Route.Management> {
-            ManagementScreen(onBack = { backStack.removeLastOrNull() })
-        }
-        entry<Route.Settings> {
-            SettingsScreen(onBack = { backStack.removeLastOrNull() })
-        }
-    }
+fun ProfileScreen(
+    viewModel: MainViewModel,
+    onLogout: () -> Unit,
+    onOpenCreator: (AfadianUser) -> Unit,
+    onNavigate: (Route) -> Unit,
+) {
+    ProfileMainScreen(
+        viewModel = viewModel,
+        onLogout = onLogout,
+        onNavigate = onNavigate,
+        onOpenCreator = onOpenCreator,
+    )
 }
 
 @Composable

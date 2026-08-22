@@ -8,9 +8,6 @@ import top.yukonga.miuix.kmp.nav.core.NavKey
 sealed interface Route : NavKey {
     @Serializable data object MainTabs : Route
 
-    @Serializable data object Home : Route
-    @Serializable data object Discover : Route
-    @Serializable data object Activity : Route
     @Serializable data object Messages : Route
     @Serializable data object Profile : Route
 
