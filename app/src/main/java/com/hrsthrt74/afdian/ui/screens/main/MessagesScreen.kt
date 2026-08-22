@@ -51,6 +51,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 
 @Composable
 fun MessagesScreen(
@@ -68,6 +74,8 @@ fun MessagesScreen(
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val listState = rememberLazyListState()
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
@@ -93,10 +101,13 @@ fun MessagesScreen(
 
     Scaffold(
         topBar = {
+            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             TopAppBar(
                 title = "消息",
+                color = blurBarColor(backdrop),
                 scrollBehavior = scrollBehavior
             )
+            }
         }
     ) { paddingValues ->
         PullToRefresh(
@@ -110,7 +121,7 @@ fun MessagesScreen(
                 "刷新成功"
             ),
             contentPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (isLoading && dialogs.isEmpty()) {
@@ -140,7 +151,7 @@ fun MessagesScreen(
                             top = paddingValues.calculateTopPadding() + 8.dp,
                             start = 16.dp,
                             end = 16.dp,
-                            bottom = 24.dp
+                            bottom = contentBottomPadding()
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         state = listState

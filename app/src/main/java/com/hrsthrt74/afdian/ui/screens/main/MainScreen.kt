@@ -3,7 +3,6 @@ package com.hrsthrt74.afdian.ui.screens.main
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -16,6 +15,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.navigation.Route
@@ -39,6 +39,13 @@ import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.components.AppBlurRadius
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.blurBarColors
 
 /**
  * 底部导航 Tab 定义：标题 + 图标。
@@ -118,10 +125,22 @@ private fun MainTabsContent(
     val haptic = LocalHapticFeedback.current
     val hasUnreadMessages by messagesViewModel.hasUnreadMessages.collectAsState()
     val unreadCount by messagesViewModel.unreadCount.collectAsState()
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                modifier = if (backdrop != null) Modifier.textureBlur(
+                    backdrop = backdrop,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                    blurRadius = AppBlurRadius,
+                    colors = blurBarColors(),
+                    enabled = themeSettings.enableBlur,
+                ) else Modifier,
+                color = if (themeSettings.enableBlur) MiuixTheme.colorScheme.surface.copy(alpha = 0.1f)
+                else MiuixTheme.colorScheme.surface,
+            ) {
                 mainTabs.forEachIndexed { index, tab ->
                     NavigationBarItem(
                         selected = mainPagerState.selectedPage == index,
@@ -140,13 +159,14 @@ private fun MainTabsContent(
                 }
             }
         }
-    ) { padding ->
+    ) { _ ->
         HorizontalPager(
             state = pagerState,
             beyondViewportPageCount = mainTabs.size,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = padding.calculateBottomPadding())
+                // Pager 延伸到导航栏后方，底栏才能捕获真实滚动内容；页面自身再预留遮挡空间。
+                .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
         ) { page ->
             // 页面容器：全宽背景铺满，与各页面 Scaffold 背景同色
             Box(

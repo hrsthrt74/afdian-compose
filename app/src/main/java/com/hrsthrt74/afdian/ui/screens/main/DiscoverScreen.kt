@@ -32,11 +32,19 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 
 @Composable
 fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
     val posts by viewModel.posts.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -51,13 +59,16 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
 
     Scaffold(
         topBar = {
+            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             TopAppBar(
                 title = "发现",
+                color = blurBarColor(backdrop),
                 scrollBehavior = scrollBehavior
             )
+            }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -65,7 +76,7 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
                     top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding()
+                    bottom = contentBottomPadding()
                 )
             ) {
                 item {

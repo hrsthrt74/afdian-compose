@@ -68,15 +68,64 @@
   - `/api/my/sponsoring`
   - `/api/post/get-rec-list`
 - 有加载中、空状态、错误重试和手动刷新。
-- 目前仍是基础可用 UI，不是 Swift 版本的视觉还原。
+- 「我发电的」使用 `CreatorSmallCard`（双列小卡样式）横向滑动列表，点击进入创作者详情。
+- 空状态提示文本统一样式：`footnote1` + `onSurfaceVariantSummary` + 居中 + 16dp 内边距。
 
 ### 我的页
 
 - 已有账号、我发电的、购物车、订单、管理、收藏、设置和退出登录入口。
 - 管理入口已进入真实管理页面。
+- 「我的页」内部有自己的子路由（`NavDisplay`），管理收藏等入口从 Profile 进入。
 
-### 管理页
+### 通用组件（ui/components/）
 
+- `Avatar`：圆形头像，Coil 加载，占位背景色 `disabledSecondary`，支持可选点击。
+- `LoadingComponent`：统一加载指示器。
+- `PostCard`：动态卡片，发现页和创作者详情复用。
+- `CreatorListItem`：长条形创作者卡片（Card 包裹 + 自定义 Row：左头像 48dp、中名称+副标题、右箭头）。
+  - 不再使用 miuix 的 `ArrowPreference`（视觉不符合预期，改为自写布局）。
+  - 点击涟漪放在内部 `Box` 上，不放 Card 上；onClick 为 null 时不可点且无涟漪。
+  - 副标题两种传参：`doing = "xxx"` 自动拼成「正在创作 xxx」（默认场景）；`summary = "自定义文字"` 完全自定义且优先级更高。
+  - 箭头样式参考 miuix ArrowPreference 源码：`MiuixIcons.Basic.ArrowRight`，10x16dp，`onSurfaceVariantActions` 着色。
+- `CreatorLargeCard` / `CreatorSmallCard`：矩形创作者卡片（上封面图 + 下头像名字）。
+  - 大卡单列：封面 16:9，头像 40dp；小卡双列/横滑：封面 3:2，头像 28dp，更紧凑边距。
+  - 封面加载前/失败的占位背景色为 `disabledSecondary`。
+
+### 发现页
+
+- 已接入动态流（LazyColumn + PostCard），支持滚动加载。
+
+### 收藏页（FavoritesScreen）
+
+- TabRow 三个分区：创作者 / 动态 / 众筹。
+- 创作者 tab 条目用 `CreatorListItem`，副标题回退链：subtitle → creator.doing + 分区名（组件自动加「正在创作」前缀）。
+- 动态、众筹 tab 保持普通列表行。
+
+### 我发电的页（SponsoringScreen）
+
+- 列表项用 `CreatorListItem`，副标题为完全自定义的「我发电了 {planName}」。
+- 「共 n 位创作者」统计文本在卡片列表下方，居中 + `onSurfaceVariantSummary`。
+
+### 订单页（OrderScreen）
+
+- 订单摘要 + TabRow 固定头部（见下方 UI 模式），列表展示订单行。
+
+### 消息
+
+- 消息列表页（含未读数 Badge）和会话详情页（聊天记录、FAQ、发送消息）。
+
+### 创作者详情（CreatorDetailScreen）
+
+- 头部封面 + 头像信息区、目标、发电计划、商品、动态（PostCard 复用）、合集、赞助榜。
+- 可折叠长文本（CollapsibleText 模式 + animateContentSize）。
+
+### 设置页（SettingsScreen）
+
+- `SwitchPreference`（爱发电主题色开关）、`OverlayDropdownPreference`(启动默认页) 等。
+
+### 管理页（ManagementScreen）
+
+- TabRow 固定头部模式已应用（保留 `minWidth = 110.dp`）。
 - 已实现五个分区：整体概况、收入统计、收到发电、赞助者管理、每月汇总。
 - 通过 `ManagementService` 请求对应接口，并使用容错 JSON 摘要解析：
   - `/api/my/dashboard`
@@ -86,20 +135,58 @@
   - `/api/my/income`
 - 当前显示的是概况和列表摘要，尚未做完整的订单行、图表、分页和详情页面。
 
+## UI 模式与规范（重要）
+
+### TabRow 固定头部模式（Favorites/Order/Management 均已应用）
+
+不要用 `stickyHeader` 实现 Tab 吸顶。原因：miuix Scaffold 把内容全屏铺在 (0,0)、TopAppBar 叠在内容上层绘制，LazyColumn 视口顶端被不透明的 TopAppBar 盖住，sticky 吸附点不可见，看起来就像没生效。
+
+正确做法是把 TabRow 移出 LazyColumn，结构化固定：
+
+```kotlin
+Column(Modifier.fillMaxSize()) {
+    // 高度随 miuix 大标题折叠动画动态变化
+    Spacer(Modifier.fillMaxWidth().height(paddingValues.calculateTopPadding()))
+    Box(Modifier.fillMaxWidth().background(MiuixTheme.colorScheme.surface).padding(vertical = 8.dp, horizontal = 16.dp)) {
+        TabRow(...)  // Management 页保留 minWidth = 110.dp
+    }
+    LazyColumn(Modifier.weight(1f).nestedScroll(scrollBehavior.nestedScrollConnection)) { ... }
+}
+```
+
+附带效果：往下滚时 TabRow 会跟随顶栏折叠平滑上移到小标题下方。
+
+### 其他约定
+
+- `stickyHeader` 是 `LazyListScope` 成员函数，不能 import（新版 Compose 编译会报 Unresolved）。
+- 空/占位提示文本统一样式：`style = footnote1`，`color = onSurfaceVariantSummary`，`fillMaxWidth()` + `padding(16.dp)` + `textAlign = TextAlign.Center`。
+- 图片类组件加载前/失败占位背景色统一用 `MiuixTheme.colorScheme.disabledSecondary`。
+
 ## 重要代码位置
 
 - [MainActivity.kt](app/src/main/java/com/hrsthrt74/afdian/MainActivity.kt)：应用入口、免责声明、认证分流。
 - `ui/theme/Theme.kt`：Miuix 根主题。
-- `ui/navigation/Routes.kt`：Miuix 路由。
-- `ui/screens/main/MainScreen.kt`：主导航、首页和我的页。
-- `ui/screens/main/MainViewModel.kt`：首页状态。
-- `ui/screens/main/ManagementScreen.kt`：管理页面。
-- `ui/screens/main/ManagementViewModel.kt`：管理页面状态。
-- `ui/screens/auth/LoginScreen.kt`、`ui/screens/auth/DisclaimerDialog.kt`：登录和免责声明。
-- `ui/util/MainPagerState.kt`：主页面 Pager 切换状态工具。
+- `ui/navigation/Routes.kt`：Miuix 路由（MainTabs 五个主页 + CreatorDetail、MessageConversation、Favorites、Sponsoring、Orders、Management、Settings）。
+- `ui/screens/main/MainScreen.kt`：主导航（NavDisplay + HorizontalPager）。
+- `ui/screens/main/HomeScreen.kt`：首页。
+- `ui/screens/main/DiscoverScreen.kt`：发现页。
+- `ui/screens/main/MessagesScreen.kt` / `MessageConversationScreen.kt`：消息列表和会话。
+- `ui/screens/main/ProfileScreen.kt`：我的页（含子路由 NavDisplay）。
+- `ui/screens/main/CreatorDetailScreen.kt`：创作者详情。
+- `ui/screens/main/FavoritesScreen.kt`：收藏页（创作者/动态/众筹）。
+- `ui/screens/main/SponsoringScreen.kt`：我发电的页。
+- `ui/screens/main/OrderScreen.kt`：订单页。
+- `ui/screens/main/SettingsScreen.kt`：设置页。
+- `ui/components/Avatar.kt`：圆形头像。
+- `ui/components/LoadingComponent.kt`：加载指示器。
+- `ui/components/PostCard.kt`：动态卡片。
+- `ui/components/CreatorListItem.kt`：长条形创作者卡片。
+- `ui/components/CreatorCard.kt`：矩形创作者卡片（大卡/小卡）。
+- `ui/viewmodel/*.kt`：各页面 ViewModel（Main、Favorites、Messages、Order、Management、CreatorDetail、Settings）。
 - `data/auth/AuthSession.kt`：认证状态和 Token 存储。
 - `data/auth/AuthService.kt`：登录请求和加密载荷。
-- `data/content/AfadianContentService.kt`：首页接口和基础模型。
+- `data/content/AfadianContentService.kt`：内容接口和基础模型（含 FavoriteItem、AfadianUser 等）。
+- `data/content/OrderService.kt`：订单接口。
 - `data/content/ManagementService.kt`：管理接口。
 
 ## 迁移时必须遵守的规则
@@ -131,24 +218,19 @@
 ## 尚未完成的主要部分
 
 - 短信验证码登录、图形验证码刷新和验证码登录。
-- 发现页、动态页、消息页。
-- 创作者详情、动态详情、合集详情、搜索详情。
-- 首页动态点击进入详情、点赞、收藏、评论。
+- 动态详情页、点赞、收藏、评论。
 - 管理页完整的订单行、分页、图表和详情交互。
-- 订单、购物车、支付准备、取消订单、支付检查。
-- 收藏创作者、收藏动态、收藏众筹的真实页面。
-- 设置页及各页面偏好。
+- 购物车、支付准备、取消订单、支付检查。
 - 完整图片预览、正文 WebView 和媒体设置。
+- 首页/发现页的视觉细节向 Swift 版本对齐。
 - 单元测试、Compose UI 测试和完整真机回归。
 
 ## 推荐后续顺序
 
-1. 先把管理页的摘要列表改成真实模型和可分页列表。
-2. 实现设置页，至少完成退出登录、显示开关和关于页面。
-3. 实现发现页和创作者详情，因为它们能复用首页的用户/动态模型。
-4. 实现动态详情、点赞、收藏和评论。
-5. 实现消息列表、会话和发消息。
-6. 最后补订单、支付、收藏和复杂媒体能力。
+1. 把管理页的摘要列表改成真实模型和可分页列表。
+2. 实现动态详情、点赞、收藏和评论（复用 PostCard 和现有用户模型）。
+3. 补齐购物车与支付链路。
+4. 最后补短信验证码登录和复杂媒体能力。
 
 ## 每次提交前的验证
 

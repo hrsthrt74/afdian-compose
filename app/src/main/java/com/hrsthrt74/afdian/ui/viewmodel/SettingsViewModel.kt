@@ -3,6 +3,9 @@ package com.hrsthrt74.afdian.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.data.settings.ThemeRepository
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -21,5 +24,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setUseAfdianColor(enabled: Boolean) {
         store.useAfdianColor = enabled
         _useAfdianColor.value = enabled
+    }
+
+    fun setEnableBlur(enabled: Boolean) {
+        viewModelScope.launch { ThemeRepository.setEnableBlur(getApplication(), enabled) }
+    }
+
+    fun setProgressiveBlur(enabled: Boolean) {
+        viewModelScope.launch { ThemeRepository.setProgressiveBlur(getApplication(), enabled) }
     }
 }

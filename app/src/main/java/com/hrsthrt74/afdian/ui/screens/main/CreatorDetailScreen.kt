@@ -67,6 +67,12 @@ import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.hrsthrt74.afdian.ui.viewmodel.CreatorDetailViewModel
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 
 private enum class CreatorSection { Plans, Products, Albums, Posts, Sponsors }
 
@@ -92,13 +98,17 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
     val title = detail?.profile?.name ?: user.name.ifBlank { "创作者主页" }
 
     Scaffold(
         topBar = {
+            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             TopAppBar(
                 title = title,
+                color = blurBarColor(backdrop),
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -116,9 +126,10 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit) {
                     }
                 }
             )
+            }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
             val current = detail
             when {
                 current == null && loading -> LoadingComponent(
@@ -169,7 +180,7 @@ private fun CreatorDetailContent(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         contentPadding = PaddingValues(
             top = topPadding,
-            bottom = 0.dp
+                     bottom = contentBottomPadding()
         )
     ) {
         item(key = "header") {

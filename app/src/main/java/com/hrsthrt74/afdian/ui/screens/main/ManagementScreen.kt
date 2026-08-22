@@ -42,6 +42,12 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.hrsthrt74.afdian.ui.viewmodel.ManagementViewModel
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 
 @Composable
 fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel? = null) {
@@ -56,12 +62,16 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
     Scaffold(
         topBar = {
+            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             TopAppBar(
                 title = "管理",
                 largeTitle = "管理",
+                color = blurBarColor(backdrop),
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -72,10 +82,11 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                     }
                 }
             )
+            }
         }
     ) { paddingValues ->
         // 垂直布局：TabRow 放在列表外面，结构上永远固定在列表上方（同 FavoritesScreen）
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
             // 顶部留出 TopAppBar 的高度（随折叠动画动态变化）
             Spacer(
                 modifier = Modifier
@@ -106,7 +117,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                     .weight(1f)
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    bottom = paddingValues.calculateBottomPadding()
+                    bottom = contentBottomPadding()
                 )
             ) {
                 item {

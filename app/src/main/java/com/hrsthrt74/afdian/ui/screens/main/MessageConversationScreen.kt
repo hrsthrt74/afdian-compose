@@ -11,9 +11,14 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,6 +46,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -64,12 +71,10 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -78,6 +83,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.blurBarColors
+import com.hrsthrt74.afdian.ui.components.AppBlurRadius
+import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
+import com.hrsthrt74.afdian.ui.components.progressiveBlurBarColors
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.ProgressiveBlur
+import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
+import top.yukonga.miuix.kmp.blur.textureBlur
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -99,8 +116,20 @@ fun MessageConversationScreen(
     val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
 
-    val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
+    val density = LocalDensity.current
+    val imeBottomPadding = with(density) {
+        WindowInsets.ime.getBottom(this).toDp()
+    }
+    val isImeVisible = imeBottomPadding > 0.dp
+    val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
+    val progressiveStartFraction = if (isImeVisible && windowHeight > 0.dp) {
+        // 键盘越高，模糊渐变的强模糊起点越靠下，避免输入区域被大面积重模糊。
+        (0.5f + (imeBottomPadding / windowHeight)).coerceIn(0.5f, 0.6f)
+    } else {
+        0.5f
+    }
 
     suspend fun loadMessages() {
         isLoading = true
@@ -178,8 +207,10 @@ fun MessageConversationScreen(
 
     Scaffold(
         topBar = {
+            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             SmallTopAppBar(
                 title = userName,
+                color = blurBarColor(backdrop),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -189,27 +220,33 @@ fun MessageConversationScreen(
                     }
                 }
             )
+            }
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .imePadding()
+                .fillMaxSize().imePadding(),
+            // 采样层铺满画布，输入区域固定贴在底部，避免被默认放到顶部。
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            LazyColumn(
+            // 采样层覆盖整个会话画布，输入栏作为外部 overlay 单独绘制，
+            // 既能采样上方消息内容，也不会把自身模糊层纳入采样导致 RenderThread 崩溃。
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                state = listState,
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 8.dp,
-                    bottom = 8.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .fillMaxSize()
+                    .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
             ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = paddingValues.calculateTopPadding() + 8.dp,
+                        bottom = 180.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                 if (isLoading && messages.isEmpty()) {
                     item {
                         Box(
@@ -232,38 +269,84 @@ fun MessageConversationScreen(
                 }
             }
 
-            if (faqs.isNotEmpty()) {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(faqs.take(6)) { faq ->
-                        Card(
-                            modifier = Modifier.clickable {
-                                draft = faq.title.take(500)
-                            }
-                        ) {
-                            Text(
-                                text = faq.title,
-                                style = MiuixTheme.textStyles.body2,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+            }
+
+            // 输入区域也使用与底部导航栏相同的普通模糊，消息内容可以透过输入栏显示。
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(blurBarColor(backdrop))
+                    .then(
+                        if (backdrop != null && !themeSettings.progressiveBlur) {
+                            Modifier.textureBlur(
+                                backdrop = backdrop,
+                                shape = androidx.compose.ui.graphics.RectangleShape,
+                                blurRadius = AppBlurRadius,
+                                colors = blurBarColors(),
                             )
+                        } else {
+                            Modifier
+                        }
+                    )
+                    // 模糊容器跟随键盘扩展，输入内容通过内部布局避让 IME。
+                    .imePadding(),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                if (backdrop != null && themeSettings.progressiveBlur) {
+                        // 输入区域位于底部，渐进方向必须从底部向顶部，
+                        // 与顶栏使用的 angle=90f 相反。
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .progressiveTextureBlur(
+                                    backdrop = backdrop,
+                                    shape = androidx.compose.ui.graphics.RectangleShape,
+                                    blurRadius = AppProgressiveBlurRadius,
+                                    gradient = ProgressiveBlur(
+                                        angle = 270f,
+                                        startFraction = progressiveStartFraction,
+                                        endFraction = 1f,
+                                        curve = 0.8f,
+                                    ),
+                                    colors = progressiveBlurBarColors(),
+                                    noiseCoefficient = 0.1f,
+                                ),
+                        )
+                }
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                if (faqs.isNotEmpty()) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(faqs.take(6)) { faq ->
+                            Card(
+                                modifier = Modifier.clickable {
+                                    draft = faq.title.take(500)
+                                }
+                            ) {
+                                Text(
+                                    text = faq.title,
+                                    style = MiuixTheme.textStyles.body2,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 16.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 16.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                 TextField(
                     value = draft,
                     onValueChange = { newValue ->
@@ -276,6 +359,15 @@ fun MessageConversationScreen(
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(focusRequester)
+                        .padding(
+                            bottom = if (WindowInsets.isImeVisible) {
+                                0.dp
+                            } else {
+                                WindowInsets.navigationBars
+                                    .asPaddingValues()
+                                    .calculateBottomPadding()
+                            }
+                        )
                 )
 
                 val isEnabled = draft.isNotBlank() && !isSending
@@ -296,56 +388,67 @@ fun MessageConversationScreen(
                     label = "iconColor"
                 )
 
-                IconButton(
-                    onClick = { sendMessage() },
-                    enabled = isEnabled,
-                    backgroundColor = animatedBgColor
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Demibold.Back,
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .rotate(90f),
-                        tint = animatedIconColor,
-                        contentDescription = "Send"
-                    )
-                }
-            }
-
-            errorMessage?.let { error ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = error,
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.error,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = "重试",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.clickable {
-                                coroutineScope.launch { loadMessages() }
+                    IconButton(
+                        onClick = { sendMessage() },
+                        enabled = isEnabled,
+                        backgroundColor = animatedBgColor,
+                        modifier = Modifier.padding(
+                            bottom = if (WindowInsets.isImeVisible) {
+                                0.dp
+                            } else {
+                                WindowInsets.navigationBars
+                                    .asPaddingValues()
+                                    .calculateBottomPadding()
                             }
+                        )
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Demibold.Back,
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .rotate(90f)
+                            ,
+                            tint = animatedIconColor,
+                            contentDescription = "Send"
                         )
                     }
                 }
+
+                errorMessage?.let { error ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = error,
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.error,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "重试",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    coroutineScope.launch { loadMessages() }
+                                }
+                            )
+                        }
+                    }
+                }
+                }
             }
         }
-    }
 }
-
+}
 @Composable
 private fun MessageBubble(
     item: MessageItem,

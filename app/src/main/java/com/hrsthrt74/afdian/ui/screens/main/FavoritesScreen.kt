@@ -44,6 +44,12 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 
 @Composable
 fun FavoritesScreen(
@@ -58,12 +64,16 @@ fun FavoritesScreen(
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
     Scaffold(
         topBar = {
+            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             TopAppBar(
                 title = "我的收藏",
                 largeTitle = "我的收藏",
+                color = blurBarColor(backdrop),
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -74,12 +84,13 @@ fun FavoritesScreen(
                     }
                 }
             )
+            }
         }
     ) { paddingValues ->
         // 垂直布局：TabRow 放在列表外面，结构上永远固定在列表上方，
         // 不依赖 stickyHeader（miuix Scaffold 的内容是全屏铺开、被 TopAppBar
         // 覆盖的，sticky 吸附点会被顶栏挡住）
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
             // 顶部留出 TopAppBar 的高度（随折叠动画动态变化）
             Spacer(
                 modifier = Modifier
@@ -107,7 +118,7 @@ fun FavoritesScreen(
                     .weight(1f)
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
-                    bottom = paddingValues.calculateBottomPadding()
+                    bottom = contentBottomPadding()
                 )
             ) {
                 if (loading) {

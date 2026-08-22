@@ -31,6 +31,12 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 
 private val startupPageNames = listOf("首页", "发现", "消息", "我的")
 
@@ -45,15 +51,19 @@ fun SettingsScreen(
 ) {
     val startupPage by viewModel.startupPage.collectAsState()
     val useAfdianColor by viewModel.useAfdianColor.collectAsState()
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
 
     Scaffold(
         topBar = {
+            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             TopAppBar(
                 title = "设置",
                 largeTitle = "设置",
+                color = blurBarColor(backdrop),
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -64,16 +74,18 @@ fun SettingsScreen(
                     }
                 }
             )
+            }
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
+                    .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
                     .nestedScroll(scrollBehavior.nestedScrollConnection),
                 contentPadding = PaddingValues(
                     top = paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding()
+                    bottom = contentBottomPadding()
                 )
             ) {
                 item { SmallTitle(text = "启动", modifier = Modifier.padding(start = 4.dp)) }
@@ -95,6 +107,18 @@ fun SettingsScreen(
                             onCheckedChange = viewModel::setUseAfdianColor,
                             title = "使用爱发电主题色",
 //                            summary = "用爱发电品牌紫作为主色"
+                        )
+                        SwitchPreference(
+                            checked = themeSettings.enableBlur,
+                            onCheckedChange = viewModel::setEnableBlur,
+                            title = "模糊效果",
+                            summary = "为顶栏和底栏启用毛玻璃效果",
+                        )
+                        SwitchPreference(
+                            checked = themeSettings.progressiveBlur,
+                            onCheckedChange = viewModel::setProgressiveBlur,
+                            title = "渐进模糊",
+                            summary = "仅顶栏使用渐进模糊",
                         )
                     }
                 }
