@@ -1,12 +1,19 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,17 +22,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -34,6 +45,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.CreatorDetail
+import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.PostCard
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -50,9 +64,11 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.hrsthrt74.afdian.ui.viewmodel.CreatorDetailViewModel
 
-private enum class CreatorSection { Plans, Products, Goals, Sponsors, Albums, Posts }
+private enum class CreatorSection { Plans, Products, Albums, Posts, Sponsors }
 
 @Composable
 fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit) {
@@ -105,12 +121,11 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit) {
         Box(modifier = Modifier.fillMaxSize()) {
             val current = detail
             when {
-                current == null && loading -> Text(
-                    "正在加载创作者主页…",
-                    modifier = Modifier.padding(top = paddingValues.calculateTopPadding() + 32.dp, start = 20.dp)
+                current == null && loading -> LoadingComponent(
+                    modifier = Modifier.padding(top = paddingValues.calculateTopPadding() + 32.dp, start = 12.dp)
                 )
                 current == null && error != null -> Column(
-                    modifier = Modifier.padding(top = paddingValues.calculateTopPadding() + 32.dp, start = 20.dp),
+                    modifier = Modifier.padding(top = paddingValues.calculateTopPadding() + 32.dp, start = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(error!!)
@@ -131,7 +146,7 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit) {
                 )
                 else -> Text(
                     "暂无内容",
-                    modifier = Modifier.padding(top = paddingValues.calculateTopPadding() + 32.dp, start = 20.dp)
+                    modifier = Modifier.padding(top = paddingValues.calculateTopPadding() + 32.dp, start = 12.dp)
                 )
             }
         }
@@ -153,14 +168,12 @@ private fun CreatorDetailContent(
             .fillMaxSize()
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         contentPadding = PaddingValues(
-            top = topPadding + 12.dp,
-            start = 20.dp,
-            end = 20.dp,
-            bottom = 24.dp
-        ),
+            top = topPadding,
+            bottom = 0.dp
+        )
     ) {
         item(key = "header") {
-            CreatorHeader(detail = detail, fallback = user, onSponsor = onSponsor)
+            CreatorHeader(detail = detail, fallback = user)
         }
         val sections = detail.sections()
         sections.forEachIndexed { index, section ->
@@ -168,160 +181,285 @@ private fun CreatorDetailContent(
                 when (section) {
                     CreatorSection.Plans -> CreatorPlansSection(detail)
                     CreatorSection.Products -> CreatorProductsSection(detail)
-                    CreatorSection.Goals -> CreatorGoalsSection(detail)
-                    CreatorSection.Sponsors -> CreatorSponsorsSection(detail)
                     CreatorSection.Albums -> CreatorAlbumsSection(detail)
                     CreatorSection.Posts -> CreatorPostsSection(detail)
+                    CreatorSection.Sponsors -> CreatorSponsorsSection(detail)
                 }
             }
         }
+        item { Spacer(modifier = Modifier.height(16.dp)) }
     }
 }
 
 private fun CreatorDetail.sections(): List<CreatorSection> = buildList {
     if (plans.isNotEmpty()) add(CreatorSection.Plans)
     if (products.isNotEmpty()) add(CreatorSection.Products)
-    if (goals.isNotEmpty()) add(CreatorSection.Goals)
-    if (topSponsors.isNotEmpty()) add(CreatorSection.Sponsors)
     if (albums.isNotEmpty()) add(CreatorSection.Albums)
     if (posts.isNotEmpty()) add(CreatorSection.Posts)
+    if (topSponsors.isNotEmpty()) add(CreatorSection.Sponsors)
 }
 
 @Composable
-private fun CreatorHeader(detail: CreatorDetail, fallback: AfadianUser, onSponsor: () -> Unit) {
+private fun CreatorHeader(detail: CreatorDetail, fallback: AfadianUser) {
     val profile = detail.profile
     Column(modifier = Modifier.fillMaxWidth()) {
+        // 头图
         if (!profile.cover.isNullOrBlank()) {
             AsyncImage(
                 model = profile.cover,
                 contentDescription = null,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .padding(top = 8.dp)
+                    .aspectRatio(2f)
             )
-            Spacer(modifier = Modifier.height(12.dp))
         }
-        Row {
-            AsyncImage(
+        // 信息
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // 头像
+            Avatar(
                 model = profile.avatar ?: fallback.avatar,
+                size = 48.dp,
                 contentDescription = profile.name,
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
+                modifier = Modifier.padding(horizontal = 8.dp),
             )
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+            // 创作者信息
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(start = 4.dp)
+            ) {
+                // 名字
                 Text(profile.name.ifBlank { "创作者" })
-                val category = profile.creator?.category?.name
-                if (!category.isNullOrBlank()) {
-                    Text(category, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                }
-                if ((profile.is_verified ?: 0) == 1) {
-                    Text("已认证", color = MiuixTheme.colorScheme.primary)
+
+                // 正在创作
+                val doing = profile.creator?.doing
+                if (!doing.isNullOrBlank()) {
+                    Text(
+                        text = "正在创作 ${doing}",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
                 }
             }
         }
-        val doing = profile.creator?.doing
-        if (!doing.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(doing)
-        }
+
+//        Button(onClick = onSponsor, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+//            Text("为 Ta 发电")
+//        }
+//
+//        SmallTitle(text = "简介", modifier = Modifier.padding(start = 4.dp))
+
         val intro = profile.creator?.detail
         if (!intro.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(intro, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            CollapsibleText(
+                text = intro,
+                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)
+            )
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onSponsor, modifier = Modifier.fillMaxWidth()) {
-            Text("为 Ta 发电")
+    }
+}
+
+@Composable
+private fun CollapsibleText(
+    text: String,
+    modifier: Modifier = Modifier,
+    // 最大行数
+    collapsedMaxLines: Int = 7,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var isOverflow by rememberSaveable { mutableStateOf(false) }
+
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.animateContentSize(
+                alignment = Alignment.TopStart
+            )
+        ) {
+            // 折叠/展开文本切换（独立 Composable 避免 ColumnScope 冲突）
+            Box( Modifier.padding(16.dp) ) {
+                CollapsibleTextContent(
+                    text = text,
+                    expanded = expanded,
+                    collapsedMaxLines = collapsedMaxLines,
+                    onOverflowChanged = { isOverflow = it },
+                )
+            }
+
+
+            // 展开/收起按钮
+            AnimatedVisibility(visible = isOverflow) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (expanded) "收起" else "展开全部",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expanded = !expanded }
+                            .padding(vertical = 8.dp)
+                    )
+                }
+            }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+/**
+ * 折叠/展开文本内容：两个文本叠在 Box 里，AnimatedVisibility 淡入淡出切换，
+ * 外层 animateContentSize 驱动高度平滑变化。
+ */
+@Composable
+private fun CollapsibleTextContent(
+    text: String,
+    expanded: Boolean,
+    collapsedMaxLines: Int,
+    onOverflowChanged: (Boolean) -> Unit,
+) {
+    Box {
+        // 折叠文本：展开时淡出
+        AnimatedVisibility(
+            visible = !expanded,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Text(
+                text = text,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = collapsedMaxLines,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { layoutResult ->
+                    val lastVisibleLine = (collapsedMaxLines - 1)
+                        .coerceAtMost(layoutResult.lineCount - 1)
+                    val overflow = if (lastVisibleLine >= 0) {
+                        layoutResult.isLineEllipsized(lastVisibleLine)
+                    } else {
+                        false
+                    }
+                    onOverflowChanged(overflow)
+                },
+            )
+        }
+
+        // 展开文本：折叠时淡入
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Text(
+                text = text,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
     }
 }
 
 @Composable
 private fun CreatorPlansSection(detail: CreatorDetail) {
-    SmallTitle(text = "发电方案")
-    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+    SmallTitle(text = "订阅方案", modifier = Modifier.padding(start = 4.dp))
+    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+        Spacer(Modifier.height(8.dp))
         detail.plans.forEach { plan ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                AsyncImage(
-                    model = plan.pic,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(58.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                )
+                if (!plan.pic.isNullOrBlank()) {
+                    AsyncImage(
+                        model = plan.pic,
+                        contentDescription = plan.displayName,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .squircleClip(cornerRadius = 8.dp)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .squircleClip(cornerRadius = 8.dp)
+                            .background(MiuixTheme.colorScheme.disabledSecondary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Demibold.Favorites,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.width(12.dp))
-                Column {
+                Column( verticalArrangement = Arrangement.spacedBy(2.dp) ) {
                     Text(plan.displayName)
                     Text("¥${plan.priceText}", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 }
             }
         }
+        Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
 private fun CreatorProductsSection(detail: CreatorDetail) {
-    SmallTitle(text = "商品")
-    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+
+    SmallTitle(text = "商品", modifier = Modifier.padding(start = 4.dp))
+
+    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+
+        Spacer(Modifier.height(8.dp))
+
         detail.products.forEach { product ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // 商品图
                 AsyncImage(
                     model = product.pic,
-                    contentDescription = null,
+                    contentDescription = product.displayName,
                     modifier = Modifier
-                        .size(58.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(64.dp)
+                        .squircleClip(cornerRadius = 8.dp)
                 )
+
                 Spacer(modifier = Modifier.width(12.dp))
-                Column {
+
+                Column( verticalArrangement = Arrangement.spacedBy(2.dp) ) {
                     Text(product.displayName)
                     Text("¥${product.priceText}", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 }
             }
         }
-    }
-}
 
-@Composable
-private fun CreatorGoalsSection(detail: CreatorDetail) {
-    SmallTitle(text = "目标")
-    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-        detail.goals.forEach { goal ->
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text(goal.displayTitle)
-                if (goal.amountText.isNotBlank()) {
-                    Text(goal.amountText, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                }
-            }
-        }
+        Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
 private fun CreatorSponsorsSection(detail: CreatorDetail) {
-    SmallTitle(text = "赞助者")
-    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+    SmallTitle(text = "赞助者", modifier = Modifier.padding(start = 4.dp))
+    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+        Spacer(Modifier.height(8.dp))
         detail.topSponsors.forEach { sponsor ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                AsyncImage(
+                Avatar(
                     model = sponsor.avatarUrl,
+                    size = 48.dp,
                     contentDescription = sponsor.displayName,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
@@ -330,24 +468,26 @@ private fun CreatorSponsorsSection(detail: CreatorDetail) {
                 }
             }
         }
+        Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
 private fun CreatorAlbumsSection(detail: CreatorDetail) {
-    SmallTitle(text = "合集")
-    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+    SmallTitle(text = "合集", modifier = Modifier.padding(start = 4.dp))
+    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+        Spacer(Modifier.height(8.dp))
         detail.albums.forEach { album ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 AsyncImage(
                     model = album.cover,
-                    contentDescription = null,
+                    contentDescription = album.displayTitle,
                     modifier = Modifier
-                        .size(58.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(64.dp)
+                        .squircleClip(cornerRadius = 8.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
@@ -358,26 +498,18 @@ private fun CreatorAlbumsSection(detail: CreatorDetail) {
                 }
             }
         }
+        Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
 private fun CreatorPostsSection(detail: CreatorDetail) {
-    SmallTitle(text = "动态")
+    SmallTitle(text = "动态", modifier = Modifier.padding(start = 4.dp))
     detail.posts.forEach { post ->
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text(post.title, maxLines = 2)
-                if (post.summary.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(post.summary, maxLines = 3, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "点赞 ${post.like_count ?: 0}   评论 ${post.comment_count ?: 0}",
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
-        }
+        PostCard(
+            post = post,
+            profile = detail.profile,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        )
     }
 }
