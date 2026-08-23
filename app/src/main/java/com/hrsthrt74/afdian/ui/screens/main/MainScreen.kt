@@ -83,9 +83,12 @@ private fun NavBackStack.pushUnique(route: Route) {
 /**
  * 主界面壳层：全局 [NavDisplay] 管理创作者主页等覆盖路由，
  * 根路由 [Route.MainTabs] 承载底部 [NavigationBar] + [HorizontalPager] 横滑切换。
+ *
+ * @param onReady 首帧布局完全就绪后回调一次；上层用它撤掉盖在主页上的过渡 UI
+ *                （如登录页「登录中…」），避免切页瞬间露出空白背景闪一下。
  */
 @Composable
-fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
+fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
     val messagesViewModel: MessagesViewModel = viewModel()
     val backStack = rememberNavBackStack<Route>(Route.MainTabs)
 
@@ -119,6 +122,7 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
     ) {
         entry<Route.MainTabs> {
             MainTabsContent(
+                onReady = onReady,
                 onLogout = handleLogout,
                 viewModel = viewModel,
                 messagesViewModel = messagesViewModel,
@@ -181,6 +185,7 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
 
 @Composable
 private fun MainTabsContent(
+    onReady: () -> Unit,
     onLogout: () -> Unit,
     viewModel: MainViewModel,
     messagesViewModel: MessagesViewModel,
@@ -214,10 +219,12 @@ private fun MainTabsContent(
 
     // Miuix Scaffold 的 PaddingValues 会在首轮测量后更新；等待两帧后再显示，
     // 避免用户看到顶栏/底栏边距从旧值跳到最终值的过程。
+    // 两帧后同时回调 onReady：上层据此撤掉盖在主页上的过渡 UI（登录页转圈）。
     LaunchedEffect(Unit) {
         withFrameNanos { }
         withFrameNanos { }
         layoutReady = true
+        onReady()
     }
 
     Scaffold(

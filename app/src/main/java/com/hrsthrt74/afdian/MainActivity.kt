@@ -7,13 +7,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
@@ -24,15 +30,24 @@ import com.hrsthrt74.afdian.ui.screens.main.MainScreen
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
 
 class MainActivity : ComponentActivity() {
+    // 界面是否已可显示：SplashScreen 依据它决定是否继续停留在启动画面上。
+    // 用 Activity 级字段（而非 Compose state）让 keepOnScreenCondition 直接读取。
+    private var appReady = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 必须在 super.onCreate 之前安装，才能接管 Android 12+ 原生启动画面
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { AfdianApp() }
+        // 首个真正可见的界面（主页布局就绪 / 登录页 / 免责声明）出现前不放行，
+        // 冷启动已登录时直接从启动画面无缝进入主界面，不再闪「登录中」
+        splash.setKeepOnScreenCondition { !appReady.value }
+        setContent { AfdianApp(appReady) }
     }
 }
 
 @Composable
-private fun AfdianApp(session: AuthSession = viewModel()) {
+private fun AfdianApp(appReady: MutableState<Boolean>, session: AuthSession = viewModel()) {
     val context = LocalContext.current
     // SettingsStore 内部是进程级单例 DataStore，remember 一个包装对象即可
     val settingsStore = remember { SettingsStore(context) }
@@ -49,10 +64,22 @@ private fun AfdianApp(session: AuthSession = viewModel()) {
         when (authState) {
             AuthState.Loading -> Unit
 
-            is AuthState.LoggedIn -> MainScreen(onLogout = session::logout)
+            is AuthState.LoggedIn -> {
+                // 主页首帧布局就绪前，继续把登录页（「登录中…」转圈态）盖在上面，
+                // 避免切屏瞬间露出空白背景闪一下；MainScreen 两帧后回调 onReady 再撤掉。
+                // 注意组合顺序：先 MainScreen 后 LoginScreen，后者才能绘制在上层。
+                var mainReady by rememberSaveable { mutableStateOf(false) }
+                if (mainReady) appReady.value = true
+                MainScreen(onReady = { mainReady = true }, onLogout = session::logout)
+                if (!mainReady) {
+                    LoginScreen(onLogin = session::login, isLoggingIn = true, errorMessage = null)
+                }
+            }
 
             // 未登录：先确认免责声明（读取未完成前按未同意处理）
             AuthState.LoggedOut -> {
+                // 登录页/免责声明本身就是首个界面，组合即放行 SplashScreen
+                SideEffect { appReady.value = true }
                 val accepted by settingsStore.disclaimerAccepted.collectAsState(initial = false)
                 if (!accepted) {
                     DisclaimerDialog(
