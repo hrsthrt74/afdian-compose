@@ -138,10 +138,13 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
             CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() })
         }
         entry<Route.MessageConversation> { route ->
+            // 从 MainViewModel 的资料缓存取自己的头像，替换聊天里「我」的占位头像
+            val myProfile by viewModel.profile.collectAsState()
             MessageConversationScreen(
                 userId = route.userId,
                 userName = route.userName,
                 avatarUrl = route.avatarUrl,
+                myAvatarUrl = myProfile?.user?.avatar,
                 viewModel = messagesViewModel,
                 onBack = { backStack.removeLastOrNull() }
             )

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
@@ -23,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -32,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +68,8 @@ import com.hrsthrt74.afdian.data.content.MessageContent
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MessageObjectContent
+import com.hrsthrt74.afdian.data.settings.ThemeSettings
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.Avatar
@@ -110,6 +116,7 @@ fun MessageConversationScreen(
     userId: String,
     userName: String,
     avatarUrl: String?,
+    myAvatarUrl: String? = null,
     viewModel: MessagesViewModel,
     onBack: () -> Unit
 ) {
@@ -242,12 +249,40 @@ fun MessageConversationScreen(
         }
     }
 
+    // 列表是否贴在底部（最后一项可见），用于输入栏高度变化时决定是否跟随滚动
+    val isAtBottom by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()
+            lastVisible == null || lastVisible.index >= layoutInfo.totalItemsCount - 1
+        }
+    }
+    // 上一次「输入栏内容高度 + 键盘高度」，用于计算贴底跟随的滚动差值
+    var previousBottomOffset by remember { mutableStateOf(0.dp) }
+    // 列表需要抬升的总高度 = 输入栏可见内容高度 + max(键盘, 导航栏) 避让高度
+    // （与输入栏内部 union 避让一致：键盘收起时让出导航栏，展开时让出键盘）
+    val navigationBarsPadding = WindowInsets.navigationBars
+        .asPaddingValues()
+        .calculateBottomPadding()
+    val bottomOffset = inputBarHeight + maxOf(imeBottomPadding, navigationBarsPadding)
+    // 底部偏移变化（键盘升降、FAQ 出现）时，若列表原本贴底则直接钉到最后一项：
+    // scrollToItem 会精确落在最大滚动位置（最后一条完整露出），无累积误差，
+    // 且逐帧调用不会被动画打断，视觉上平滑跟随
+    LaunchedEffect(bottomOffset) {
+        val isFirstMeasure = previousBottomOffset == 0.dp
+        val changed = bottomOffset != previousBottomOffset
+        previousBottomOffset = bottomOffset
+        if (!isFirstMeasure && changed && isAtBottom && messages.isNotEmpty()) {
+            listState.scrollToItem(messages.size - 1)
+        }
+    }
+
     Scaffold(
         snackbarHost = {
-            // 键盘弹出时输入栏随 IME 上移，Snackbar 也要跟着抬到输入栏上方
+            // 抬升一个「输入栏内容 + 键盘」的高度，保证显示在输入栏上方
             SnackbarHost(
                 snackbarHostState,
-                modifier = Modifier.padding(bottom = inputBarHeight + imeBottomPadding),
+                modifier = Modifier.padding(bottom = bottomOffset),
             )
         },
         topBar = {
@@ -269,7 +304,8 @@ fun MessageConversationScreen(
     ) { paddingValues ->
         Box(
             modifier = Modifier
-                .fillMaxSize().imePadding(),
+                // 不再 imePadding：列表铺满全屏，靠 contentPadding 跟随输入栏实际高度避让
+                .fillMaxSize(),
             // 采样层铺满画布，输入区域固定贴在底部，避免被默认放到顶部。
             contentAlignment = Alignment.BottomCenter,
         ) {
@@ -287,7 +323,8 @@ fun MessageConversationScreen(
                         start = 16.dp,
                         end = 16.dp,
                         top = paddingValues.calculateTopPadding() + 8.dp,
-                        bottom = 180.dp
+                        // 动态跟随输入栏：可见内容高度 + 键盘/导航栏避让高度，键盘升起列表直接抬同等高度
+                        bottom = bottomOffset + 8.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -308,7 +345,8 @@ fun MessageConversationScreen(
                     MessageBubble(
                         item = item,
                         userName = userName,
-                        avatarUrl = avatarUrl
+                        avatarUrl = avatarUrl,
+                        myAvatarUrl = myAvatarUrl
                     )
                 }
             }
@@ -316,163 +354,210 @@ fun MessageConversationScreen(
             }
 
             // 输入区域也使用与底部导航栏相同的普通模糊，消息内容可以透过输入栏显示。
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // 记录输入栏实际高度，供 Snackbar 抬高到输入栏上方使用
-                    .onSizeChanged { inputBarHeightPx = it.height }
-                    .background(blurBarColor(backdrop))
-                    .then(
-                        if (backdrop != null && !themeSettings.progressiveBlur) {
-                            Modifier.textureBlur(
-                                backdrop = backdrop,
-                                shape = androidx.compose.ui.graphics.RectangleShape,
-                                blurRadius = AppBlurRadius,
-                                colors = blurBarColors(),
-                            )
-                        } else {
-                            Modifier
-                        }
-                    )
-                    // 模糊容器跟随键盘扩展，输入内容通过内部布局避让 IME。
-                    .imePadding(),
-                contentAlignment = Alignment.BottomCenter,
-            ) {
-                if (backdrop != null && themeSettings.progressiveBlur) {
-                        // 输入区域位于底部，渐进方向必须从底部向顶部，
-                        // 与顶栏使用的 angle=90f 相反。
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .progressiveTextureBlur(
-                                    backdrop = backdrop,
-                                    shape = androidx.compose.ui.graphics.RectangleShape,
-                                    blurRadius = AppProgressiveBlurRadius,
-                                    gradient = ProgressiveBlur(
-                                        angle = 270f,
-                                        startFraction = progressiveStartFraction,
-                                        endFraction = 1f,
-                                        curve = 0.8f,
-                                    ),
-                                    colors = progressiveBlurBarColors(),
-                                    noiseCoefficient = 0.1f,
-                                ),
-                        )
-                }
-
-                Column(modifier = Modifier.fillMaxWidth()) {
-                if (faqs.isNotEmpty()) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(faqs.take(6)) { faq ->
-                            Card(
-                                modifier = Modifier.clickable {
-                                    draft = faq.title.take(500)
-                                }
-                            ) {
-                                Text(
-                                    text = faq.title,
-                                    style = MiuixTheme.textStyles.body2,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+            ConversationInputBar(
+                backdrop = backdrop,
+                themeSettings = themeSettings,
+                progressiveStartFraction = progressiveStartFraction,
+                onHeightChanged = { inputBarHeightPx = it },
+                faqs = faqs,
+                draft = draft,
+                onDraftChange = { draft = it },
+                isSending = isSending,
+                focusRequester = focusRequester,
+                onSend = { sendMessage() },
+                // 点击 FAQ 调用 /api/faq/ask 发送快捷提问，
+                // 服务器会自动回复答案，完成后重新拉取消息上屏
+                onFaqClick = { faq ->
+                    if (!isSending) {
+                        isSending = true
+                        coroutineScope.launch {
+                            try {
+                                viewModel.askFaq(userId, faq.id)
+                                loadMessages()
+                            } catch (_: Exception) {
+                            } finally {
+                                isSending = false
                             }
                         }
                     }
-                }
+                },
+            )
+        }
+}
+}
 
-                Row(
+/**
+ * 会话页底部输入栏：包含模糊背景、FAQ 快捷回复和输入框/发送按钮。
+ * 模糊容器跟随键盘扩展，输入内容通过内部布局避让 IME。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ConversationInputBar(
+    backdrop: LayerBackdrop?,
+    themeSettings: ThemeSettings,
+    progressiveStartFraction: Float,
+    onHeightChanged: (Int) -> Unit,
+    faqs: List<MessageFAQ>,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    isSending: Boolean,
+    focusRequester: FocusRequester,
+    onSend: () -> Unit,
+    onFaqClick: (MessageFAQ) -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(blurBarColor(backdrop))
+            .then(
+                if (backdrop != null && !themeSettings.progressiveBlur) {
+                    Modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = androidx.compose.ui.graphics.RectangleShape,
+                        blurRadius = AppBlurRadius,
+                        colors = blurBarColors(),
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            // 不再对容器整体 imePadding：键盘避让由内层 Column 用
+            // navigationBars.union(ime) 统一处理，insets 连续变化，收起时不会突变。
+            // 模糊背景会延伸到导航栏/键盘后面（视觉上被遮挡，无影响）。
+        ,
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        if (backdrop != null && themeSettings.progressiveBlur) {
+                // 输入区域位于底部，渐进方向必须从底部向顶部，
+                // 与顶栏使用的 angle=90f 相反。
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 8.dp)
-                        // 渐进模糊时上下留白更大，普通模糊保持紧凑
-                        .padding(top = if (themeSettings.progressiveBlur) 32.dp else 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TextField(
-                        value = draft,
-                        onValueChange = { newValue ->
-                            if (newValue.length <= 500) {
-                                draft = newValue
-                            }
-                        },
-                        label = "输入消息",
-                        useLabelAsPlaceholder = true,
-                        insideMargin = DpSize(16.dp, 12.dp),
-                        cornerRadius = 20.dp,
-                        colors = textFieldColors(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(focusRequester)
-                            .padding(
-                                bottom = if (WindowInsets.isImeVisible) {
-                                    0.dp
-                                } else {
-                                    WindowInsets.navigationBars
-                                        .asPaddingValues()
-                                        .calculateBottomPadding()
-                                }
-                            )
-                    )
-
-                    val isEnabled = draft.isNotBlank() && !isSending
-                    val animatedBgColor by animateColorAsState(
-                        targetValue = if (isEnabled)
-                            MiuixTheme.colorScheme.primary
-                        else
-                            MiuixTheme.colorScheme.disabledPrimary,
-                        animationSpec = tween(200),
-                        label = "bgColor"
-                    )
-                    val animatedIconColor by animateColorAsState(
-                    targetValue = if (isEnabled) 
-                        MiuixTheme.colorScheme.onPrimary 
-                    else 
-                        MiuixTheme.colorScheme.disabledOnPrimary,
-                    animationSpec = tween(200),
-                    label = "iconColor"
+                        .matchParentSize()
+                        .progressiveTextureBlur(
+                            backdrop = backdrop,
+                            shape = androidx.compose.ui.graphics.RectangleShape,
+                            blurRadius = AppProgressiveBlurRadius,
+                            gradient = ProgressiveBlur(
+                                angle = 270f,
+                                startFraction = progressiveStartFraction,
+                                endFraction = 1f,
+                                curve = 0.8f,
+                            ),
+                            colors = progressiveBlurBarColors(),
+                            noiseCoefficient = 0.1f,
+                        ),
                 )
+        }
 
-                    IconButton(
-                        onClick = { sendMessage() },
-                        enabled = isEnabled,
-                        backgroundColor = animatedBgColor,
-                        modifier = Modifier.padding(
-                            bottom = if (WindowInsets.isImeVisible) {
-                                0.dp
-                            } else {
-                                WindowInsets.navigationBars
-                                    .asPaddingValues()
-                                    .calculateBottomPadding()
-                            }
-                        )
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Demibold.Back,
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .rotate(90f),
-                            tint = animatedIconColor,
-                            contentDescription = "Send"
-                        )
+        // 导航栏与键盘统一避让：union 每边取最大值，
+        // 键盘收起时=导航栏高度，展开时=ime，动画全程连续无跳变
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
+                // 只测避让后的可见内容高度（不含键盘区域），供列表/Snackbar 精确抬升
+                .onSizeChanged { onHeightChanged(it.height) }
+        ) {
+        // 顶部留白：渐进模糊需要更大留白(20dp)，普通模糊给 8dp 即可
+        Spacer(modifier = Modifier.height(if (themeSettings.progressiveBlur) 20.dp else 8.dp))
+
+        // FAQ
+        if (faqs.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(faqs.take(6)) { faq ->
+                    Card {
+                        // 点击绑定到内部 Box，让点击特效在卡片内容上正常显示，
+                        // 避免直接绑在 Card 上导致的裁切问题
+                        Box(
+                            modifier = Modifier.clickable { onFaqClick(faq) }
+                        ) {
+                            Text(
+                                text = faq.title,
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                }
                 }
             }
         }
-}
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 8.dp)
+                .padding(top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextField(
+                value = draft,
+                onValueChange = { newValue ->
+                    if (newValue.length <= 500) {
+                        onDraftChange(newValue)
+                    }
+                },
+                label = "输入消息",
+                useLabelAsPlaceholder = true,
+                maxLines = 8,
+                insideMargin = DpSize(16.dp, 12.dp),
+                cornerRadius = 20.dp,
+                colors = textFieldColors(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester)
+            )
+
+            val isEnabled = draft.isNotBlank() && !isSending
+            val animatedBgColor by animateColorAsState(
+                targetValue = if (isEnabled)
+                    MiuixTheme.colorScheme.primary
+                else
+                    MiuixTheme.colorScheme.disabledPrimary,
+                animationSpec = tween(200),
+                label = "bgColor"
+            )
+            val animatedIconColor by animateColorAsState(
+            targetValue = if (isEnabled) 
+                MiuixTheme.colorScheme.onPrimary 
+            else 
+                MiuixTheme.colorScheme.disabledOnPrimary,
+            animationSpec = tween(200),
+            label = "iconColor"
+        )
+
+            IconButton(
+                onClick = onSend,
+                enabled = isEnabled,
+                backgroundColor = animatedBgColor,
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Demibold.Back,
+                    modifier = Modifier
+                        .padding(12.dp)
+                        .rotate(90f),
+                    tint = animatedIconColor,
+                    contentDescription = "Send"
+                )
+            }
+        }
+        }
+    }
 }
 @Composable
 private fun MessageBubble(
     item: MessageItem,
     userName: String,
-    avatarUrl: String?
+    avatarUrl: String?,
+    myAvatarUrl: String?
 ) {
     val isSentByMe = item.isSentByMe
 
@@ -509,6 +594,9 @@ private fun MessageBubble(
 
         // 气泡
         Column(
+            // weight(fill=false)：气泡最多占剩余宽度，超长内容（如订单卡片）会换行/收窄，
+            // 不会把两侧固定尺寸的头像水平挤扁
+            modifier = Modifier.weight(1f, fill = false),
             horizontalAlignment = if (isSentByMe) Alignment.End else Alignment.Start
         ) {
             // 时间
@@ -527,21 +615,30 @@ private fun MessageBubble(
             )
         }
 
-        // 自己头像，放这是因为在气泡后面
+        Spacer(modifier = Modifier.width(8.dp))
+        
+        // 自己头像，放这是因为在气泡后面；有缓存的真实头像就用真实头像
         if (isSentByMe) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "我",
-                    style = MiuixTheme.textStyles.body1,
-                    color = MiuixTheme.colorScheme.onPrimary
+            if (myAvatarUrl != null) {
+                Avatar(
+                    model = myAvatarUrl,
+                    size = 42.dp,
+                    contentDescription = "我",
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(MiuixTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "我",
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onPrimary
+                    )
+                }
             }
         }
     }

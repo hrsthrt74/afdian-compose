@@ -111,6 +111,13 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // 发送 FAQ 快捷提问（服务器会自动回复答案）
+    suspend fun askFaq(userID: String, faqId: Int) {
+        withContext(Dispatchers.IO) {
+            service.askFaq(userID, faqId)
+        }
+    }
+
     fun startAutoRefresh() {
         viewModelScope.launch {
             while (isActive) {

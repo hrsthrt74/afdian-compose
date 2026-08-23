@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian.data.content
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -263,6 +264,37 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                     message = MessageRecord(msg_id = id, id = id, r_status = 1, type = 1, content = MessageContent.Text(content), send_time = System.currentTimeMillis() / 1000.0)
                 )
             }
+        }
+    }
+
+    /**
+     * 发送 FAQ 快捷提问：POST /api/faq/ask（表单参数 id=FAQ条目ID, user_id=对方用户ID）。
+     * 服务器会以 type=7 的系统消息形式返回自动回复。
+     */
+    suspend fun askFaq(userID: String, faqId: Int): MessageItem {
+        val body = "id=$faqId&user_id=$userID"
+            .toRequestBody("application/x-www-form-urlencoded".toMediaType())
+        val request = Request.Builder()
+            .url("$IFDIAN_HOST/api/faq/ask")
+            .post(body)
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("快捷提问发送失败 (${response.code})")
+            val result = json.decodeFromString<MessageSendResponse>(response.body.string())
+            if (result.ec != 200) error(result.message ?: "快捷提问发送失败")
+            // 接口本身不回传消息内容，本地构造提问消息用于即时上屏
+            MessageItem(
+                type = "send",
+                message = MessageRecord(
+                    msg_id = (System.currentTimeMillis() / 1000).toInt(),
+                    id = (System.currentTimeMillis() / 1000).toInt(),
+                    r_status = 1,
+                    type = 1,
+                    content = MessageContent.Text(""),
+                    send_time = System.currentTimeMillis() / 1000.0
+                )
+            )
         }
     }
 
@@ -679,7 +711,8 @@ private fun MessageRecordRaw.toMessageRecord(): MessageRecord {
 }
 
 @Serializable private data class MessageFAQResponse(val ec: Int? = null, val message: String? = null, val data: MessageFAQData? = null)
-@Serializable private data class MessageFAQData(val other_list: List<MessageFAQ>? = null)
+// 服务端返回的是驼峰 otherList，需要用 SerialName 映射
+@Serializable private data class MessageFAQData(@SerialName("otherList") val other_list: List<MessageFAQ>? = null)
 
 @Serializable private data class MessageSendResponse(val ec: Int? = null, val message: String? = null, val data: MessageItemRaw? = null) {
     fun toMessageItem() = data?.toMessageItem()
