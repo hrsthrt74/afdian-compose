@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -91,6 +92,7 @@ import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.progressiveBlurBarColors
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults.textFieldColors
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
@@ -347,39 +349,42 @@ fun MessageConversationScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                TextField(
-                    value = draft,
-                    onValueChange = { newValue ->
-                        if (newValue.length <= 500) {
-                            draft = newValue
-                        }
-                    },
-                    label = "输入消息",
-                    useLabelAsPlaceholder = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester)
-                        .padding(
-                            bottom = if (WindowInsets.isImeVisible) {
-                                0.dp
-                            } else {
-                                WindowInsets.navigationBars
-                                    .asPaddingValues()
-                                    .calculateBottomPadding()
+                    TextField(
+                        value = draft,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 500) {
+                                draft = newValue
                             }
-                        )
-                )
+                        },
+                        label = "输入消息",
+                        useLabelAsPlaceholder = true,
+                        insideMargin = DpSize(16.dp, 12.dp),
+                        cornerRadius = 20.dp,
+                        colors = textFieldColors(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester)
+                            .padding(
+                                bottom = if (WindowInsets.isImeVisible) {
+                                    0.dp
+                                } else {
+                                    WindowInsets.navigationBars
+                                        .asPaddingValues()
+                                        .calculateBottomPadding()
+                                }
+                            )
+                    )
 
-                val isEnabled = draft.isNotBlank() && !isSending
-                val animatedBgColor by animateColorAsState(
-                    targetValue = if (isEnabled) 
-                        MiuixTheme.colorScheme.primary 
-                    else 
-                        MiuixTheme.colorScheme.disabledPrimary,
-                    animationSpec = tween(200),
-                    label = "bgColor"
-                )
-                val animatedIconColor by animateColorAsState(
+                    val isEnabled = draft.isNotBlank() && !isSending
+                    val animatedBgColor by animateColorAsState(
+                        targetValue = if (isEnabled)
+                            MiuixTheme.colorScheme.primary
+                        else
+                            MiuixTheme.colorScheme.disabledPrimary,
+                        animationSpec = tween(200),
+                        label = "bgColor"
+                    )
+                    val animatedIconColor by animateColorAsState(
                     targetValue = if (isEnabled) 
                         MiuixTheme.colorScheme.onPrimary 
                     else 
@@ -406,8 +411,7 @@ fun MessageConversationScreen(
                             imageVector = MiuixIcons.Demibold.Back,
                             modifier = Modifier
                                 .padding(12.dp)
-                                .rotate(90f)
-                            ,
+                                .rotate(90f),
                             tint = animatedIconColor,
                             contentDescription = "Send"
                         )
