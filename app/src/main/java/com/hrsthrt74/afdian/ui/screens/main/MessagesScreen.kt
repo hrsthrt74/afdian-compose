@@ -57,6 +57,8 @@ import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
 fun MessagesScreen(
@@ -146,7 +148,10 @@ fun MessagesScreen(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .nestedScroll(scrollBehavior.nestedScrollConnection),
+                            .nestedScroll(scrollBehavior.nestedScrollConnection)
+                            // 放在 nestedScroll 之后（最贴近列表），fling 到边界的剩余速度最先被它捕获；
+                            // 只作用于 LazyColumn 自身，不影响外层 PullToRefresh 的下拉刷新手势
+                            .scrollEndHaptic(),
                         contentPadding = PaddingValues(
                             top = paddingValues.calculateTopPadding() + 8.dp,
                             start = 16.dp,

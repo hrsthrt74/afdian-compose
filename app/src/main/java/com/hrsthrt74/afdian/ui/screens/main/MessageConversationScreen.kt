@@ -106,6 +106,8 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.pressable
+// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -317,7 +319,10 @@ fun MessageConversationScreen(
                     .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
             ) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    // 消息列表快速滑到顶部/底部边界时触发触觉反馈（本列表无 nestedScroll，直接追加即可）
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .scrollEndHaptic(),
                     state = listState,
                     contentPadding = PaddingValues(
                         start = 16.dp,
