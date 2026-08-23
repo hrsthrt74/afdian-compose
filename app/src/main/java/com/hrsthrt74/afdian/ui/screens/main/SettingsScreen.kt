@@ -54,6 +54,8 @@ fun SettingsScreen(
     val startupPage by viewModel.startupPage.collectAsState()
     val useAfdianColor by viewModel.useAfdianColor.collectAsState()
     val colorMode by viewModel.colorMode.collectAsState()
+    val advancedTransition by viewModel.advancedTransition.collectAsState()
+    val gestureBack by viewModel.gestureBack.collectAsState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
@@ -128,6 +130,23 @@ fun SettingsScreen(
                             onCheckedChange = viewModel::setProgressiveBlur,
                             title = "渐进模糊",
                             summary = "仅顶栏使用渐进模糊",
+                        )
+                    }
+                }
+                item { SmallTitle(text = "动画", modifier = Modifier.padding(start = 4.dp)) }
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        SwitchPreference(
+                            checked = advancedTransition,
+                            onCheckedChange = viewModel::setAdvancedTransition,
+                            title = "高级过渡动画",
+                            summary = "创作者主页以卡片展开的方式打开和返回",
+                        )
+                        SwitchPreference(
+                            checked = gestureBack,
+                            onCheckedChange = viewModel::setGestureBack,
+                            title = "手势返回",
+                            summary = "在页面左缘向右滑动即可返回上一页（系统返回手势不受影响；退出此页面后生效）",
                         )
                     }
                 }

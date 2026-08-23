@@ -30,6 +30,7 @@ import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.CreatorListItem
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -170,12 +171,14 @@ fun FavoritesScreen(
                                     item.user?.creator?.category?.name
                                 ).joinToString(" · ").ifBlank { null }
                             }
+                            // 捕获卡片边界，作为「主页展开」过渡动画的起点
+                            val origin = rememberCreatorOrigin()
                             CreatorListItem(
                                 avatarUrl = item.image,
                                 creatorName = item.title,
                                 doing = doing,
-                                onClick = onClick,
-                                modifier = Modifier
+                                onClick = origin.onClick(onClick),
+                                modifier = origin.trackModifier()
                                     .padding(horizontal = 16.dp)
                                     .padding(vertical = 4.dp)
                             )

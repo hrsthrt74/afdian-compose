@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.PostCard
+import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -105,12 +106,15 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                     }
                 } else {
                     items(posts, key = { it.id }) { post ->
+                        // 捕获动态卡片头部行的边界，作为「主页展开」过渡动画的起点
+                        val origin = rememberCreatorOrigin()
                         PostCard(
                             post = post,
                             profile = post.user,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                            onCreatorClick = { onOpenCreator(post.user) },
+                            onCreatorClick = origin.onClick { onOpenCreator(post.user) },
                             showDoing = true,
+                            creatorOrigin = origin,
                         )
                     }
                     // 底部加载指示器

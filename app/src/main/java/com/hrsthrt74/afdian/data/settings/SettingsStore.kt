@@ -21,6 +21,10 @@ class SettingsStore(private val context: Context) {
         val DISCLAIMER = booleanPreferencesKey("disclaimer")
         // 配色模式：0=跟随系统 1=浅色 2=深色
         val COLOR_MODE = intPreferencesKey("color_mode")
+        // 高级过渡动画总开关（卡片展开等）
+        val ADVANCED_TRANSITION = booleanPreferencesKey("advanced_transition")
+        // 页面内边缘滑动返回手势总开关
+        val GESTURE_BACK = booleanPreferencesKey("gesture_back")
     }
 
     /** 启动页索引，未设置时默认第 0 页 */
@@ -34,6 +38,22 @@ class SettingsStore(private val context: Context) {
 
     /** 配色模式：0=跟随系统 1=浅色 2=深色，默认跟随系统 */
     val colorMode: Flow<Int> = context.settingsDataStore.data.map { it[Keys.COLOR_MODE] ?: 0 }
+
+    /** 高级过渡动画总开关（卡片展开等），默认开启 */
+    val advancedTransition: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.ADVANCED_TRANSITION] ?: true }
+
+    /** 页面内边缘滑动返回手势，默认开启（系统预测性返回不受此控制） */
+    val gestureBack: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.GESTURE_BACK] ?: true }
+
+    suspend fun setAdvancedTransition(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.ADVANCED_TRANSITION] = enabled }
+    }
+
+    suspend fun setGestureBack(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.GESTURE_BACK] = enabled }
+    }
 
     suspend fun setColorMode(mode: Int) {
         context.settingsDataStore.edit { it[Keys.COLOR_MODE] = mode }

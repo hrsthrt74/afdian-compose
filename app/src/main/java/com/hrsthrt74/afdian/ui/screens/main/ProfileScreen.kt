@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -72,22 +73,24 @@ private fun ProfileMainScreen(
     Scaffold(
         topBar = {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
-            TopAppBar(
-                title = profile?.user?.name ?: "爱发电用户",
-                color = blurBarColor(backdrop),
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    Avatar(
-                        model = profile?.user?.avatar,
-                        size = 32.dp,
-                        contentDescription = "头像",
-                        modifier = Modifier.padding(8.dp),
-                        onClick = {
-                            profile?.user?.takeIf { it.user_id.isNotBlank() }?.let(onOpenCreator)
-                        },
-                    )
-                }
-            )
+                // 捕获头像边界，作为「主页展开」过渡动画的起点
+                val avatarOrigin = rememberCreatorOrigin()
+                TopAppBar(
+                    title = profile?.user?.name ?: "爱发电用户",
+                    color = blurBarColor(backdrop),
+                    scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        Avatar(
+                            model = profile?.user?.avatar,
+                            size = 32.dp,
+                            contentDescription = "头像",
+                            modifier = Modifier.padding(8.dp).then(avatarOrigin.trackModifier()),
+                            onClick = avatarOrigin.onClick {
+                                profile?.user?.takeIf { it.user_id.isNotBlank() }?.let(onOpenCreator)
+                            },
+                        )
+                    }
+                )
             }
         }
     ) { paddingValues ->

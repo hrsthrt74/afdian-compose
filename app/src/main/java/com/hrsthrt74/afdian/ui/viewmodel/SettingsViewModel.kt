@@ -24,6 +24,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val colorMode: StateFlow<Int> = store.colorMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
+    /** 高级过渡动画总开关，默认开启 */
+    val advancedTransition: StateFlow<Boolean> = store.advancedTransition
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /** 页面内边缘滑动返回手势，默认开启 */
+    val gestureBack: StateFlow<Boolean> = store.gestureBack
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    fun setAdvancedTransition(enabled: Boolean) {
+        viewModelScope.launch { store.setAdvancedTransition(enabled) }
+    }
+
+    fun setGestureBack(enabled: Boolean) {
+        viewModelScope.launch { store.setGestureBack(enabled) }
+    }
+
     fun setColorMode(mode: Int) {
         viewModelScope.launch { store.setColorMode(mode) }
     }

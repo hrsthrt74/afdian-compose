@@ -28,6 +28,10 @@ import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.blurBarColors
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
+import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
+import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
+import com.hrsthrt74.afdian.ui.navigation.CreatorExpandTransition
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
@@ -48,7 +52,9 @@ import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
+import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -83,6 +89,17 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
     val messagesViewModel: MessagesViewModel = viewModel()
     val backStack = rememberNavBackStack<Route>(Route.MainTabs)
 
+    // 高级过渡动画开关：订阅设置后写入全局状态，由 CreatorDetailTransition 运行时切换
+    val context = LocalContext.current
+    val settingsStore = remember { SettingsStore(context) }
+    val advancedTransition by settingsStore.advancedTransition.collectAsState(initial = true)
+    val gestureBack by settingsStore.gestureBack.collectAsState(initial = true)
+    CreatorExpandOrigin.enabled = advancedTransition
+    CreatorExpandOrigin.gestureBack = gestureBack
+
+    // 读取设备屏幕圆角，供「主页展开」过渡在全屏停稳时对齐（直角屏为 0.dp）
+    CreatorExpandOrigin.screenCorner = rememberNavSystemCornerRadius()
+
     // 包装登出回调：先把本地资料清掉（内存态 + 磁盘缓存），再执行真正的登出，
     // 避免 Activity 级 MainViewModel 的旧资料在换账号登录后短暂显示上一个账号的名字
     val handleLogout: () -> Unit = {
@@ -93,7 +110,12 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
-        transition = NavTransitions.MiuixDefault,
+        // 全局默认过渡：AppNavTransition 在视觉上等同 MiuixDefault，
+        // 但滑动关闭方向随「手势返回」开关动态声明（二级路由统一继承）
+        transition = AppNavTransition,
+        // 顶层 entry 过渡期间以设备屏幕圆角裁剪前缘（官方推荐做法）；
+        // 平台报告圆角为 0 的直角屏上等于不裁剪，无需设置项控制
+        effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius()),
     ) {
         entry<Route.MainTabs> {
             MainTabsContent(
@@ -107,10 +129,15 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
                 onNavigate = { route -> backStack.pushUnique(route) },
             )
         }
-        entry<Route.CreatorDetail>(swipeDismiss = NavSwipeDirection.LeftToRight) { route ->
+        // 创作者主页：CreatorDetailTransition 内部按「高级过渡动画」开关
+        // 在卡片展开与默认滑动之间动态切换；滑动返回方向由过渡动态声明，
+        // 随「手势返回」开关即时生效（以下所有二级路由同理，不再逐个写死）
+        entry<Route.CreatorDetail>(
+            transition = CreatorDetailTransition,
+        ) { route ->
             CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() })
         }
-        entry<Route.MessageConversation>(swipeDismiss = NavSwipeDirection.LeftToRight) { route ->
+        entry<Route.MessageConversation> { route ->
             MessageConversationScreen(
                 userId = route.userId,
                 userName = route.userName,
@@ -122,7 +149,7 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
 
         // =====「我的」的二级屏幕：全部提升到外层栈，push 时盖住底部导航栏 =====
 
-        entry<Route.Favorites>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+        entry<Route.Favorites> {
             val vm: FavoritesViewModel = viewModel(
                 factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
                     LocalContext.current.applicationContext as Application
@@ -132,18 +159,18 @@ fun MainScreen(onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
                 backStack.removeLastOrNull()
             }
         }
-        entry<Route.Sponsoring>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+        entry<Route.Sponsoring> {
             SponsoringScreen(viewModel, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }) {
                 backStack.removeLastOrNull()
             }
         }
-        entry<Route.Orders>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+        entry<Route.Orders> {
             OrderScreen(onBack = { backStack.removeLastOrNull() })
         }
-        entry<Route.Management>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+        entry<Route.Management> {
             ManagementScreen(onBack = { backStack.removeLastOrNull() })
         }
-        entry<Route.Settings>(swipeDismiss = NavSwipeDirection.LeftToRight) {
+        entry<Route.Settings> {
             SettingsScreen(onBack = { backStack.removeLastOrNull() })
         }
     }

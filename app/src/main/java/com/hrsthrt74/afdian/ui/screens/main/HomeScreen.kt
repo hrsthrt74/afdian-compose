@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.CreatorSmallCard
+import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -105,12 +106,14 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
                         ) {
                             items(sponsoring, key = { it.id }) { item ->
                                 // 双列小卡样式，横滑列表中固定宽度
+                                // 捕获卡片边界，作为「主页展开」过渡动画的起点
+                                val origin = rememberCreatorOrigin()
                                 CreatorSmallCard(
                                     avatarUrl = item.user.avatar,
                                     coverUrl = item.user.cover,
                                     creatorName = item.user.name.ifBlank { "创作者" },
-                                    onClick = { onOpenCreator(item.user) },
-                                    modifier = Modifier.width(130.dp)
+                                    onClick = origin.onClick { onOpenCreator(item.user) },
+                                    modifier = origin.trackModifier().width(130.dp)
                                 )
                             }
                         }

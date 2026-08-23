@@ -40,6 +40,7 @@ import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.Unlock
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.hrsthrt74.afdian.ui.navigation.CreatorOrigin
 
 /**
  * 单条动态卡片，参考爱发电官方 feed 布局
@@ -49,6 +50,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param modifier 外部修饰符，调用方可自行设置边距
  * @param onCreatorClick 点击头像/用户名的回调，传 null 则不可点击
  * @param showDoing 是否显示「正在创作……」，默认不显示
+ * @param creatorOrigin 创作者主页展开动画的起点捕获器；
+ *   传入时会把头部头像行的边界记录为动画起点（配合 CreatorOrigin.onClick 包装回调使用）
  */
 @Composable
 fun PostCard(
@@ -57,10 +60,11 @@ fun PostCard(
     modifier: Modifier = Modifier,
     onCreatorClick: (() -> Unit)? = null,
     showDoing: Boolean = false,
+    creatorOrigin: CreatorOrigin? = null,
 ) {
     Card(modifier = modifier) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            PostHeader(post = post, profile = profile, onCreatorClick = onCreatorClick, showDoing = showDoing)
+            PostHeader(post = post, profile = profile, onCreatorClick = onCreatorClick, showDoing = showDoing, origin = creatorOrigin)
             PostContent(post = post, onCreatorClick = onCreatorClick)
             PostFooter(post = post)
         }
@@ -69,10 +73,14 @@ fun PostCard(
 
 /** 头部：用户头像、名称、发布时间 */
 @Composable
-private fun PostHeader(post: RecommendedPost, profile: AfadianUser, onCreatorClick: (() -> Unit)?, showDoing: Boolean) {
+private fun PostHeader(post: RecommendedPost, profile: AfadianUser, onCreatorClick: (() -> Unit)?, showDoing: Boolean, origin: CreatorOrigin?) {
     val clickableMod = if (onCreatorClick != null) Modifier.clickable(onClick = onCreatorClick) else Modifier
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier
+            // 头像行是「点开创作者主页」的真实起点：持续记录它的边界供展开动画使用
+            .then(origin?.trackModifier() ?: Modifier)
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Avatar(

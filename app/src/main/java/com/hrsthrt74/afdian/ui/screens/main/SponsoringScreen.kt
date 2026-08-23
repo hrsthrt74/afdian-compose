@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.CreatorListItem
+import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
@@ -116,12 +117,14 @@ fun SponsoringScreen(
                 } else {
                     items(sponsoring, key = { it.id }) { item ->
                         // 长条形创作者卡片，副标题显示发电计划名
+                        // 捕获卡片边界，作为「主页展开」过渡动画的起点
+                        val origin = rememberCreatorOrigin()
                         CreatorListItem(
                             avatarUrl = item.user.avatar,
                             creatorName = item.user.name.ifBlank { "创作者" },
                             summary = "我发电了 ${item.planName}",
-                            onClick = { onOpenCreator(item.user) },
-                            modifier = Modifier
+                            onClick = origin.onClick { onOpenCreator(item.user) },
+                            modifier = origin.trackModifier()
                                 .padding(horizontal = 16.dp)
                                 .padding(vertical = 4.dp)
                         )
