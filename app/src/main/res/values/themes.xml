@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
     <style name="Theme.Afdian" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Android 12+ 原生 SplashScreen：图标默认取应用 Launcher 图标，
+         背景随明暗模式取 @color/splash_background；退出后切回常规主题 -->
+    <style name="Theme.Afdian.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.Afdian</item>
+    </style>
 </resources>
