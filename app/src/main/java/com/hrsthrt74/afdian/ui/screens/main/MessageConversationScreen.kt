@@ -46,6 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.LinkAnnotation
@@ -60,11 +61,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.MessageContent
-import com.hrsthrt74.afdian.ui.components.Avatar
-import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MessageObjectContent
+import com.hrsthrt74.afdian.ui.components.AppBlurRadius
+import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
+import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.blurBarColors
+import com.hrsthrt74.afdian.ui.components.progressiveBlurBarColors
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -74,8 +85,17 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults.textFieldColors
+import top.yukonga.miuix.kmp.blur.ProgressiveBlur
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -83,20 +103,6 @@ import top.yukonga.miuix.kmp.utils.pressable
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
-import com.hrsthrt74.afdian.ui.components.BlurredBar
-import com.hrsthrt74.afdian.ui.components.blurBarColor
-import com.hrsthrt74.afdian.ui.components.blurBarColors
-import com.hrsthrt74.afdian.ui.components.AppBlurRadius
-import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
-import com.hrsthrt74.afdian.ui.components.progressiveBlurBarColors
-import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import top.yukonga.miuix.kmp.basic.TextFieldDefaults.textFieldColors
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.ProgressiveBlur
-import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
-import top.yukonga.miuix.kmp.blur.textureBlur
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -119,12 +125,17 @@ fun MessageConversationScreen(
     val focusRequester = remember { FocusRequester() }
 
     val themeSettings = LocalThemeSettings.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    // 输入栏高度（px），Snackbar 需要显示在输入栏上方而不是被它挡住
+    var inputBarHeightPx by remember { mutableStateOf(0) }
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val density = LocalDensity.current
     val imeBottomPadding = with(density) {
         WindowInsets.ime.getBottom(this).toDp()
     }
     val isImeVisible = imeBottomPadding > 0.dp
+    // 输入栏高度换算成 dp，供 Snackbar 抬高使用
+    val inputBarHeight = with(density) { inputBarHeightPx.toDp() }
     val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
     val progressiveStartFraction = if (isImeVisible && windowHeight > 0.dp) {
         // 键盘越高，模糊渐变的强模糊起点越靠下，避免输入区域被大面积重模糊。
@@ -143,6 +154,9 @@ fun MessageConversationScreen(
             if (messages.isNotEmpty()) {
                 listState.animateScrollToItem(messages.size - 1)
             }
+        } catch (e: CancellationException) {
+            // 协程被正常取消（如快速切页/重组导致请求中断），不算错误，直接向上抛
+            throw e
         } catch (e: Exception) {
             errorMessage = e.message ?: "会话加载失败"
         } finally {
@@ -155,6 +169,9 @@ fun MessageConversationScreen(
             val fetchedFAQs = viewModel.fetchFAQs(userId)
             faqs.clear()
             faqs.addAll(fetchedFAQs)
+        } catch (e: CancellationException) {
+            // 同上，取消不处理
+            throw e
         } catch (_: Exception) {
         }
     }
@@ -176,6 +193,9 @@ fun MessageConversationScreen(
                     messages.add(sentMessage)
                 }
                 listState.animateScrollToItem(messages.size - 1)
+            } catch (e: CancellationException) {
+                // 发送中途被取消不算错误，静默处理
+                throw e
             } catch (e: Exception) {
                 errorMessage = e.message ?: "消息发送失败"
             } finally {
@@ -207,7 +227,29 @@ fun MessageConversationScreen(
         }
     }
 
+    // 错误信息用 Snackbar 展示，不占布局空间；点击"重试"重新加载消息
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { msg ->
+            val result = snackbarHostState.showSnackbar(
+                message = msg,
+                actionLabel = "重试",
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                loadMessages()
+                loadFAQs()
+            }
+        }
+    }
+
     Scaffold(
+        snackbarHost = {
+            // 键盘弹出时输入栏随 IME 上移，Snackbar 也要跟着抬到输入栏上方
+            SnackbarHost(
+                snackbarHostState,
+                modifier = Modifier.padding(bottom = inputBarHeight + imeBottomPadding),
+            )
+        },
         topBar = {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             SmallTopAppBar(
@@ -277,6 +319,8 @@ fun MessageConversationScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // 记录输入栏实际高度，供 Snackbar 抬高到输入栏上方使用
+                    .onSizeChanged { inputBarHeightPx = it.height }
                     .background(blurBarColor(backdrop))
                     .then(
                         if (backdrop != null && !themeSettings.progressiveBlur) {
@@ -345,7 +389,9 @@ fun MessageConversationScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .padding(top = 16.dp, bottom = 8.dp),
+                        .padding(bottom = 8.dp)
+                        // 渐进模糊时上下留白更大，普通模糊保持紧凑
+                        .padding(top = if (themeSettings.progressiveBlur) 32.dp else 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -415,37 +461,6 @@ fun MessageConversationScreen(
                             tint = animatedIconColor,
                             contentDescription = "Send"
                         )
-                    }
-                }
-
-                errorMessage?.let { error ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = error,
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.error,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = "重试",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.clickable {
-                                    coroutineScope.launch { loadMessages() }
-                                }
-                            )
-                        }
                     }
                 }
                 }
