@@ -18,8 +18,6 @@ import com.hrsthrt74.afdian.data.settings.ThemeSettings
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
-import top.yukonga.miuix.kmp.theme.darkColorScheme
-import top.yukonga.miuix.kmp.theme.lightColorScheme
 
 val LocalThemeSettings = staticCompositionLocalOf<ThemeSettings> {
     error("LocalThemeSettings 尚未提供：请在 AfdianTheme 作用域内读取")
@@ -44,10 +42,12 @@ fun AfdianTheme(
             else -> ColorSchemeMode.System
         }
         if (primaryColor != null) {
+            // 用 AfdianColors 的工厂函数生成整套品牌色系：
+            // 除 primary 外，禁用态/容器/下拉选中项等一并跟随主题色
             ThemeController(
                 colorSchemeMode = mode,
-                lightColors = lightColorScheme(primary = primaryColor),
-                darkColors = darkColorScheme(primary = primaryColor),
+                lightColors = afdianLightColorScheme(primaryColor),
+                darkColors = afdianDarkColorScheme(primaryColor),
             )
         } else {
             ThemeController(mode)

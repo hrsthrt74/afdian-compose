@@ -16,7 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -27,6 +26,7 @@ import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerDialog
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
 import com.hrsthrt74.afdian.ui.screens.main.MainScreen
+import com.hrsthrt74.afdian.ui.theme.AfdianBrandColor
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
 
 class MainActivity : ComponentActivity() {
@@ -58,7 +58,7 @@ private fun AfdianApp(appReady: MutableState<Boolean>, session: AuthSession = vi
     // 配色模式：0=跟随系统 1=浅色 2=深色
     val colorMode by settingsStore.colorMode.collectAsState(initial = 0)
 
-    AfdianTheme(primaryColor = if (useAfdianColor) Color(0xFF946CE6) else null, colorMode = colorMode) {
+    AfdianTheme(primaryColor = if (useAfdianColor) AfdianBrandColor else null, colorMode = colorMode) {
         // 登录态：Loading 期间不渲染任何界面，读完 token 才放行，避免登录页闪烁
         val authState by session.state.collectAsState()
         when (authState) {
