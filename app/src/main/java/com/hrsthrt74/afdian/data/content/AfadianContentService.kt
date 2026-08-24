@@ -46,7 +46,38 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
 
     suspend fun fetchSponsoring(): List<SponsoringItem> = get("/api/my/sponsoring?need_sponsor_info=1", SponsoringResponse.serializer()).data?.sponsoring.orEmpty()
     suspend fun fetchMarkedCreators(): List<FavoriteItem> = fetchFavoriteList("/api/my/marked") { it["user"]?.jsonObject ?: it }
-    suspend fun fetchMarkedPosts(): List<FavoriteItem> = fetchFavoriteList("/api/my/marked-post") { it["post"]?.jsonObject ?: it }
+    // 收藏动态：每项里的 post 对象结构与精选接口（rec-list）完全一致，
+    // 直接反序列化成 RecommendedPost，供 PostCard 组件渲染完整卡片
+    suspend fun fetchMarkedPosts(page: Int = 1): MarkedPostsPage {
+        val url = "https://afdian.com/api/my/marked-post".toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("page", page.toString())
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}").build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("收藏加载失败 (${response.code})")
+            val data = json.parseToJsonElement(response.body.string()).jsonObject["data"]?.jsonObject
+            // 兼容 items / list 两种字段名（与通用收藏列表逻辑保持一致）
+            val elements = data?.get("items")?.jsonArray ?: data?.get("list")?.jsonArray
+            MarkedPostsPage(
+                posts = elements.orEmpty().mapNotNull { element ->
+                    // 兼容两种返回结构：项本身是 post 对象，或包了一层 "post" 字段
+                    val value = element.jsonObject["post"] as? JsonObject ?: element.jsonObject
+                    runCatching { json.decodeFromJsonElement(RecommendedPost.serializer(), value) }
+                        .getOrNull()
+                        // 完全解析失败时退化为最小可用数据，保证卡片至少能显示标题/作者
+                        ?.takeIf { it.post_id.isNotBlank() }
+                },
+                hasMore = (data?.get("has_more")?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0) == 1,
+            ).also { page ->
+                // 诊断日志：解析结果为空时打印原始返回，方便排查字段结构
+                if (page.posts.isEmpty()) {
+                    android.util.Log.w("AfadianContentService", "marked-post 解析为空，data 原始内容：$data")
+                }
+            }
+        }
+    }
     suspend fun fetchMarkedCrowdfundings(): List<FavoriteItem> = fetchFavoriteList("/api/user/marked-crowdfunding") { it["crowdfunding"]?.jsonObject ?: it }
     suspend fun fetchRecommendedPosts(publishSN: String = ""): RecommendedPostsPage {
         val url = "https://afdian.com/api/post/get-rec-list".toHttpUrl().newBuilder()
@@ -95,6 +126,11 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
 
     suspend fun markCreator(userID: String) = postUserAction("/api/user/mark", userID)
 
+    // ── 动态互动：点赞 / 收藏（参数均为 post_id，端点来自 afdian.com 前端 JS）──
+    suspend fun likePost(postID: String) = postPostAction("/api/post/like", postID)
+    suspend fun unlikePost(postID: String) = postPostAction("/api/post/unlike", postID)
+    suspend fun markPost(postID: String) = postPostAction("/api/user/mark-post", postID)
+    suspend fun unmarkPost(postID: String) = postPostAction("/api/user/unmark-post", postID)
     suspend fun unmarkCreator(userID: String) = postUserAction("/api/user/unmark", userID)
 
     suspend fun fetchMessageDialogs(page: Int = 1, unread: Int = 0): MessageDialogPage {
@@ -369,6 +405,24 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         }
     }
 
+    /** 动态互动类 POST（点赞/收藏），JSON body 携带 post_id + auth_token */
+    private fun postPostAction(path: String, postID: String) {
+        val url = (AFDIAN_HOST + path).toHttpUrl()
+        val body = json.encodeToString(
+            JsonObject.serializer(),
+            buildJsonObject {
+                put("post_id", postID)
+                put("auth_token", tokenStore.token)
+            }
+        ).toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(url).post(body)
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", "https://afdian.com/").build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("操作失败 (${response.code})")
+        }
+    }
+
     private fun <T> get(
         path: String,
         serializer: kotlinx.serialization.KSerializer<T>,
@@ -432,10 +486,18 @@ data class RecommendedPostsPage(
     val nextPublishSN: String,
     val hasMore: Boolean,
 )
+
+/** 收藏动态分页结果（page 游标分页） */
+data class MarkedPostsPage(
+    val posts: List<RecommendedPost>,
+    val hasMore: Boolean,
+)
 @Serializable data class RecommendedPost(
     val post_id: String = "", val title: String = "", val preview: String? = null,
     val content: String? = null, val cover: String? = null, val like_count: Int? = null,
     val comment_count: Int? = null, val user: AfadianUser = AfadianUser(),
+    // 当前登录用户是否已点赞（0/1，匿名请求时不返回）
+    val has_like: Int? = null,
     val pics: List<String>? = null,           // 动态图片列表
     val publish_time: Long? = null,           // 发布时间（Unix 秒）
     val publish_sn: Long? = null,             // 发布序号（用于分页游标）

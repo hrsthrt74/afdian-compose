@@ -9,19 +9,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.PostCard
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
@@ -54,10 +51,13 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
     val loading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+    // 点赞/收藏状态集合（卡片高亮 + 点击回调用）
+    val likedIds by viewModel.interactions.likedIds.collectAsState()
+    val markedIds by viewModel.interactions.markedIds.collectAsState()
 
     val listState = rememberLazyListState()
 
-    // 滚动到底部附近时触发加载更多
+    // 滚动到底部附近时触发加载更多（公共组件，收藏页动态 tab 也复用）
     LoadMoreEffect(listState, hasMore, isLoadingMore) { viewModel.loadMore() }
 
     Scaffold(
@@ -119,6 +119,10 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                             onCreatorClick = origin.onClick { onOpenCreator(post.user) },
                             showDoing = true,
                             creatorOrigin = origin,
+                            liked = post.id in likedIds,
+                            marked = post.id in markedIds,
+                            onLikeToggle = { viewModel.interactions.toggleLike(post.id) },
+                            onMarkToggle = { viewModel.interactions.toggleMark(post.id) },
                         )
                     }
                     // 底部加载指示器
@@ -132,27 +136,3 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
     }
 }
 
-/**
- * 当列表滚动到倒数第 [threshold] 个元素时，触发 [onLoadMore]。
- * 仅在有更多数据且当前未加载中时触发。
- */
-@Composable
-private fun LoadMoreEffect(
-    listState: LazyListState,
-    hasMore: Boolean,
-    isLoadingMore: Boolean,
-    threshold: Int = 3,
-    onLoadMore: () -> Unit,
-) {
-    val shouldLoadMore by remember {
-        derivedStateOf {
-            val layoutInfo = listState.layoutInfo
-            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            val total = layoutInfo.totalItemsCount
-            hasMore && !isLoadingMore && total > 0 && lastVisible >= total - threshold
-        }
-    }
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) onLoadMore()
-    }
-}

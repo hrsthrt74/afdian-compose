@@ -39,6 +39,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _hasMore = MutableStateFlow(true)
     val hasMore = _hasMore.asStateFlow()
     private var nextPublishSN = ""
+    // 动态点赞/收藏的共享交互状态（乐观更新 + 失败回滚；状态来自服务端 has_like / marked-post）
+    val interactions = PostInteractionController(service, viewModelScope)
 
     init {
         // 先异步回填上次的资料缓存，让「我的」页立即显示真实用户名/头像；
@@ -58,11 +60,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val profileDeferred = async { service.fetchProfile() }
                         val sponsoringDeferred = async { service.fetchSponsoring() }
                         val postsDeferred = async { service.fetchRecommendedPosts() }
+                        // 并行拉取服务端「我收藏的动态」ID 集合，供卡片收藏图标在首帧就显示正确
+                        val markedIdsDeferred = async { interactions.fetchServerMarkedIds() }
                         AccountResult(
                             accountDeferred.await(),
                             profileDeferred.await(),
                             sponsoringDeferred.await(),
-                            postsDeferred.await()
+                            postsDeferred.await(),
+                            markedIdsDeferred.await()
                         )
                     }
                 }
@@ -71,6 +76,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // 刷新成功后把资料写回磁盘缓存，供下次冷启动回填（内部已容错，失败不影响主流程）
                 profileCache.save(result.profile)
                 _sponsoring.value = result.sponsoring
+                // 先回填收藏/点赞状态再上屏，保证列表首帧图标就是正确的
+                interactions.seedMarked(result.markedIds)
+                interactions.seedLiked(result.postsPage.posts.filter { it.has_like == 1 }.map { it.id }.toSet())
                 _posts.value = result.postsPage.posts
                 nextPublishSN = result.postsPage.nextPublishSN
                 _hasMore.value = result.postsPage.hasMore
@@ -97,6 +105,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val page = withContext(Dispatchers.IO) { service.fetchRecommendedPosts(nextPublishSN) }
                 Log.d("Discover", "loadMore result: newPosts=${page.posts.size}, nextSN=${page.nextPublishSN}, hasMore=${page.hasMore}")
+                // 翻页数据同样要先播种点赞状态再追加
+                interactions.seedLiked(page.posts.filter { it.has_like == 1 }.map { p -> p.id }.toSet())
                 _posts.value = _posts.value + page.posts
                 nextPublishSN = page.nextPublishSN
                 _hasMore.value = page.hasMore
@@ -114,4 +124,6 @@ private data class AccountResult(
     val profile: AfadianProfile,
     val sponsoring: List<SponsoringItem>,
     val postsPage: com.hrsthrt74.afdian.data.content.RecommendedPostsPage,
+    // 服务端「我收藏的动态」ID 集合，用于收藏图标首帧正确显示
+    val markedIds: Set<String>,
 )

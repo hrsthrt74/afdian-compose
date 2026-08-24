@@ -12,46 +12,43 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
-import coil3.compose.AsyncImage
+import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.CreatorListItem
+import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.PostCard
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
-import com.hrsthrt74.afdian.ui.components.BlurredBar
-import com.hrsthrt74.afdian.ui.components.blurBarColor
-import com.hrsthrt74.afdian.ui.components.contentBottomPadding
-import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
@@ -62,8 +59,17 @@ fun FavoritesScreen(
 ) {
     val kind by viewModel.kind.collectAsState()
     val items by viewModel.items.collectAsState()
+    val posts by viewModel.posts.collectAsState()
+    val hasMore by viewModel.hasMore.collectAsState()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
+    // 点赞/收藏状态集合（收藏页拉到的动态默认全部已收藏，由 VM 预置）
+    val likedIds by viewModel.interactions.likedIds.collectAsState()
+    val markedIds by viewModel.interactions.markedIds.collectAsState()
+
+    // 动态 tab 的滚动加载更多需要感知列表位置
+    val listState = rememberLazyListState()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -117,6 +123,7 @@ fun FavoritesScreen(
             }
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
@@ -145,6 +152,42 @@ fun FavoritesScreen(
                         ) {
                             Text(error!!)
                             Button(onClick = viewModel::load) { Text("重试") }
+                        }
+                    }
+                } else if (kind == 1) {
+                    // 动态 tab：复用发现页全站精选的 PostCard 渲染完整动态卡片
+                    if (posts.isEmpty()) {
+                        item {
+                            Text(
+                                "还没有收藏内容",
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        items(posts, key = { it.id }) { post ->
+                            // 捕获动态卡片头部行的边界，作为「主页展开」过渡动画的起点
+                            val origin = rememberCreatorOrigin()
+                            PostCard(
+                                post = post,
+                                profile = post.user,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                                onCreatorClick = origin.onClick { onOpenCreator(post.user) },
+                                showDoing = true,
+                                creatorOrigin = origin,
+                                liked = post.id in likedIds,
+                                marked = post.id in markedIds,
+                                onLikeToggle = { viewModel.interactions.toggleLike(post.id) },
+                                onMarkToggle = { viewModel.interactions.toggleMark(post.id) },
+                            )
+                        }
+                        // 底部加载指示器
+                        if (isLoadingMore) {
+                            item { LoadingComponent(modifier = Modifier.padding(vertical = 16.dp)) }
                         }
                     }
                 } else if (items.isEmpty()) {
@@ -208,6 +251,11 @@ fun FavoritesScreen(
                     }
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
+            }
+
+            // 滚动到底部附近自动加载下一页（动态 tab 专属，放在 LazyColumn 外的 Composable 上下文）
+            if (kind == 1) {
+                LoadMoreEffect(listState, hasMore, isLoadingMore) { viewModel.loadMore() }
             }
         }
     }
