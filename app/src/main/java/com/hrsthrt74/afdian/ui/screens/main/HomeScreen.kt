@@ -20,9 +20,15 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.CreatorSmallCard
-import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -31,17 +37,10 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Refresh
-import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
-import com.hrsthrt74.afdian.ui.components.BlurredBar
-import com.hrsthrt74.afdian.ui.components.blurBarColor
-import com.hrsthrt74.afdian.ui.components.contentBottomPadding
-import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
@@ -105,7 +104,7 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
                 } else {
                     item {
                         LazyRow(
-                            modifier = Modifier.padding(horizontal = 16.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(sponsoring, key = { it.id }) { item ->
@@ -117,7 +116,7 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
                                     coverUrl = item.user.cover,
                                     creatorName = item.user.name.ifBlank { "创作者" },
                                     onClick = origin.onClick { onOpenCreator(item.user) },
-                                    modifier = origin.trackModifier().width(130.dp)
+                                    modifier = origin.trackModifier().width(156.dp)
                                 )
                             }
                         }
