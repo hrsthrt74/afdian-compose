@@ -97,6 +97,25 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         }
     }
 
+    /** 动态详情：GET /api/post/get-detail，正文 HTML 在 content 字段 */
+    suspend fun fetchPostDetail(postId: String): RecommendedPost {
+        val url = "https://afdian.com/api/post/get-detail".toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("post_id", postId)
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}").build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("动态详情加载失败 (${response.code})")
+            val data = json.parseToJsonElement(response.body.string()).jsonObject["data"]?.jsonObject
+            // 兼容 data.post / data.item 两种包裹字段
+            val post = (data?.get("post") as? JsonObject)
+                ?: (data?.get("item") as? JsonObject)
+                ?: error("动态详情返回结构异常")
+            json.decodeFromJsonElement(RecommendedPost.serializer(), post)
+        }
+    }
+
     suspend fun fetchCreatorDetail(user: AfadianUser): CreatorDetail {
         val userID = user.user_id
         return coroutineScope {

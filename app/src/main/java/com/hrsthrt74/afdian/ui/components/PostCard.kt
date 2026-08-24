@@ -52,91 +52,36 @@ import com.hrsthrt74.afdian.ui.navigation.CreatorOrigin
  *
  * @param post 动态数据
  * @param profile 创作者信息（用于显示头像和用户名）
- * @param modifier 外部修饰符，调用方可自行设置边距
+  * @param modifier 外部修饰符，调用方可自行设置边距
  * @param onCreatorClick 点击头像/用户名的回调，传 null 则不可点击
  * @param showDoing 是否显示「正在创作……」，默认不显示
  * @param creatorOrigin 创作者主页展开动画的起点捕获器；
  *   传入时会把头部头像行的边界记录为动画起点（配合 CreatorOrigin.onClick 包装回调使用）
- * @param liked 是否已点赞（父级状态驱动，乐观更新在 ViewModel 里做）
- * @param marked 是否已收藏
- * @param onLikeToggle 点击点赞的回调，传 null 则不可点击
- * @param onMarkToggle 点击收藏的回调，传 null 则不可点击
+ *
+ * 点赞/收藏无需外部传入：操作栏（PostActionBar）内置全局互动状态，
+ * 所有页面的卡片自动可点赞收藏且状态同步。
  */
 @Composable
 fun PostCard(
     post: RecommendedPost,
     profile: AfadianUser,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
     onCreatorClick: (() -> Unit)? = null,
     showDoing: Boolean = false,
     creatorOrigin: CreatorOrigin? = null,
-    liked: Boolean = false,
-    marked: Boolean = false,
-    onLikeToggle: (() -> Unit)? = null,
-    onMarkToggle: (() -> Unit)? = null,
 ) {
     Card(modifier = modifier) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        // 点击特效挂在整张卡片的内容 Column 上：水波纹覆盖 header/正文/操作栏整个范围
+        // （操作栏自身的 clickable 优先消费点击，不会误触发进详情）
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+        ) {
             PostHeader(post = post, profile = profile, onCreatorClick = onCreatorClick, showDoing = showDoing, origin = creatorOrigin)
             PostContent(post = post, onCreatorClick = onCreatorClick)
-            PostFooter(post, liked, marked, onLikeToggle, onMarkToggle)
-        }
-    }
-}
-
-/** 头部：用户头像、名称、发布时间 */
-@Composable
-private fun PostHeader(post: RecommendedPost, profile: AfadianUser, onCreatorClick: (() -> Unit)?, showDoing: Boolean, origin: CreatorOrigin?) {
-    val clickableMod = if (onCreatorClick != null) Modifier.clickable(onClick = onCreatorClick) else Modifier
-    Row(
-        modifier = Modifier
-            // 头像行是「点开创作者主页」的真实起点：持续记录它的边界供展开动画使用
-            .then(origin?.trackModifier() ?: Modifier)
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Avatar(
-            model = profile.avatar,
-            size = 42.dp,
-            contentDescription = profile.name,
-            onClick = onCreatorClick,
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f).then(clickableMod)) {
-            Text(
-                text = profile.name.ifBlank { "创作者" },
-                style = MiuixTheme.textStyles.subtitle,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val doing = profile.creator?.doing
-            if (showDoing && !doing.isNullOrBlank()) {
-                Text(
-                    text = "正在创作 $doing",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (post.publish_time != null) {
-            val dateStr = remember(post.publish_time) {
-                val date = Date(post.publish_time * 1000)
-                val cal = java.util.Calendar.getInstance()
-                val postYear = cal.apply { time = date }.get(java.util.Calendar.YEAR)
-                val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-                val pattern = if (postYear == currentYear) "M/d" else "yyyy/M/d"
-                SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(date)
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = dateStr,
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
+            PostActionBar(post)
         }
     }
 }
@@ -172,8 +117,13 @@ private fun PostContent(post: RecommendedPost, onCreatorClick: (() -> Unit)?) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
-            // 正文
-            val summary = post.summary
+            // 正文预览：summary 可能兜底到 content（如收藏接口没有 preview 字段），
+            // 而 content 是 HTML——用 Jsoup 剥掉标签只留纯文本，避免卡片里露出裸标签。
+            // 纯文本输入经过 Jsoup 也只是原样返回，无副作用；remember 缓存避免滚动重复解析
+            val summary = remember(post.id) {
+                val raw = post.summary
+                if (raw.contains('<')) org.jsoup.Jsoup.parse(raw).text() else raw
+            }
             if (summary.isNotBlank()) {
                 Text(
                     text = summary,
@@ -225,177 +175,7 @@ private fun PostContent(post: RecommendedPost, onCreatorClick: (() -> Unit)?) {
     }
 }
 
-/** 图片网格：根据图片数量自适应布局（1张4:3 / 2~3张并排 / 4~9张3列网格） */
-@Composable
-private fun PostImageGrid(images: List<String>) {
-    if (images.isEmpty()) return
 
-    val cornerRadius = 8.dp
-    val gap = 4.dp
-    val bgShape = RoundedCornerShape(cornerRadius)
-
-    when (images.size) {
-        1 -> AsyncImage(
-            model = images[0],
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(4f / 3f)
-                .background(MiuixTheme.colorScheme.disabledSecondary, bgShape)
-                .clip(bgShape),
-        )
-        2, 3 -> Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-            images.forEach { url ->
-                AsyncImage(
-                    model = url,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .weight(1f)
-                        .aspectRatio(1f)
-                        .background(MiuixTheme.colorScheme.disabledSecondary, bgShape)
-                        .clip(bgShape),
-                )
-            }
-        }
-        else -> {
-            val rows = images.chunked(3)
-            Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-                rows.forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        row.forEach { url ->
-                            AsyncImage(
-                                model = url,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .background(MiuixTheme.colorScheme.disabledSecondary, bgShape)
-                                    .clip(bgShape),
-                            )
-                        }
-                        // 补齐不满 3 个的行，用空 Spacer 占位
-                        repeat(3 - row.size) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 底部操作栏：三列均分布局（点赞 / 评论 / 收藏），
- * 每个动作占一个等宽 Box，图标 + 文字居中排列
- *
- * @param liked 当前是否已点赞（由父级状态驱动）
- * @param marked 当前是否已收藏
- * @param onLikeToggle 点击点赞的回调，null 则不可点击
- * @param onMarkToggle 点击收藏的回调，null 则不可点击
- */
-@Composable
-private fun PostFooter(
-    post: RecommendedPost,
-    liked: Boolean,
-    marked: Boolean,
-    onLikeToggle: (() -> Unit)?,
-    onMarkToggle: (() -> Unit)?,
-) {
-    // 服务端返回的 like_count 已包含「我已赞」的情况（has_like==1），
-    // 所以只在本地状态与服务端初始状态不一致时做 ±1 的乐观显示
-    val serverLiked = post.has_like == 1
-    val likeCount = (post.like_count ?: 0) + when {
-        liked && !serverLiked -> 1
-        !liked && serverLiked -> -1
-        else -> 0
-    }
-    val commentCount = post.comment_count ?: 0
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        // ── 第 1 列：点赞 ──
-        val likeIcon = if (liked) MiuixIcons.FavoritesFill else MiuixIcons.Favorites
-        val likeTint = if (liked) MiuixTheme.colorScheme.primary
-        else MiuixTheme.colorScheme.onSurfaceVariantSummary
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .then(if (onLikeToggle != null) Modifier.clickable(onClick = onLikeToggle) else Modifier)
-                // padding 放在 clickable 之后：内边距也算进点击热区
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = likeIcon,
-                    contentDescription = if (liked) "取消点赞" else "点赞",
-                    modifier = Modifier.size(18.dp),
-                    tint = likeTint,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "$likeCount",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = likeTint,
-                )
-            }
-        }
-        // ── 第 2 列：评论 ──
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                // 与两侧保持同样的内边距，保证三列高度一致
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = MiuixIcons.Community,
-                    contentDescription = "评论",
-                    modifier = Modifier.size(18.dp),
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "$commentCount",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
-            }
-        }
-        // ── 第 3 列：收藏（没有计数，直接显示「收藏」二字）──
-        val markIcon = if (marked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder
-        val markTint = if (marked) MiuixTheme.colorScheme.primary
-        else MiuixTheme.colorScheme.onSurfaceVariantSummary
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .then(if (onMarkToggle != null) Modifier.clickable(onClick = onMarkToggle) else Modifier)
-                // padding 放在 clickable 之后：内边距也算进点击热区
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = markIcon,
-                    contentDescription = if (marked) "取消收藏" else "收藏",
-                    modifier = Modifier.size(18.dp),
-                    tint = markTint,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "收藏",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = markTint,
-                )
-            }
-        }
-    }
-}
 
 // ──────── 预览 ────────
 

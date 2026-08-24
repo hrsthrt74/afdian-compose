@@ -40,7 +40,11 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
-fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
+fun DiscoverScreen(
+    viewModel: MainViewModel,
+    onOpenCreator: (AfadianUser) -> Unit,
+    onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit = {},
+) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val themeSettings = LocalThemeSettings.current
@@ -51,9 +55,6 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
     val loading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
-    // 点赞/收藏状态集合（卡片高亮 + 点击回调用）
-    val likedIds by viewModel.interactions.likedIds.collectAsState()
-    val markedIds by viewModel.interactions.markedIds.collectAsState()
 
     val listState = rememberLazyListState()
 
@@ -112,17 +113,15 @@ fun DiscoverScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Uni
                     items(posts, key = { it.id }) { post ->
                         // 捕获动态卡片头部行的边界，作为「主页展开」过渡动画的起点
                         val origin = rememberCreatorOrigin()
+                        // 操作栏的点赞/收藏逻辑已内置在组件里（读全局互动状态），无需逐卡片传参
                         PostCard(
                             post = post,
                             profile = post.user,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                            onClick = { onOpenPost(post) },
                             onCreatorClick = origin.onClick { onOpenCreator(post.user) },
                             showDoing = true,
                             creatorOrigin = origin,
-                            liked = post.id in likedIds,
-                            marked = post.id in markedIds,
-                            onLikeToggle = { viewModel.interactions.toggleLike(post.id) },
-                            onMarkToggle = { viewModel.interactions.toggleMark(post.id) },
                         )
                     }
                     // 底部加载指示器

@@ -14,16 +14,29 @@ import kotlinx.coroutines.withContext
  * 设计要点：
  * - 采用「乐观更新」：点击瞬间先改本地状态让 UI 立即反馈，
  *   网络请求失败时再回滚，避免等待接口的卡顿感。
- * - 发现页（MainViewModel）和收藏页（FavoritesViewModel）各持有一个实例，
- *   两边状态独立（列表来源不同），但逻辑只有这一份。
- * - 收藏状态的真实来源是服务端：由调用方在刷新列表时并行拉取
- *   「我收藏的动态」接口，通过 [seedMarked] 在展示前回填。
+ * - 全局单例（[get]）：发现页、收藏页、动态详情页共享同一份状态，
+ *   在任意一处点赞/收藏，其他页面的高亮立即同步。
  */
-class PostInteractionController(
+class PostInteractionController private constructor(
     private val service: AfadianContentService,
-    // 网络请求跑在这个作用域里（由 ViewModel 传入 viewModelScope，页面销毁时自动取消）
+    // App 级作用域：请求不随页面销毁取消（乐观回滚依赖请求完成回调）
     private val scope: CoroutineScope,
 ) {
+
+    companion object {
+        @Volatile private var instance: PostInteractionController? = null
+
+        /** 获取全局唯一实例（Application 级缓存，换账号时随进程重启自然重置） */
+        fun get(context: android.content.Context): PostInteractionController =
+            instance ?: synchronized(this) {
+                instance ?: PostInteractionController(
+                    service = AfadianContentService(com.hrsthrt74.afdian.data.auth.AuthTokenStore(context.applicationContext as android.app.Application)),
+                    scope = kotlinx.coroutines.CoroutineScope(
+                        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate
+                    ),
+                ).also { instance = it }
+            }
+    }
 
     private val _likedIds = MutableStateFlow<Set<String>>(emptySet())
     val likedIds = _likedIds.asStateFlow()
@@ -58,6 +71,7 @@ class PostInteractionController(
     /** 切换点赞：先乐观翻转本地状态，再异步请求服务端，失败则回滚 */
     fun toggleLike(postId: String) {
         val nowLiked = postId !in _likedIds.value
+        android.util.Log.d("PostInteraction", "toggleLike: id=$postId -> nowLiked=$nowLiked")
         _likedIds.value = if (nowLiked) _likedIds.value + postId else _likedIds.value - postId
         scope.launch {
             runCatching {

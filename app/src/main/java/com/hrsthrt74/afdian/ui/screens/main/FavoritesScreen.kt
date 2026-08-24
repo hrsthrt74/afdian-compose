@@ -55,6 +55,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 fun FavoritesScreen(
     viewModel: FavoritesViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
+    onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit = {},
     onBack: () -> Unit,
 ) {
     val kind by viewModel.kind.collectAsState()
@@ -64,9 +65,6 @@ fun FavoritesScreen(
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
-    // 点赞/收藏状态集合（收藏页拉到的动态默认全部已收藏，由 VM 预置）
-    val likedIds by viewModel.interactions.likedIds.collectAsState()
-    val markedIds by viewModel.interactions.markedIds.collectAsState()
 
     // 动态 tab 的滚动加载更多需要感知列表位置
     val listState = rememberLazyListState()
@@ -176,13 +174,10 @@ fun FavoritesScreen(
                                 post = post,
                                 profile = post.user,
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                                onClick = { onOpenPost(post) },
                                 onCreatorClick = origin.onClick { onOpenCreator(post.user) },
                                 showDoing = true,
                                 creatorOrigin = origin,
-                                liked = post.id in likedIds,
-                                marked = post.id in markedIds,
-                                onLikeToggle = { viewModel.interactions.toggleLike(post.id) },
-                                onMarkToggle = { viewModel.interactions.toggleMark(post.id) },
                             )
                         }
                         // 底部加载指示器

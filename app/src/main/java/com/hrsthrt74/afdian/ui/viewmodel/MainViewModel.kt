@@ -39,8 +39,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _hasMore = MutableStateFlow(true)
     val hasMore = _hasMore.asStateFlow()
     private var nextPublishSN = ""
-    // 动态点赞/收藏的共享交互状态（乐观更新 + 失败回滚；状态来自服务端 has_like / marked-post）
-    val interactions = PostInteractionController(service, viewModelScope)
+    // 动态点赞/收藏的全局共享互动状态（乐观更新 + 失败回滚；状态来自服务端 has_like / marked-post）
+    val interactions = PostInteractionController.get(application)
 
     init {
         // 先异步回填上次的资料缓存，让「我的」页立即显示真实用户名/头像；

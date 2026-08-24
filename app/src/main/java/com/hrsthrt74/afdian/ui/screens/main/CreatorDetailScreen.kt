@@ -469,18 +469,15 @@ private fun CreatorSponsorsSection(detail: CreatorDetail) {
         detail.topSponsors.forEach { sponsor ->
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Avatar(
                     model = sponsor.avatarUrl,
                     size = 48.dp,
                     contentDescription = sponsor.displayName,
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(sponsor.displayName)
-                    Text("累计 ¥${sponsor.totalAmountText}", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                }
+                Text(sponsor.displayName)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -519,6 +516,13 @@ private fun CreatorAlbumsSection(detail: CreatorDetail) {
 
 @Composable
 private fun CreatorPostsSection(detail: CreatorDetail) {
+    // 把该创作者动态里的服务端点赞状态（has_like）播种进全局互动状态，
+    // 否则这里看到的「已赞」高亮会不准（操作栏读的是全局单例）
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val interactions = com.hrsthrt74.afdian.ui.viewmodel.PostInteractionController.get(context)
+    androidx.compose.runtime.LaunchedEffect(detail.posts) {
+        interactions.seedLiked(detail.posts.filter { it.has_like == 1 }.map { it.id }.toSet())
+    }
     SmallTitle(text = "动态", modifier = Modifier.padding(start = 4.dp))
     detail.posts.forEach { post ->
         PostCard(

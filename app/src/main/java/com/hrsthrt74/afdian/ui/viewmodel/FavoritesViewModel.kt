@@ -33,8 +33,8 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
     val loading = _loading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
-    // 动态点赞/收藏的共享交互状态；收藏页拉到的动态天然是已收藏的，加载成功后批量预置
-    val interactions = PostInteractionController(service, viewModelScope)
+    // 动态点赞/收藏的全局共享互动状态；收藏页拉到的动态天然是已收藏的，加载成功后批量预置
+    val interactions = PostInteractionController.get(application)
 
     init { load() }
 

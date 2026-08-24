@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    implementation(libs.jsoup)
     implementation(libs.coil.compose)
     implementation(libs.coil.network)
     implementation(libs.miuix.ui)

@@ -127,6 +127,8 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 viewModel = viewModel,
                 messagesViewModel = messagesViewModel,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+                // 动态卡片点击 → 动态详情页（携带列表页已有数据秒开）
+                onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
                 onOpenConversation = { userId, userName, avatarUrl -> backStack.pushUnique(Route.MessageConversation(userId, userName, avatarUrl)) },
                 // 「我的」的二级路由（收藏/我发电的/订单/管理/设置）统一走外层栈全屏覆盖，
                 // 不再在 Pager 页内嵌套 NavDisplay，避免过渡层平移溢出泄漏到相邻 tab
@@ -140,6 +142,14 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             transition = CreatorDetailTransition,
         ) { route ->
             CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() })
+        }
+        // 动态详情：全文正文 HTML 渲染 + 分享/点赞/收藏
+        entry<Route.PostDetail> { route ->
+            PostDetailScreen(
+                post = route.post,
+                onBack = { backStack.removeLastOrNull() },
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+            )
         }
         entry<Route.MessageConversation> { route ->
             // 从 MainViewModel 的资料缓存取自己的头像，替换聊天里「我」的占位头像
@@ -162,7 +172,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                     LocalContext.current.applicationContext as Application
                 )
             )
-            FavoritesScreen(vm, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }) {
+            FavoritesScreen(vm, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) }) {
                 backStack.removeLastOrNull()
             }
         }
@@ -190,6 +200,7 @@ private fun MainTabsContent(
     viewModel: MainViewModel,
     messagesViewModel: MessagesViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
+    onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
     onOpenConversation: (String, String, String?) -> Unit,
     onNavigate: (Route) -> Unit,
 ) {
@@ -279,7 +290,7 @@ private fun MainTabsContent(
             ) {
                 when (page) {
                     0 -> HomeScreen(viewModel, onOpenCreator)
-                    1 -> DiscoverScreen(viewModel, onOpenCreator)
+                    1 -> DiscoverScreen(viewModel, onOpenCreator, onOpenPost)
                     2 -> MessagesScreen(messagesViewModel) { route ->
                         when (route) {
                             is Route.MessageConversation -> onOpenConversation(route.userId, route.userName, route.avatarUrl)
