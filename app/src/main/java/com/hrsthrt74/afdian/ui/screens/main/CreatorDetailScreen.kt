@@ -396,6 +396,7 @@ private fun CreatorPlansSection(detail: CreatorDetail) {
                     AsyncImage(
                         model = plan.pic,
                         contentDescription = plan.displayName,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(64.dp)
                             .squircleClip(cornerRadius = 8.dp)
@@ -445,6 +446,7 @@ private fun CreatorProductsSection(detail: CreatorDetail) {
                 AsyncImage(
                     model = product.pic,
                     contentDescription = product.displayName,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(64.dp)
                         .squircleClip(cornerRadius = 8.dp)
@@ -499,6 +501,7 @@ private fun CreatorAlbumsSection(detail: CreatorDetail) {
                 AsyncImage(
                     model = album.cover,
                     contentDescription = album.displayTitle,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(64.dp)
                         .squircleClip(cornerRadius = 8.dp)
