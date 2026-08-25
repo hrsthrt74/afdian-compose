@@ -76,6 +76,7 @@ fun PostHeader(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
         }
