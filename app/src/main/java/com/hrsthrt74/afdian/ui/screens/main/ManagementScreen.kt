@@ -128,24 +128,6 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                     bottom = contentBottomPadding()
                 )
             ) {
-                // 创作者数据板块：固定在所有 Tab 数据之前，加载成功才显示
-                todayIncome?.let { income ->
-                    item {
-                        TodayIncomeCard(
-                            income = income,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
-                    }
-                    // 与下方 Tab 数据之间的分割线
-                    item {
-                        HorizontalDivider(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-                }
-
                 item {
                     when {
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
@@ -164,6 +146,23 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
 
                 if (!loading && error == null) {
                     if (section == ManagementSection.Overview) {
+                        // 创作者数据板块：固定在所有 Tab 数据之前，加载成功才显示
+                        todayIncome?.let { income ->
+                            item {
+                                TodayIncomeCard(
+                                    income = income,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                            }
+                            // 与下方 Tab 数据之间的分割线
+                            item {
+                                HorizontalDivider(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
                         items(result?.rows.orEmpty().chunked(2)) { row ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
