@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -24,6 +26,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -47,6 +50,8 @@ private val colorModeNames = listOf("跟随系统", "浅色模式", "深色模�
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    // 登出回调：由外层（MainScreen）传入，点击底部「退出登录」时触发
+    onLogout: () -> Unit,
     viewModel: SettingsViewModel = viewModel(
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
             LocalContext.current.applicationContext as Application
@@ -164,6 +169,16 @@ fun SettingsScreen(
                             // 面向用户的说明：开启属于排查问题模式，普通使用没必要开
                             summary = "日常使用建议关闭，重启应用后生效",
                         )
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
+                // 退出登录
+                item {
+                    Button(
+                        onClick = onLogout,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    ) {
+                        Text("退出登录")
                     }
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }

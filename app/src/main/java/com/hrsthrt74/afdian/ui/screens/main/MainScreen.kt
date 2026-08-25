@@ -123,7 +123,6 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         entry<Route.MainTabs> {
             MainTabsContent(
                 onReady = onReady,
-                onLogout = handleLogout,
                 viewModel = viewModel,
                 messagesViewModel = messagesViewModel,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
@@ -189,7 +188,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             ManagementScreen(onBack = { backStack.removeLastOrNull() })
         }
         entry<Route.Settings> {
-            SettingsScreen(onBack = { backStack.removeLastOrNull() })
+            SettingsScreen(onBack = { backStack.removeLastOrNull() }, onLogout = handleLogout)
         }
     }
 }
@@ -197,7 +196,6 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
 @Composable
 private fun MainTabsContent(
     onReady: () -> Unit,
-    onLogout: () -> Unit,
     viewModel: MainViewModel,
     messagesViewModel: MessagesViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
@@ -298,7 +296,7 @@ private fun MainTabsContent(
                             else -> {}
                         }
                     }
-                    else -> ProfileScreen(viewModel, onLogout, onOpenCreator, onNavigate)
+                    else -> ProfileScreen(viewModel, onOpenCreator, onNavigate)
                 }
             }
         }
