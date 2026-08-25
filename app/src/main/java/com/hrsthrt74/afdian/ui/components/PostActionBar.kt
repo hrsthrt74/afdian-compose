@@ -83,7 +83,7 @@ fun PostActionBar(
      */
     fun hapticThen(action: () -> Unit): () -> Unit = {
         android.util.Log.d("PostActionBar", "操作栏点击: post=${post.id}")
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         action()
     }
     val likeAction = onLikeToggle ?: { interactions.toggleLike(post.id) }
