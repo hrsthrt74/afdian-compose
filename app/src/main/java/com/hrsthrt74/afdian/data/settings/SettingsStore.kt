@@ -15,7 +15,7 @@ enum class HomeModule(val storageValue: String, val title: String, val summary: 
     CreatorData("creator_data", "创作者数据", "[创作者] 今日收入等数据"),
     Sponsoring("sponsoring", "我发电的", "快速访问已发电的创作者"),
     MarkedCreators("marked_creators", "收藏的创作者", "快速访问收藏的创作者"),
-    PayoutReminder("payout_reminder", "提现提醒", "[创作者] 月底显示提现提醒");
+    WithdrawalReminder("withdrawal_reminder", "提现提醒", "[创作者] 月底显示提现提醒");
 
     companion object {
         fun fromStorage(value: String): HomeModule? = entries.firstOrNull { it.storageValue == value }
@@ -42,7 +42,7 @@ class SettingsStore(private val context: Context) {
         val HOME_CREATOR_DATA = booleanPreferencesKey("home_creator_data")
         val HOME_SPONSORING = booleanPreferencesKey("home_sponsoring")
         val HOME_MARKED_CREATORS = booleanPreferencesKey("home_marked_creators")
-        val HOME_PAYOUT_REMINDER = booleanPreferencesKey("home_payout_reminder")
+        val HOME_WITHDRAWAL_REMINDER = booleanPreferencesKey("home_withdrawal_reminder")
         val HOME_ENABLED_MODULES = androidx.datastore.preferences.core.stringPreferencesKey("home_enabled_modules")
         val HOME_MODULE_ORDER = androidx.datastore.preferences.core.stringPreferencesKey("home_module_order")
 
@@ -79,7 +79,7 @@ class SettingsStore(private val context: Context) {
     val homeCreatorData: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_CREATOR_DATA] ?: true }
     val homeSponsoring: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_SPONSORING] ?: true }
     val homeMarkedCreators: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_MARKED_CREATORS] ?: true }
-    val homePayoutReminder: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_PAYOUT_REMINDER] ?: true }
+    val homeWithdrawalReminder: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_WITHDRAWAL_REMINDER] ?: true }
     /** 首页启用模块集合；未写入时从旧版分散布尔开关迁移，确保升级不丢用户配置。 */
     val homeEnabledModules: Flow<Set<HomeModule>> = context.settingsDataStore.data.map { preferences ->
         val stored = preferences[Keys.HOME_ENABLED_MODULES]
@@ -91,7 +91,7 @@ class SettingsStore(private val context: Context) {
                     HomeModule.CreatorData -> preferences[Keys.HOME_CREATOR_DATA] ?: true
                     HomeModule.Sponsoring -> preferences[Keys.HOME_SPONSORING] ?: true
                     HomeModule.MarkedCreators -> preferences[Keys.HOME_MARKED_CREATORS] ?: true
-                    HomeModule.PayoutReminder -> preferences[Keys.HOME_PAYOUT_REMINDER] ?: true
+                    HomeModule.WithdrawalReminder -> preferences[Keys.HOME_WITHDRAWAL_REMINDER] ?: true
                 }
             }.toSet()
         }
@@ -107,7 +107,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setHomeCreatorData(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_CREATOR_DATA] = enabled } }
     suspend fun setHomeSponsoring(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_SPONSORING] = enabled } }
     suspend fun setHomeMarkedCreators(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_MARKED_CREATORS] = enabled } }
-    suspend fun setHomePayoutReminder(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_PAYOUT_REMINDER] = enabled } }
+    suspend fun setHomeWithdrawalReminder(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_WITHDRAWAL_REMINDER] = enabled } }
     suspend fun setHomeEnabledModules(modules: Set<HomeModule>) {
         context.settingsDataStore.edit { it[Keys.HOME_ENABLED_MODULES] = modules.joinToString(",") { module -> module.storageValue } }
     }

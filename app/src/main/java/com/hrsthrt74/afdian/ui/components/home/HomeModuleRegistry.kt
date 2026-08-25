@@ -12,7 +12,7 @@ data class HomeModuleSpec(
 object HomeModuleRegistry {
     /** 注册顺序同时作为新用户的默认顺序。 */
     val all: List<HomeModuleSpec> = listOf(
-        HomeModuleSpec(HomeModule.PayoutReminder) { PayoutReminderModule(it) },
+        HomeModuleSpec(HomeModule.WithdrawalReminder) { WithdrawalReminderModule(it) },
         HomeModuleSpec(HomeModule.CreatorData) { CreatorDataModule(it) },
         HomeModuleSpec(HomeModule.Sponsoring) { SponsoringModule(it) },
         HomeModuleSpec(HomeModule.MarkedCreators) { MarkedCreatorsModule(it) },
