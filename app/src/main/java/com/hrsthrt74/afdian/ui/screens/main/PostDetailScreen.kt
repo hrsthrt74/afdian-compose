@@ -4,10 +4,12 @@ import android.app.Application
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -52,6 +55,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -79,6 +83,7 @@ fun PostDetailScreen(
     post: RecommendedPost,
     onBack: () -> Unit,
     onOpenCreator: (AfadianUser) -> Unit,
+    onNavigateToPost: (RecommendedPost) -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as Application
     // key 用 post_id：同一动态复用同一个 VM，避免重复请求全文
@@ -217,6 +222,63 @@ fun PostDetailScreen(
                         }
                     }
                 }
+
+                // ── 上一篇/下一篇导航栏：两列卡片，没有内容的列也占位 ──
+                detail.old_new?.let { oldNew ->
+                    if (oldNew.old != null || oldNew.new != null) {
+                        item(key = "post_navigation") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                // 上一篇卡片
+                                CardNavItem(
+                                    label = "上一篇",
+                                    title = oldNew.old?.title,
+                                    enabled = oldNew.old != null,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = oldNew.old?.let { old -> {
+                                        onNavigateToPost(
+                                            RecommendedPost(
+                                                post_id = old.post_id,
+                                                title = old.title,
+                                                user = detail.user,
+                                            )
+                                        )
+                                    } },
+                                )
+                                // 下一篇卡片（没有也占位）
+                                CardNavItem(
+                                    label = "下一篇",
+                                    title = oldNew.new?.title,
+                                    enabled = oldNew.new != null,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = oldNew.new?.let { new -> {
+                                        onNavigateToPost(
+                                            RecommendedPost(
+                                                post_id = new.post_id,
+                                                title = new.title,
+                                                user = detail.user,
+                                            )
+                                        )
+                                    } },
+                                )
+                            }
+                        }
+                    }
+                }
+                // ── 文章末尾创作者头部：再次展示创作者信息，方便长文阅读后快速关注 ──
+                item(key = "footer_header") {
+                    PostHeader(
+                        post = detail,
+                        profile = detail.user,
+                        onCreatorClick = origin.onClick { onOpenCreator(detail.user) },
+                        showDoing = true,
+                        origin = origin,
+                    )
+                }
             }
             } // 采样层 Box 结束（操作栏必须在其外部，见上方注释）
 
@@ -295,6 +357,42 @@ fun PostDetailScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/** 上一篇/下一篇导航卡片 */
+@Composable
+private fun CardNavItem(
+    label: String,
+    title: String?,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    if (!enabled) {
+        Spacer(modifier = modifier)
+        return
+    }
+    Card(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .clickable { onClick?.invoke() }
+                .padding(12.dp),
+        ) {
+            Text(
+                text = label,
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = title ?: "—",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

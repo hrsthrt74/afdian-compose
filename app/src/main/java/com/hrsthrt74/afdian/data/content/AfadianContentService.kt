@@ -98,21 +98,30 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
     }
 
     /** 动态详情：GET /api/post/get-detail，正文 HTML 在 content 字段 */
-    suspend fun fetchPostDetail(postId: String): RecommendedPost {
-        val url = "https://afdian.com/api/post/get-detail".toHttpUrl().newBuilder()
+    suspend fun fetchPostDetail(postId: String, albumId: String = ""): RecommendedPost {
+        val url = "https://ifdian.net/api/post/get-detail".toHttpUrl().newBuilder()
             .addQueryParameter("auth_token", tokenStore.token)
             .addQueryParameter("post_id", postId)
+            .addQueryParameter("album_id", albumId)
             .build()
         val request = Request.Builder().url(url).get()
-            .header("Cookie", "auth_token=${tokenStore.token}").build()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("Referer", "https://ifdian.net/p/$postId")
+            .header("afd-fe-version", "1.20.10")
+            .header("locale-lang", "zh-CN")
+            .build()
         return client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("动态详情加载失败 (${response.code})")
-            val data = json.parseToJsonElement(response.body.string()).jsonObject["data"]?.jsonObject
+            val body = response.body.string()
+            val data = json.parseToJsonElement(body).jsonObject["data"]?.jsonObject
             // 兼容 data.post / data.item 两种包裹字段
             val post = (data?.get("post") as? JsonObject)
                 ?: (data?.get("item") as? JsonObject)
                 ?: error("动态详情返回结构异常")
-            json.decodeFromJsonElement(RecommendedPost.serializer(), post)
+            // old_new 与 post 同级（在 data 下），需要单独解析后合并
+            val result = json.decodeFromJsonElement(RecommendedPost.serializer(), post)
+            val oldNew = data?.get("old_new")?.let { runCatching { json.decodeFromJsonElement(PostOldNew.serializer(), it) }.getOrNull() }
+            result.copy(old_new = oldNew)
         }
     }
 
@@ -511,6 +520,18 @@ data class MarkedPostsPage(
     val posts: List<RecommendedPost>,
     val hasMore: Boolean,
 )
+/** 上一篇/下一篇动态的精简信息 */
+@Serializable data class PostOldNew(
+    val old: PostOldNewInfo? = null,
+    val new: PostOldNewInfo? = null,
+)
+
+/** 上一篇/下一篇动态的精简信息 */
+@Serializable data class PostOldNewInfo(
+    val post_id: String = "",
+    val title: String = "",
+)
+
 @Serializable data class RecommendedPost(
     val post_id: String = "", val title: String = "", val preview: String? = null,
     val content: String? = null, val cover: String? = null, val like_count: Int? = null,
@@ -523,6 +544,7 @@ data class MarkedPostsPage(
     val is_public: Int? = null,               // 是否公开
     val min_price: String? = null,            // 最低价格（付费内容）
     val albums: List<PostAlbum>? = null,      // 所属相册列表
+    val old_new: PostOldNew? = null,          // 上一篇/下一篇动态
 ) {
     val id: String get() = post_id
     val summary: String get() = (preview ?: content).orEmpty()

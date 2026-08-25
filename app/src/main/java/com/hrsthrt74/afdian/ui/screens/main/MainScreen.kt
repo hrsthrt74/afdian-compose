@@ -149,6 +149,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 post = route.post,
                 onBack = { backStack.removeLastOrNull() },
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+                onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
             )
         }
         entry<Route.MessageConversation> { route ->
