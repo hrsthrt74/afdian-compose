@@ -25,3 +25,4 @@ adb
 .idea/deploymentTargetSelector.xml
 /.idea/markdown.xml
 /.idea/deviceManager.xml
+/.kotlin/
