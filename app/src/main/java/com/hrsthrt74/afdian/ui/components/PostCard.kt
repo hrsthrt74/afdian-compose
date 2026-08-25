@@ -133,35 +133,11 @@ private fun PostContent(post: RecommendedPost, onCreatorClick: (() -> Unit)?) {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            // 付费内容
+            // 付费内容：未解锁显示发电按钮，已解锁显示提示（共用 PostPaidBlock，详情页同款）
             val minPrice = post.min_price?.toDoubleOrNull() ?: 0.0
             if (minPrice > 0.0) {
                 Spacer(modifier = Modifier.height(8.dp))
-                if (summary.isBlank()) {
-                    // 未解锁：显示发电按钮
-                    Button(
-                        onClick = { onCreatorClick?.invoke() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("发电解锁 ¥${post.min_price}")
-                    }
-                } else {
-                    // 已解锁：提示可查看内容
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = MiuixIcons.Demibold.Unlock,
-                            contentDescription = null,
-                            modifier = Modifier.size(12.dp),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "你可以查看该动态的内容",
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                        )
-                    }
-                }
+                PostPaidBlock(post = post, onUnlockClick = onCreatorClick)
             }
             // 图片，无封面图时显示 pics 网格
             if (post.cover.isNullOrBlank()) {
@@ -171,6 +147,59 @@ private fun PostContent(post: RecommendedPost, onCreatorClick: (() -> Unit)?) {
                     PostImageGrid(images = images)
                 }
             }
+        }
+    }
+}
+
+/**
+ * 付费动态统一展示块：未解锁显示「发电解锁」按钮，已解锁显示可查看提示。
+ *
+ * 抽出为公共组件，供 [PostCard]（动态列表卡片）与动态详情页 [PostDetailScreen] 共用，
+ * 保证两处对「未解锁显示发电按钮」的表现完全一致。
+ *
+ * @param post 动态数据（用 min_price 判断是否付费；用 summary 是否为空判断是否已解锁）
+ * @param onUnlockClick 点击发电按钮的回调（通常跳转创作者主页去发电），传 null 则按钮不可点
+ * @param modifier 外部修饰符
+ */
+@Composable
+fun PostPaidBlock(
+    post: RecommendedPost,
+    onUnlockClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val minPrice = post.min_price?.toDoubleOrNull() ?: 0.0
+    if (minPrice <= 0.0) return
+    // 与 PostCard 正文预览同款处理：summary 可能含 HTML 标签，剥掉后只留纯文本判断是否为空
+    val summary = remember(post.id) {
+        val raw = post.summary
+        if (raw.contains('<')) org.jsoup.Jsoup.parse(raw).text() else raw
+    }
+    if (summary.isBlank()) {
+        // 未解锁：显示发电按钮
+        Button(
+            onClick = { onUnlockClick?.invoke() },
+            modifier = modifier.fillMaxWidth(),
+        ) {
+            Text("发电解锁 ¥${post.min_price}")
+        }
+    } else {
+        // 已解锁：提示可查看内容
+        Row(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = MiuixIcons.Demibold.Unlock,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "你可以查看该动态的内容",
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
         }
     }
 }

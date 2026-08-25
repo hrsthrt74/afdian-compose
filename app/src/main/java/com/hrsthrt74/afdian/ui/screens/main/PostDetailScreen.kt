@@ -43,6 +43,7 @@ import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.PostActionBar
 import com.hrsthrt74.afdian.ui.components.PostHeader
+import com.hrsthrt74.afdian.ui.components.PostPaidBlock
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.blurBarColors
 import com.hrsthrt74.afdian.ui.components.normalizeImageUrl
@@ -184,6 +185,22 @@ fun PostDetailScreen(
                             color = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
+                    }
+                }
+                // ── 付费动态：未解锁显示「发电解锁」按钮，已解锁显示可查看提示 ──
+                //    与 PostCard 共用 PostPaidBlock，两处表现一致；按钮跳转创作者主页去发电
+                val minPrice = detail.min_price?.toDoubleOrNull() ?: 0.0
+                if (minPrice > 0.0) {
+                    item(key = "paid") {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            PostPaidBlock(
+                                post = detail,
+                                onUnlockClick = { onOpenCreator(detail.user) },
+                            )
+                        }
                     }
                 }
                 // ── 正文（HTML 原生渲染）；get-detail 失败时降级显示列表页摘要并提示错误 ──
