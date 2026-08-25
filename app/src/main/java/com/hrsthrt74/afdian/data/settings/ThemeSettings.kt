@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.map
 /** 只保存模糊相关设置。 */
 data class ThemeSettings(
     val enableBlur: Boolean = true,
-    val progressiveBlur: Boolean = false,
+    val progressiveBlur: Boolean = true,
 )
 
 private val Context.themeDataStore by preferencesDataStore(name = "theme_settings")
@@ -23,7 +23,7 @@ object ThemeRepository {
     fun settings(context: Context): Flow<ThemeSettings> = context.themeDataStore.data.map { preferences ->
         ThemeSettings(
             enableBlur = preferences[enableBlurKey] ?: true,
-            progressiveBlur = preferences[progressiveBlurKey] ?: false,
+            progressiveBlur = preferences[progressiveBlurKey] ?: true,
         )
     }
 
