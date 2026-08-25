@@ -11,6 +11,7 @@ import com.hrsthrt74.afdian.data.content.AfadianAccount
 import com.hrsthrt74.afdian.data.content.AfadianProfile
 import com.hrsthrt74.afdian.data.content.ProfileCache
 import com.hrsthrt74.afdian.data.content.SponsoringItem
+import com.hrsthrt74.afdian.data.content.TodayIncome
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -30,6 +31,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val profile = _profile.asStateFlow()
     private val _sponsoring = MutableStateFlow<List<SponsoringItem>>(emptyList())
     val sponsoring = _sponsoring.asStateFlow()
+    // 创作者今日收入（null 表示未加载成功，主页对应板块整体隐藏）
+    private val _todayIncome = MutableStateFlow<TodayIncome?>(null)
+    val todayIncome = _todayIncome.asStateFlow()
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
     private val _isLoadingMore = MutableStateFlow(false)
@@ -89,6 +93,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _error.value = e.message ?: "首页内容加载失败"
             } finally {
                 _isLoading.value = false
+            }
+            // 创作者数据独立加载：失败只置空对应板块，不影响首页其他内容刷新
+            viewModelScope.launch {
+                try {
+                    val income = withContext(Dispatchers.IO) { service.fetchTodayIncome() }
+                    _todayIncome.value = income
+                    AppLog.d("Discover", "今日收入: ¥${income.amount}, 订单数=${income.orderCount}")
+                } catch (e: Exception) {
+                    // 加载失败时保留旧值（首次则为 null，主页隐藏该板块）
+                    AppLog.w("Discover", "今日收入加载失败", e)
+                }
             }
         }
     }

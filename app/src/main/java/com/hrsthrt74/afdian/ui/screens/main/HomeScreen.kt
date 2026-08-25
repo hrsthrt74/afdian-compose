@@ -2,7 +2,9 @@ package com.hrsthrt74.afdian.ui.screens.main
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,15 +22,18 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.data.content.TodayIncome
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.CreatorSmallCard
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.TodayIncomeCard
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -52,6 +57,8 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
 
     val sponsoring by viewModel.sponsoring.collectAsState()
     val loading by viewModel.isLoading.collectAsState()
+    // 创作者今日收入（null 表示未登录创作者 / 加载失败，板块整体不显示）
+    val todayIncome by viewModel.todayIncome.collectAsState()
 
     Scaffold(
         topBar = {
@@ -81,6 +88,20 @@ fun HomeScreen(viewModel: MainViewModel, onOpenCreator: (AfadianUser) -> Unit) {
                     bottom = contentBottomPadding()
                 )
             ) {
+                // 创作者数据板块：仅在成功取到今日收入后显示
+                todayIncome?.let { income ->
+                    item {
+                        SmallTitle(text = "创作者数据", modifier = Modifier.padding(start = 4.dp))
+                    }
+                    item {
+                        TodayIncomeCard(
+                            income = income,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                }
+
                 item {
                     SmallTitle(text = "我发电的", modifier = Modifier.padding(start = 4.dp))
                 }

@@ -28,6 +28,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.ManagementSection
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.TodayIncomeCard
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -61,6 +63,8 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
     val result by viewModel.result.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
+    // 创作者今日收入（null 表示未加载成功，板块整体隐藏）
+    val todayIncome by viewModel.todayIncome.collectAsState()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -124,6 +128,24 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                     bottom = contentBottomPadding()
                 )
             ) {
+                // 创作者数据板块：固定在所有 Tab 数据之前，加载成功才显示
+                todayIncome?.let { income ->
+                    item {
+                        TodayIncomeCard(
+                            income = income,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+                    // 与下方 Tab 数据之间的分割线
+                    item {
+                        HorizontalDivider(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+
                 item {
                     when {
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
