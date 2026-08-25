@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.data.content
 
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -36,6 +37,8 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
     companion object {
         private const val AFDIAN_HOST = "https://afdian.com"
         private const val IFDIAN_HOST = "https://ifdian.net"
+        // 统一日志 Tag：本类所有网络埋点共用，便于 Logcat 过滤
+        private const val TAG = "AfadianContentService"
     }
 
     suspend fun fetchAccount(): AfadianAccount = get("/api/my/account", AfadianAccountResponse.serializer()).data
@@ -55,8 +58,14 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             .build()
         val request = Request.Builder().url(url).get()
             .header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("收藏加载失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，E 级日志始终输出（原有 error 抛错行为不变）
+                AppLog.e(TAG, "/api/my/marked-post page=$page -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("收藏加载失败 (${response.code})")
+            }
             val data = json.parseToJsonElement(response.body.string()).jsonObject["data"]?.jsonObject
             // 兼容 items / list 两种字段名（与通用收藏列表逻辑保持一致）
             val elements = data?.get("items")?.jsonArray ?: data?.get("list")?.jsonArray
@@ -73,8 +82,11 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             ).also { page ->
                 // 诊断日志：解析结果为空时打印原始返回，方便排查字段结构
                 if (page.posts.isEmpty()) {
-                    android.util.Log.w("AfadianContentService", "marked-post 解析为空，data 原始内容：$data")
+                    AppLog.w(TAG, "marked-post 解析为空，data 原始内容：$data")
                 }
+            }.also { result ->
+                // 埋点：D 级调试日志，记录分页参数、HTTP 状态码、耗时与解析出的动态条数
+                AppLog.d(TAG, "/api/my/marked-post page=$page -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${result.posts.size} 条，has_more=${result.hasMore}")
             }
         }
     }
@@ -84,8 +96,14 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             .addQueryParameter("auth_token", tokenStore.token).addQueryParameter("publish_sn", publishSN)
             .addQueryParameter("type", "old").addQueryParameter("all", "1").build()
         val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("内容加载失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，E 级日志始终输出（原有 error 抛错行为不变）
+                AppLog.e(TAG, "/api/post/get-rec-list publishSN=$publishSN -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("内容加载失败 (${response.code})")
+            }
             val payload = json.decodeFromString<RecommendedPostsResponse>(response.body.string()).data
             val posts = payload?.list.orEmpty()
             val nextSN = posts.lastOrNull()?.publish_sn?.toString().orEmpty()
@@ -93,7 +111,10 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                 posts = posts,
                 nextPublishSN = nextSN,
                 hasMore = (payload?.has_more ?: 0) == 1,
-            )
+            ).also {
+                // 埋点：D 级调试日志，记录分页游标、HTTP 状态码、耗时与返回动态条数
+                AppLog.d(TAG, "/api/post/get-rec-list publishSN=$publishSN -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${posts.size} 条，has_more=${payload?.has_more ?: 0}")
+            }
         }
     }
 
@@ -110,18 +131,31 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             .header("afd-fe-version", "1.20.10")
             .header("locale-lang", "zh-CN")
             .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("动态详情加载失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，E 级日志始终输出（原有 error 抛错行为不变）
+                AppLog.e(TAG, "/api/post/get-detail post_id=$postId -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("动态详情加载失败 (${response.code})")
+            }
             val body = response.body.string()
             val data = json.parseToJsonElement(body).jsonObject["data"]?.jsonObject
             // 兼容 data.post / data.item 两种包裹字段
             val post = (data?.get("post") as? JsonObject)
                 ?: (data?.get("item") as? JsonObject)
-                ?: error("动态详情返回结构异常")
+                ?: run {
+                    // 埋点：返回结构异常属于错误路径，W 级日志始终输出（原有 error 抛错行为不变）
+                    AppLog.w(TAG, "/api/post/get-detail post_id=$postId 返回结构异常，缺少 data.post/data.item")
+                    error("动态详情返回结构异常")
+                }
             // old_new 与 post 同级（在 data 下），需要单独解析后合并
             val result = json.decodeFromJsonElement(RecommendedPost.serializer(), post)
             val oldNew = data?.get("old_new")?.let { runCatching { json.decodeFromJsonElement(PostOldNew.serializer(), it) }.getOrNull() }
-            result.copy(old_new = oldNew)
+            result.copy(old_new = oldNew).also {
+                // 埋点：D 级调试日志，记录动态 ID、HTTP 状态码与总耗时
+                AppLog.d(TAG, "/api/post/get-detail post_id=$postId -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+            }
         }
     }
 
@@ -168,12 +202,26 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             .addQueryParameter("unread", unread.toString())
             .build()
         val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("消息列表加载失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，E 级日志始终输出（原有 error 抛错行为不变）
+                AppLog.e(TAG, "/api/message/dialogs page=$page unread=$unread -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("消息列表加载失败 (${response.code})")
+            }
             val body = response.body.string()
-            val root = try { json.parseToJsonElement(body).jsonObject } catch (_: Exception) { error("消息列表加载失败") }
+            val root = try { json.parseToJsonElement(body).jsonObject } catch (_: Exception) {
+                // 埋点：响应体解析失败属于错误路径，W 级日志始终输出
+                AppLog.w(TAG, "/api/message/dialogs page=$page 响应体解析失败")
+                error("消息列表加载失败")
+            }
             val ec = root["ec"]?.jsonPrimitive?.content?.toIntOrNull()
-            if (ec != 200) error(root["message"]?.jsonPrimitive?.contentOrNull ?: "消息列表加载失败")
+            if (ec != 200) {
+                // 埋点：业务错误码（HTTP 200 但 ec!=200）走 W 级日志，只记错误码不透出消息内容
+                AppLog.w(TAG, "/api/message/dialogs page=$page 业务失败 ec=$ec")
+                error(root["message"]?.jsonPrimitive?.contentOrNull ?: "消息列表加载失败")
+            }
             val data = root["data"]?.jsonObject ?: error("消息列表加载失败")
             val list = data["list"]?.jsonArray?.mapNotNull { element ->
                 runCatching { parseMessageDialog(element.jsonObject) }.getOrNull()
@@ -183,7 +231,10 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                 totalCount = data["total_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: list.size,
                 totalPage = data["total_page"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1,
                 hasMore = data["has_more"]?.jsonPrimitive?.content?.toIntOrNull() == 1
-            )
+            ).also {
+                // 埋点：D 级调试日志，只记分页参数与会话数量，绝不输出私信/会话内容
+                AppLog.d(TAG, "/api/message/dialogs page=$page unread=$unread -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${list.size} 条会话，total_page=${it.totalPage}，has_more=${it.hasMore}")
+            }
         }
     }
 
@@ -222,12 +273,26 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             .addQueryParameter("message_id", messageID)
             .build()
         val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("会话加载失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，E 级日志始终输出（原有 error 抛错行为不变）
+                AppLog.e(TAG, "/api/message/messages user_id=$userID type=$type message_id=$messageID -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("会话加载失败 (${response.code})")
+            }
             val body = response.body.string()
-            val root = try { json.parseToJsonElement(body).jsonObject } catch (_: Exception) { error("会话加载失败") }
+            val root = try { json.parseToJsonElement(body).jsonObject } catch (_: Exception) {
+                // 埋点：响应体解析失败属于错误路径，W 级日志始终输出
+                AppLog.w(TAG, "/api/message/messages user_id=$userID type=$type 响应体解析失败")
+                error("会话加载失败")
+            }
             val ec = root["ec"]?.jsonPrimitive?.content?.toIntOrNull()
-            if (ec != 200) error(root["message"]?.jsonPrimitive?.contentOrNull ?: "会话加载失败")
+            if (ec != 200) {
+                // 埋点：业务错误码（HTTP 200 但 ec!=200）走 W 级日志，只记错误码不透出消息内容
+                AppLog.w(TAG, "/api/message/messages user_id=$userID type=$type 业务失败 ec=$ec")
+                error(root["message"]?.jsonPrimitive?.contentOrNull ?: "会话加载失败")
+            }
             val data = root["data"]?.jsonObject ?: error("会话加载失败")
             val list = data["list"]?.jsonArray?.mapNotNull { element ->
                 runCatching { parseMessageItem(element.jsonObject) }.getOrNull()
@@ -236,7 +301,10 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                 messages = list,
                 hasMore = data["has_more"]?.jsonPrimitive?.content?.toIntOrNull() == 1,
                 canSendPictureMessage = data["can_picture_message"]?.jsonPrimitive?.content?.toIntOrNull() == 1
-            )
+            ).also {
+                // 埋点：D 级调试日志，只记拉取参数与消息条数，绝不输出任何私信内容
+                AppLog.d(TAG, "/api/message/messages user_id=$userID type=$type message_id=$messageID -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${list.size} 条消息，has_more=${it.hasMore}")
+            }
         }
     }
 
@@ -317,10 +385,22 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             MessageSendRequest(user_id = userID, type = "1", content = content, auth_token = tokenStore.token)
         ).toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(url).post(body).header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("消息发送失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，E 级日志始终输出（只记 user_id 与内容长度，绝不输出私信内容）
+                AppLog.e(TAG, "/api/message/send user_id=$userID len=${content.length} -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("消息发送失败 (${response.code})")
+            }
             val result = json.decodeFromString<MessageSendResponse>(response.body.string())
-            if (result.ec != 200) error(result.message ?: "消息发送失败")
+            if (result.ec != 200) {
+                // 埋点：业务失败路径走 W 级日志，只记错误码，不透出消息内容与服务器 message 全文
+                AppLog.w(TAG, "/api/message/send user_id=$userID len=${content.length} 业务失败 ec=${result.ec}")
+                error(result.message ?: "消息发送失败")
+            }
+            // 埋点：D 级调试日志，发送成功只记 user_id、内容长度与耗时，绝不输出私信内容
+            AppLog.d(TAG, "/api/message/send user_id=$userID len=${content.length} -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
             result.toMessageItem() ?: run {
                 val id = (System.currentTimeMillis() / 1000).toInt()
                 MessageItem(
@@ -343,10 +423,22 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             .post(body)
             .header("Cookie", "auth_token=${tokenStore.token}")
             .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("快捷提问发送失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，E 级日志始终输出（原有 error 抛错行为不变）
+                AppLog.e(TAG, "/api/faq/ask user_id=$userID faqId=$faqId -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("快捷提问发送失败 (${response.code})")
+            }
             val result = json.decodeFromString<MessageSendResponse>(response.body.string())
-            if (result.ec != 200) error(result.message ?: "快捷提问发送失败")
+            if (result.ec != 200) {
+                // 埋点：业务失败路径走 W 级日志，只记错误码不透出服务器 message 全文
+                AppLog.w(TAG, "/api/faq/ask user_id=$userID faqId=$faqId 业务失败 ec=${result.ec}")
+                error(result.message ?: "快捷提问发送失败")
+            }
+            // 埋点：D 级调试日志，记录目标用户、FAQ 编号、HTTP 状态码与耗时
+            AppLog.d(TAG, "/api/faq/ask user_id=$userID faqId=$faqId -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
             // 接口本身不回传消息内容，本地构造提问消息用于即时上屏
             MessageItem(
                 type = "send",
@@ -429,7 +521,13 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         ).toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(url).post(body).header("Cookie", "auth_token=${tokenStore.token}").build()
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("操作失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，W 级日志始终输出便于排查（只记路径与目标 ID，不含任何凭据）
+                AppLog.w(TAG, "$path user_id=$userID -> HTTP ${response.code}，操作失败")
+                error("操作失败 (${response.code})")
+            }
+            // 埋点：D 级调试日志，记录关注/取关操作的路径、目标用户与响应码
+            AppLog.d(TAG, "$path user_id=$userID -> HTTP ${response.code}")
         }
     }
 
@@ -447,7 +545,13 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             .header("Cookie", "auth_token=${tokenStore.token}")
             .header("referer", "https://afdian.com/").build()
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("操作失败 (${response.code})")
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 时 W 级日志始终输出，提示点赞/收藏互动可能未生效
+                AppLog.w(TAG, "$path post_id=$postID -> HTTP ${response.code}，操作失败")
+                error("操作失败 (${response.code})")
+            }
+            // 埋点：D 级调试日志，记录动态互动的路径、目标动态与响应码
+            AppLog.d(TAG, "$path post_id=$postID -> HTTP ${response.code}")
         }
     }
 
@@ -459,9 +563,18 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         val url = (host + path).toHttpUrl().newBuilder()
             .addQueryParameter("auth_token", tokenStore.token).build()
         val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 埋点：请求发出前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("请求失败 (${response.code})")
-            json.decodeFromString(serializer, response.body.string())
+            if (!response.isSuccessful) {
+                // 埋点：非 2xx 属于异常路径，E 级日志始终输出（原有 error 抛错行为不变）
+                AppLog.e(TAG, "$path -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("请求失败 (${response.code})")
+            }
+            json.decodeFromString(serializer, response.body.string()).also {
+                // 埋点：D 级调试日志，记录请求路径、HTTP 状态码与总耗时（含读取响应体与解析）
+                AppLog.d(TAG, "$path -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+            }
         }
     }
 
@@ -469,8 +582,16 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         val url = ("https://afdian.com" + path).toHttpUrl().newBuilder()
             .addQueryParameter("auth_token", tokenStore.token).addQueryParameter("page", "1").build()
         val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 埋点：请求前记录起始时间；httpCode 暂存响应码，供 use 块结束后统一打点
+        val start = System.currentTimeMillis()
+        var httpCode = 0
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("收藏加载失败 (${response.code})")
+            httpCode = response.code
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出（原有 error 抛错行为不变）
+                AppLog.e(TAG, "$path -> HTTP $httpCode（${System.currentTimeMillis() - start}ms）")
+                error("收藏加载失败 (${response.code})")
+            }
             val root = json.parseToJsonElement(response.body.string()).jsonObject
             val data = root["data"]?.jsonObject ?: return@use emptyList()
             val items = data["items"]?.jsonArray ?: data["list"]?.jsonArray ?: return@use emptyList()
@@ -484,6 +605,9 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                     user = runCatching { json.decodeFromString<AfadianUser>(value.toString()) }.getOrNull()
                 )
             }
+        }.also { list ->
+            // 埋点：D 级调试日志，记录路径、HTTP 状态码、耗时与返回条数（不含任何凭据字段）
+            AppLog.d(TAG, "$path -> HTTP $httpCode（${System.currentTimeMillis() - start}ms），返回 ${list.size} 条")
         }
     }
 

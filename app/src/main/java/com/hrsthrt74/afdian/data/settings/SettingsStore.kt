@@ -25,6 +25,8 @@ class SettingsStore(private val context: Context) {
         val ADVANCED_TRANSITION = booleanPreferencesKey("advanced_transition")
         // 页面内边缘滑动返回手势总开关
         val GESTURE_BACK = booleanPreferencesKey("gesture_back")
+        // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
+        val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
     }
 
     /** 启动页索引，未设置时默认第 0 页 */
@@ -46,6 +48,17 @@ class SettingsStore(private val context: Context) {
     /** 页面内边缘滑动返回手势，默认开启（系统预测性返回不受此控制） */
     val gestureBack: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.GESTURE_BACK] ?: true }
+
+    /**
+     * 调试日志开关，默认关闭。
+     * 关闭 = 普通用户模式（AppLog 只输出警告/错误）；开启 = 排查问题模式（额外输出 D 级详细日志）。
+     */
+    val debugLogging: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.DEBUG_LOGGING] ?: false }
+
+    suspend fun setDebugLogging(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.DEBUG_LOGGING] = enabled }
+    }
 
     suspend fun setAdvancedTransition(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.ADVANCED_TRANSITION] = enabled }

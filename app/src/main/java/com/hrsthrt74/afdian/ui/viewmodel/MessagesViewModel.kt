@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.MessageDialog
@@ -65,7 +66,11 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                 _dialogs.value = result.dialogs
                 hasMore = result.hasMore
                 currentPage = 1
+                // 调试日志：分页参数与返回条数统计
+                AppLog.d("Messages", "refresh ok: page=1, dialogs=${result.dialogs.size}, hasMore=${result.hasMore}")
             } catch (e: Exception) {
+                // 错误日志：用户模式下也能看到会话列表加载失败
+                AppLog.e("Messages", "refresh failed: page=1", e)
                 _error.value = e.message ?: "消息列表加载失败"
             } finally {
                 _isLoading.value = false
@@ -78,14 +83,23 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         if (isLoadingInternal || !hasMore || _isLoadingMore.value) return
         viewModelScope.launch {
             _isLoadingMore.value = true
+            // 固定本次请求的页码，避免追加过程中变量变化导致日志口径不一致
+            val nextPage = currentPage + 1
             try {
                 val result = withContext(Dispatchers.IO) {
-                    service.fetchMessageDialogs(page = currentPage + 1, unread = 0)
+                    service.fetchMessageDialogs(page = nextPage, unread = 0)
                 }
                 _dialogs.value = _dialogs.value + result.dialogs
                 hasMore = result.hasMore
                 currentPage++
+                // 调试日志：翻页参数、本页条数与累计总数
+                AppLog.d(
+                    "Messages",
+                    "loadMore ok: page=$nextPage, got=${result.dialogs.size}, total=${_dialogs.value.size}, hasMore=${result.hasMore}"
+                )
             } catch (e: Exception) {
+                // 错误日志：用户模式下也能看到加载更多失败
+                AppLog.e("Messages", "loadMore failed: page=$nextPage", e)
                 _error.value = e.message ?: "加载更多失败"
             } finally {
                 _isLoadingMore.value = false
@@ -101,7 +115,10 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
 
     suspend fun fetchFAQs(userID: String): List<MessageFAQ> {
         return withContext(Dispatchers.IO) {
-            runCatching { service.fetchFAQs(userID) }.getOrDefault(emptyList())
+            runCatching { service.fetchFAQs(userID) }
+                // FAQ 属于锦上添花的数据，失败时按设计回退为空列表，仅 W 级记录便于排查
+                .onFailure { AppLog.w("Messages", "fetchFAQs failed, fallback to empty: userId=$userID", it) }
+                .getOrDefault(emptyList())
         }
     }
 
@@ -130,7 +147,9 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                         _dialogs.value = result.dialogs
                         hasMore = result.hasMore
                         currentPage = 1
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        // 后台自动刷新失败原本被静默吞掉，这里补 E 级日志避免无迹可寻
+                        AppLog.e("Messages", "autoRefresh failed: page=1", e)
                     }
                 }
             }

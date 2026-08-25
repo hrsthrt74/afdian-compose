@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.AfadianUser
@@ -33,9 +34,23 @@ class CreatorDetailViewModel(
         viewModelScope.launch {
             _loading.value = true
             _error.value = null
+            // 调试日志：记录加载起点（创作者 user_id / slug）
+            AppLog.d("CreatorDetail", "load: userId=${user.user_id}, slug=${user.url_slug}")
             runCatching { withContext(Dispatchers.IO) { service.fetchCreatorDetail(user) } }
-                .onSuccess { _detail.value = it }
-                .onFailure { _error.value = it.message ?: "创作者主页加载失败" }
+                .onSuccess {
+                    _detail.value = it
+                    // 调试日志：各板块条数统计，便于确认数据完整性
+                    AppLog.d(
+                        "CreatorDetail",
+                        "load ok: userId=${user.user_id}, goals=${it.goals.size}, plans=${it.plans.size}, " +
+                            "albums=${it.albums.size}, posts=${it.posts.size}, products=${it.products.size}, marked=${it.isMarked}"
+                    )
+                }
+                .onFailure {
+                    // 错误日志：用户模式下也能看到创作者主页加载失败
+                    AppLog.e("CreatorDetail", "load failed: userId=${user.user_id}", it)
+                    _error.value = it.message ?: "创作者主页加载失败"
+                }
             _loading.value = false
         }
     }
@@ -53,6 +68,8 @@ class CreatorDetailViewModel(
             }.onSuccess {
                 _detail.value = current.copy(isMarked = !current.isMarked)
             }.onFailure {
+                // 错误日志：收藏/取消收藏请求失败时用户模式下也可追踪
+                AppLog.e("CreatorDetail", "toggleMark failed: userId=${current.profile.user_id}", it)
                 _error.value = it.message ?: "收藏状态更新失败"
             }
             _isMarking.value = false

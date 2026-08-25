@@ -32,6 +32,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val gestureBack: StateFlow<Boolean> = store.gestureBack
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    /** 调试日志总开关，默认关闭（关闭时 AppLog 只输出警告/错误） */
+    val debugLogging: StateFlow<Boolean> = store.debugLogging
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setDebugLogging(enabled: Boolean) {
+        viewModelScope.launch { store.setDebugLogging(enabled) }
+    }
+
     fun setAdvancedTransition(enabled: Boolean) {
         viewModelScope.launch { store.setAdvancedTransition(enabled) }
     }

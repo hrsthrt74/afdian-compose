@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerDialog
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
 import com.hrsthrt74.afdian.ui.screens.main.MainScreen
@@ -57,6 +58,16 @@ private fun AfdianApp(appReady: MutableState<Boolean>, session: AuthSession = vi
     val useAfdianColor by settingsStore.useAfdianColor.collectAsState(initial = false)
     // 配色模式：0=跟随系统 1=浅色 2=深色
     val colorMode by settingsStore.colorMode.collectAsState(initial = 0)
+    // 调试日志开关：订阅 DataStore 并写入全局 AppLog，切换后即时生效、无需重启。
+    // SideEffect 在每次组合成功后执行，赋值幂等，重复执行无副作用
+    val debugLogging by settingsStore.debugLogging.collectAsState(initial = false)
+    SideEffect {
+        if (AppLog.debugEnabled != debugLogging) {
+            AppLog.debugEnabled = debugLogging
+            // 开关状态本身也打一条，方便在 Logcat 里确认当前档位
+            AppLog.d("AppLog", "调试日志已${if (debugLogging) "开启" else "关闭"}")
+        }
+    }
 
     AfdianTheme(primaryColor = if (useAfdianColor) AfdianBrandColor else null, colorMode = colorMode) {
         // 登录态：Loading 期间不渲染任何界面，读完 token 才放行，避免登录页闪烁

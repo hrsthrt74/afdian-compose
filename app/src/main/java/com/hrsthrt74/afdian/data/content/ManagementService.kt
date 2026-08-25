@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.data.content
 
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -58,12 +59,23 @@ class ManagementService(
     }
 
     private fun get(path: String): JsonObject {
+        // 请求前仅记录接口路径，不输出 auth_token 等凭据信息
+        AppLog.d("ManagementService", "开始请求管理接口 $path")
         val url = ("https://afdian.com" + path).toHttpUrl().newBuilder()
             .addQueryParameter("auth_token", tokenStore.token).build()
         val request = Request.Builder().url(url).header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 记录起始时间，拿到响应后计算差值得到耗时
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("请求失败 (${response.code})")
-            json.parseToJsonElement(response.body.string()).jsonObject
+            // 非 2xx 走原有的 error() 错误处理，这里补一条 w 级告警便于定位
+            if (!response.isSuccessful) {
+                AppLog.w("ManagementService", "管理接口返回非 2xx $path code=${response.code}")
+                error("请求失败 (${response.code})")
+            }
+            val result = json.parseToJsonElement(response.body.string()).jsonObject
+            // 成功拿到响应后输出 HTTP 状态码与整体耗时
+            AppLog.d("ManagementService", "管理接口响应 $path code=${response.code} cost=${System.currentTimeMillis() - start}ms")
+            result
         }
     }
 }

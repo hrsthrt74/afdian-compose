@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
+import com.hrsthrt74.afdian.AppLog
 
 /**
  * 进程级单例的资料缓存 DataStore。
@@ -36,8 +37,16 @@ class ProfileCache(private val context: Context) {
 
     /** 读取缓存的资料；首次使用或数据损坏时返回 null，由上层走正常网络流程 */
     suspend fun load(): AfadianProfile? {
-        val raw = context.profileDataStore.data.first()[Keys.PROFILE_JSON] ?: return null
-        return runCatching { json.decodeFromString(AfadianProfile.serializer(), raw) }.getOrNull()
+        val raw = context.profileDataStore.data.first()[Keys.PROFILE_JSON]
+        // 缓存命中情况打点：冷启动回填是否生效、数据是否损坏，一眼可查
+        if (raw == null) {
+            AppLog.d("ProfileCache", "缓存未命中（首次使用或已被清除）")
+            return null
+        }
+        return runCatching { json.decodeFromString(AfadianProfile.serializer(), raw) }
+            .onSuccess { AppLog.d("ProfileCache", "缓存命中，昵称=${it.user.name}") }
+            .onFailure { AppLog.w("ProfileCache", "缓存解析失败，忽略后走网络: ${it.message}") }
+            .getOrNull()
     }
 
     /** 网络刷新成功后写回缓存；写盘失败静默忽略，不影响主流程 */
@@ -45,6 +54,7 @@ class ProfileCache(private val context: Context) {
         runCatching {
             val encoded = json.encodeToString(AfadianProfile.serializer(), profile)
             context.profileDataStore.edit { it[Keys.PROFILE_JSON] = encoded }
+            AppLog.d("ProfileCache", "网络资料已写回缓存")
         }
     }
 

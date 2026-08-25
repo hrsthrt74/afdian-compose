@@ -2,6 +2,7 @@ package com.hrsthrt74.afdian.data.auth
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import com.hrsthrt74.afdian.AppLog
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -29,9 +30,17 @@ class AuthService(private val client: OkHttpClient = OkHttpClient()) {
             .toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url("https://afdian.com/api/passport/login").post(body)
             .header("referer", "https://afdian.com").build()
+        // 登录接口流程打点：开始 → HTTP 结果 → 业务码，方便定位「登录失败」卡在哪一环
+        AppLog.d(TAG, "POST /api/passport/login 开始")
+        val start = System.currentTimeMillis()
         return client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
+            if (!response.isSuccessful) {
+                // HTTP 层就挂了（4xx/5xx），直接按失败返回
+                AppLog.w(TAG, "登录请求 HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                return null
+            }
             val result = json.decodeFromString<LoginResponse>(response.body.string())
+            AppLog.d(TAG, "登录响应 HTTP ${response.code} ec=${result.ec} cost=${System.currentTimeMillis() - start}ms")
             if (result.ec != 200) error(result.message ?: "登录失败，请检查账号或密码")
             result.data?.authToken
         }
@@ -49,6 +58,8 @@ class AuthService(private val client: OkHttpClient = OkHttpClient()) {
     }
 
     private companion object {
+        // 登录接口日志统一 tag
+        const val TAG = "AuthService"
         val PUBLIC_KEY = """
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4Top/Mt2ofZeAIMh9AHw4d6Q+iyBxXbou+1mbhclLsB3YSMbFD+X6QnlAY1vMHO7fteKevn25iVIELBXsmcQS5/oA2hO3VHi9uTG3XmYVcrw94cK5ppODeBOV0hV0dFS/NOT66pqPAuLW6HgRrntgznl4ju6ttOddDNJ7e97RH9qrZEpzjl9GqVZQ2sFdmmw4dNET9fP9HWq8VlfW+BF G7TuxzEjZNcxAgrG/f41Z0+G3RxAccF8LOxu4Ztk1ZDdv5xukdx2ukoEhgdmKUkDv/W5r3HPj1uX+buzDi/UsumMblWXb0Bys7ENhZ/n4+naZ3b3rJ32DnTF7brVHncu7wIDAQAB
 """.replace(" ", "").replace("\n", "")

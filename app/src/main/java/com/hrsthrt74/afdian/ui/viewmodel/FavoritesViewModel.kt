@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.FavoriteItem
@@ -45,6 +46,8 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
     fun load() {
         viewModelScope.launch {
             _loading.value = true; _error.value = null; page = 1
+            // 调试日志：记录 tab 类型（0=创作者 1=动态 2=众筹）
+            AppLog.d("Favorites", "load: kind=${_kind.value}, page=1")
             runCatching {
                 withContext(Dispatchers.IO) {
                     when (_kind.value) {
@@ -59,7 +62,17 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
                         else -> { _items.value = service.fetchMarkedCrowdfundings() }
                     }
                 }
-            }.onFailure { _error.value = it.message ?: "收藏加载失败" }
+            }.onSuccess {
+                // 调试日志：返回条数与分页状态统计
+                AppLog.d(
+                    "Favorites",
+                    "load ok: kind=${_kind.value}, items=${_items.value.size}, posts=${_posts.value.size}, hasMore=${_hasMore.value}"
+                )
+            }.onFailure {
+                // 错误日志：用户模式下也能看到收藏加载失败
+                AppLog.e("Favorites", "load failed: kind=${_kind.value}", it)
+                _error.value = it.message ?: "收藏加载失败"
+            }
             _loading.value = false
         }
     }
@@ -75,7 +88,13 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
                 page += 1
                 _posts.value = _posts.value + it.posts
                 _hasMore.value = it.hasMore
-            }.onFailure { _error.value = it.message ?: "加载更多失败" }
+                // 调试日志：翻页参数、本页条数与累计总数
+                AppLog.d("Favorites", "loadMore ok: page=$page, got=${it.posts.size}, total=${_posts.value.size}, hasMore=${it.hasMore}")
+            }.onFailure {
+                // 错误日志：用户模式下也能看到加载更多失败
+                AppLog.e("Favorites", "loadMore failed: page=${page + 1}", it)
+                _error.value = it.message ?: "加载更多失败"
+            }
             _isLoadingMore.value = false
         }
     }

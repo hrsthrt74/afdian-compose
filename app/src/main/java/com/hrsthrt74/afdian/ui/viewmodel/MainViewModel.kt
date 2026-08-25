@@ -1,9 +1,9 @@
 package com.hrsthrt74.afdian.ui.viewmodel
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.RecommendedPost
@@ -82,8 +82,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _posts.value = result.postsPage.posts
                 nextPublishSN = result.postsPage.nextPublishSN
                 _hasMore.value = result.postsPage.hasMore
-                Log.d("Discover", "refresh: posts=${result.postsPage.posts.size}, nextSN=$nextPublishSN, hasMore=${result.postsPage.hasMore}")
+                AppLog.d("Discover", "refresh: posts=${result.postsPage.posts.size}, nextSN=$nextPublishSN, hasMore=${result.postsPage.hasMore}")
             } catch (e: Exception) {
+                // 错误日志：用户模式下也能看到首页刷新失败
+                AppLog.e("Discover", "refresh failed", e)
                 _error.value = e.message ?: "首页内容加载失败"
             } finally {
                 _isLoading.value = false
@@ -98,20 +100,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadMore() {
-        Log.d("Discover", "loadMore called: isLoadingMore=${_isLoadingMore.value}, hasMore=${_hasMore.value}, nextSN=$nextPublishSN")
+        AppLog.d("Discover", "loadMore called: isLoadingMore=${_isLoadingMore.value}, hasMore=${_hasMore.value}, nextSN=$nextPublishSN")
         if (_isLoadingMore.value || !_hasMore.value || nextPublishSN.isBlank()) return
         viewModelScope.launch {
             _isLoadingMore.value = true
             try {
                 val page = withContext(Dispatchers.IO) { service.fetchRecommendedPosts(nextPublishSN) }
-                Log.d("Discover", "loadMore result: newPosts=${page.posts.size}, nextSN=${page.nextPublishSN}, hasMore=${page.hasMore}")
+                AppLog.d("Discover", "loadMore result: newPosts=${page.posts.size}, nextSN=${page.nextPublishSN}, hasMore=${page.hasMore}")
                 // 翻页数据同样要先播种点赞状态再追加
                 interactions.seedLiked(page.posts.filter { it.has_like == 1 }.map { p -> p.id }.toSet())
                 _posts.value = _posts.value + page.posts
                 nextPublishSN = page.nextPublishSN
                 _hasMore.value = page.hasMore
             } catch (e: Exception) {
-                Log.e("Discover", "loadMore failed", e)
+                AppLog.e("Discover", "loadMore failed", e)
             } finally {
                 _isLoadingMore.value = false
             }

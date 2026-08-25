@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.viewmodel
 
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +72,8 @@ class PostInteractionController private constructor(
     /** 切换点赞：先乐观翻转本地状态，再异步请求服务端，失败则回滚 */
     fun toggleLike(postId: String) {
         val nowLiked = postId !in _likedIds.value
-        android.util.Log.d("PostInteraction", "toggleLike: id=$postId -> nowLiked=$nowLiked")
+        // 调试日志：动作发起（postId + 动作类型），改走全局门面以受调试开关控制
+        AppLog.d("Interactions", "toggleLike: id=$postId, action=${if (nowLiked) "like" else "unlike"}")
         _likedIds.value = if (nowLiked) _likedIds.value + postId else _likedIds.value - postId
         scope.launch {
             runCatching {
@@ -79,7 +81,8 @@ class PostInteractionController private constructor(
                     if (nowLiked) service.likePost(postId) else service.unlikePost(postId)
                 }
             }.onFailure {
-                // 请求失败：回滚本地状态，下次可重试
+                // 请求失败：回滚本地状态，下次可重试；W 级始终输出便于用户模式排查
+                AppLog.w("Interactions", "toggleLike failed, rollback: id=$postId", it)
                 _likedIds.value = if (nowLiked) _likedIds.value - postId else _likedIds.value + postId
             }
         }
@@ -88,6 +91,8 @@ class PostInteractionController private constructor(
     /** 切换收藏：逻辑同上 */
     fun toggleMark(postId: String) {
         val nowMarked = postId !in _markedIds.value
+        // 调试日志：动作发起（postId + 动作类型）
+        AppLog.d("Interactions", "toggleMark: id=$postId, action=${if (nowMarked) "mark" else "unmark"}")
         _markedIds.value = if (nowMarked) _markedIds.value + postId else _markedIds.value - postId
         scope.launch {
             runCatching {
@@ -95,6 +100,8 @@ class PostInteractionController private constructor(
                     if (nowMarked) service.markPost(postId) else service.unmarkPost(postId)
                 }
             }.onFailure {
+                // 请求失败：回滚本地状态；W 级始终输出
+                AppLog.w("Interactions", "toggleMark failed, rollback: id=$postId", it)
                 _markedIds.value = if (nowMarked) _markedIds.value - postId else _markedIds.value + postId
             }
         }

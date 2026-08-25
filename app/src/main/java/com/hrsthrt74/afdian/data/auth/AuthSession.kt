@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hrsthrt74.afdian.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,6 +46,8 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
         // 期间 UI 保持 Loading，避免登录页闪烁。
         viewModelScope.launch {
             val token = withContext(Dispatchers.IO) { store.token }
+            // 冷启动登录态判定结果：只记录「有没有 token」，绝不打印 token 本身
+            AppLog.d("AuthSession", "启动读取登录态完成：${if (token.isNullOrBlank()) "未登录" else "已登录"}")
             _state.value = if (token.isNullOrBlank()) AuthState.LoggedOut else AuthState.LoggedIn(token)
         }
     }
@@ -53,12 +56,18 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoggingIn.value = true
             _error.value = null
+            // 只记账号长度不记账号内容（手机号/邮箱属于敏感信息）
+            AppLog.d("AuthSession", "开始登录 account_len=${account.length}")
             try {
                 val token = withContext(Dispatchers.IO) { AuthService().passwordLogin(account, password) }
                 if (token.isNullOrBlank()) throw IllegalStateException("登录失败，服务器未返回登录凭证")
                 withContext(Dispatchers.IO) { store.writeToken(token) }
+                // 登录成功：token 已加密落盘，状态切换为 LoggedIn
+                AppLog.d("AuthSession", "登录成功，凭证已保存")
                 _state.value = AuthState.LoggedIn(token)
             } catch (e: Exception) {
+                // 登录失败走 E 级：无论调试开关是否打开都能在 Logcat 看到
+                AppLog.e("AuthSession", "登录失败: ${e.message}", e)
                 _error.value = e.message ?: "登录失败，请检查网络和账号信息"
             } finally {
                 _isLoggingIn.value = false
@@ -71,6 +80,8 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
     fun logout() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { store.clear() }
+            // 登出动作本身打一条 D，方便对照「登出后仍收到已登录回调」这类怪问题
+            AppLog.d("AuthSession", "已登出，本地凭证已清除")
             _state.value = AuthState.LoggedOut
         }
     }
@@ -142,6 +153,10 @@ class AuthTokenStore(private val application: Application) {
             init(Cipher.DECRYPT_MODE, key(), javax.crypto.spec.GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
         }
         String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), StandardCharsets.UTF_8)
+    }.onFailure {
+        // 解密失败通常意味着 KeyStore 密钥失效（如清除凭据/换机恢复），
+        // 原实现静默返回 null 会导致「明明有 token 却被当成未登录」，这里必须留痕
+        AppLog.w("AuthSession", "本地凭证解密失败，将按未登录处理: ${it.message}")
     }.getOrNull()
 
     private companion object { const val KEY_ALIAS = "afdian_auth_token" }

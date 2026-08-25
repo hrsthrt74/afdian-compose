@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import com.hrsthrt74.afdian.AppLog
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -207,7 +208,7 @@ private fun HtmlImage(element: Element) {
                 .firstNotNullOfOrNull { img.attr(it).trim().takeIf(String::isNotBlank) }
             if (raw.isNullOrBlank()) {
                 // 四个属性都拿不到地址：打日志留痕，别再无声跳过
-                android.util.Log.w("HtmlContent", "<img> 无可用地址，已跳过: ${img.outerHtml().take(200)}")
+                AppLog.w("HtmlContent", "<img> 无可用地址，已跳过: ${img.outerHtml().take(200)}")
                 return@forEach
             }
             val model = ImageRequest.Builder(context)
@@ -215,7 +216,7 @@ private fun HtmlImage(element: Element) {
                 .listener(
                     // 失败落日志：URL 形态五花八门，排查「图挂了」时先看这里
                     onError = { _, result ->
-                        android.util.Log.w("HtmlContent", "图片加载失败: $raw -> ${result.throwable.message}")
+                        AppLog.w("HtmlContent", "图片加载失败: $raw -> ${result.throwable.message}")
                     },
                 )
                 .build()

@@ -58,6 +58,7 @@ fun SettingsScreen(
     val colorMode by viewModel.colorMode.collectAsState()
     val advancedTransition by viewModel.advancedTransition.collectAsState()
     val gestureBack by viewModel.gestureBack.collectAsState()
+    val debugLogging by viewModel.debugLogging.collectAsState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
@@ -99,7 +100,7 @@ fun SettingsScreen(
             ) {
                 item { SmallTitle(text = "启动", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         OverlayDropdownPreference(
                             title = "打开 App 后默认进入",
                             items = startupPageNames,
@@ -110,7 +111,7 @@ fun SettingsScreen(
                 }
                 item { SmallTitle(text = "外观", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         OverlayDropdownPreference(
                             title = "配色模式",
                             items = colorModeNames,
@@ -121,7 +122,6 @@ fun SettingsScreen(
                             checked = useAfdianColor,
                             onCheckedChange = viewModel::setUseAfdianColor,
                             title = "使用爱发电主题色",
-//                            summary = "用爱发电品牌紫作为主色"
                         )
                         SwitchPreference(
                             checked = themeSettings.enableBlur,
@@ -139,7 +139,7 @@ fun SettingsScreen(
                 }
                 item { SmallTitle(text = "动画", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         SwitchPreference(
                             checked = advancedTransition,
                             onCheckedChange = viewModel::setAdvancedTransition,
@@ -151,6 +151,18 @@ fun SettingsScreen(
                             onCheckedChange = viewModel::setGestureBack,
                             title = "手势返回",
                             summary = "在页面左缘向右滑动即可返回上一页（系统返回手势不受影响；退出此页面后生效）",
+                        )
+                    }
+                }
+                item { SmallTitle(text = "其他", modifier = Modifier.padding(start = 4.dp)) }
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        SwitchPreference(
+                            checked = debugLogging,
+                            onCheckedChange = viewModel::setDebugLogging,
+                            title = "调试日志",
+                            // 面向用户的说明：开启属于排查问题模式，普通使用没必要开
+                            summary = "日常使用建议关闭，重启应用后生效",
                         )
                     }
                 }
