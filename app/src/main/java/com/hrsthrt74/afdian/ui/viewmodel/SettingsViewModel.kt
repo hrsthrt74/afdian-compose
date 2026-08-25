@@ -18,7 +18,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val useAfdianColor: StateFlow<Boolean> = store.useAfdianColor
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     /** 配色模式：0=跟随系统 1=浅色 2=深色 */
     val colorMode: StateFlow<Int> = store.colorMode
