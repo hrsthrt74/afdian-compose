@@ -79,7 +79,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 private enum class CreatorSection { Plans, Products, Albums, Posts, Sponsors }
 
 @Composable
-fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit) {
+fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit = {}) {
     val app = LocalContext.current.applicationContext as Application
     val vm: CreatorDetailViewModel = viewModel(
         key = "creator-${user.user_id}",
@@ -150,6 +150,7 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit) {
                     listState = listState,
                     scrollBehavior = scrollBehavior,
                     topPadding = paddingValues.calculateTopPadding(),
+                    onOpenPost = onOpenPost,
                     onSponsor = {
                         val plansIndex = current.sections().indexOf(CreatorSection.Plans)
                         val productsIndex = current.sections().indexOf(CreatorSection.Products)
@@ -173,6 +174,7 @@ private fun CreatorDetailContent(
     listState: androidx.compose.foundation.lazy.LazyListState,
     scrollBehavior: ScrollBehavior,
     topPadding: Dp,
+    onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
     onSponsor: () -> Unit,
 ) {
     LazyColumn(
@@ -197,7 +199,7 @@ private fun CreatorDetailContent(
                     CreatorSection.Plans -> CreatorPlansSection(detail)
                     CreatorSection.Products -> CreatorProductsSection(detail)
                     CreatorSection.Albums -> CreatorAlbumsSection(detail)
-                    CreatorSection.Posts -> CreatorPostsSection(detail)
+                    CreatorSection.Posts -> CreatorPostsSection(detail, onOpenPost = onOpenPost)
                     CreatorSection.Sponsors -> CreatorSponsorsSection(detail)
                 }
             }
@@ -515,7 +517,7 @@ private fun CreatorAlbumsSection(detail: CreatorDetail) {
 }
 
 @Composable
-private fun CreatorPostsSection(detail: CreatorDetail) {
+private fun CreatorPostsSection(detail: CreatorDetail, onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit) {
     // 把该创作者动态里的服务端点赞状态（has_like）播种进全局互动状态，
     // 否则这里看到的「已赞」高亮会不准（操作栏读的是全局单例）
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -529,6 +531,7 @@ private fun CreatorPostsSection(detail: CreatorDetail) {
             post = post,
             profile = detail.profile,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            onClick = { onOpenPost(post) },
         )
     }
 }

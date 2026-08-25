@@ -141,7 +141,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         entry<Route.CreatorDetail>(
             transition = CreatorDetailTransition,
         ) { route ->
-            CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() })
+            CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() }, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) })
         }
         // 动态详情：全文正文 HTML 渲染 + 分享/点赞/收藏
         entry<Route.PostDetail> { route ->
