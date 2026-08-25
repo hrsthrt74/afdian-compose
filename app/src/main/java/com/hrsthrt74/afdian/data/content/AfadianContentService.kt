@@ -688,7 +688,7 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
 }
 
 /** 今日收入统计结果（金额单位：元） */
-data class TodayIncome(val amount: Double, val orderCount: Int)
+@Serializable data class TodayIncome(val amount: Double, val orderCount: Int)
 
 @Serializable data class FavoriteItem(
     val id: String, val title: String, val subtitle: String, val image: String? = null,

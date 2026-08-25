@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.miuix.icons)
     implementation(libs.miuix.nav)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.reorderable)
     implementation(libs.miuix.blur)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

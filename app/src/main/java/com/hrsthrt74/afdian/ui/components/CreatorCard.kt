@@ -17,6 +17,8 @@ import coil3.compose.AsyncImage
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.pressable
 
 /**
  * 大号创作者卡片组件（矩形）
@@ -40,7 +42,7 @@ fun CreatorLargeCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier
+        modifier = modifier.pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
     ) {
         Column {
             // 上半部分：封面图（16:9 比例）
@@ -99,7 +101,7 @@ fun CreatorSmallCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier
+        modifier = modifier.pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
     ) {
         Column {
             // 上半部分：封面图（扁长方形，适配窄小的双列卡片）

@@ -26,7 +26,7 @@ fun TodayIncomeCard(income: TodayIncome, modifier: Modifier = Modifier) {
         "今日收入" to "%.2f".format(income.amount),
         "今日订单数" to income.orderCount.toString()
     )
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         entries.forEach { (title, value) ->
             Card(modifier = Modifier.weight(1f), insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
                 Column {

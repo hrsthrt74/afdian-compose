@@ -288,7 +288,13 @@ private fun MainTabsContent(
                     .background(MiuixTheme.colorScheme.surface)
             ) {
                 when (page) {
-                    0 -> HomeScreen(viewModel, onOpenCreator)
+                    0 -> HomeScreen(
+                        viewModel = viewModel,
+                        onOpenCreator = onOpenCreator,
+                        onOpenManagement = { onNavigate(Route.Management) },
+                        onOpenFavorites = { onNavigate(Route.Favorites) },
+                        onOpenSponsoring = { onNavigate(Route.Sponsoring) },
+                    )
                     1 -> DiscoverScreen(viewModel, onOpenCreator, onOpenPost)
                     2 -> MessagesScreen(messagesViewModel) { route ->
                         when (route) {

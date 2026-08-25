@@ -10,6 +10,18 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+/** 首页可配置模块。字符串值用于 DataStore 持久化，后续新增模块可兼容旧版本配置。 */
+enum class HomeModule(val storageValue: String, val title: String, val summary: String) {
+    CreatorData("creator_data", "创作者数据", "[创作者] 今日收入等数据"),
+    Sponsoring("sponsoring", "我发电的", "快速访问已发电的创作者"),
+    MarkedCreators("marked_creators", "收藏的创作者", "快速访问收藏的创作者"),
+    PayoutReminder("payout_reminder", "提现提醒", "[创作者] 月底显示提现提醒");
+
+    companion object {
+        fun fromStorage(value: String): HomeModule? = entries.firstOrNull { it.storageValue == value }
+    }
+}
+
 /** 进程级单例的设置 DataStore，替代旧的 SharedPreferences("settings")。 */
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -27,6 +39,13 @@ class SettingsStore(private val context: Context) {
         val GESTURE_BACK = booleanPreferencesKey("gesture_back")
         // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
         val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
+        val HOME_CREATOR_DATA = booleanPreferencesKey("home_creator_data")
+        val HOME_SPONSORING = booleanPreferencesKey("home_sponsoring")
+        val HOME_MARKED_CREATORS = booleanPreferencesKey("home_marked_creators")
+        val HOME_PAYOUT_REMINDER = booleanPreferencesKey("home_payout_reminder")
+        val HOME_ENABLED_MODULES = androidx.datastore.preferences.core.stringPreferencesKey("home_enabled_modules")
+        val HOME_MODULE_ORDER = androidx.datastore.preferences.core.stringPreferencesKey("home_module_order")
+
     }
 
     /** 启动页索引，未设置时默认第 0 页 */
@@ -55,6 +74,46 @@ class SettingsStore(private val context: Context) {
      */
     val debugLogging: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.DEBUG_LOGGING] ?: false }
+
+    /** 首页模块开关，默认全部开启；新账号无需额外初始化配置。 */
+    val homeCreatorData: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_CREATOR_DATA] ?: true }
+    val homeSponsoring: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_SPONSORING] ?: true }
+    val homeMarkedCreators: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_MARKED_CREATORS] ?: true }
+    val homePayoutReminder: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_PAYOUT_REMINDER] ?: true }
+    /** 首页启用模块集合；未写入时从旧版分散布尔开关迁移，确保升级不丢用户配置。 */
+    val homeEnabledModules: Flow<Set<HomeModule>> = context.settingsDataStore.data.map { preferences ->
+        val stored = preferences[Keys.HOME_ENABLED_MODULES]
+        if (stored != null) {
+            stored.split(",").mapNotNull(HomeModule::fromStorage).toSet()
+        } else {
+            HomeModule.entries.filter { module ->
+                when (module) {
+                    HomeModule.CreatorData -> preferences[Keys.HOME_CREATOR_DATA] ?: true
+                    HomeModule.Sponsoring -> preferences[Keys.HOME_SPONSORING] ?: true
+                    HomeModule.MarkedCreators -> preferences[Keys.HOME_MARKED_CREATORS] ?: true
+                    HomeModule.PayoutReminder -> preferences[Keys.HOME_PAYOUT_REMINDER] ?: true
+                }
+            }.toSet()
+        }
+    }
+    /** 首页模块顺序；过滤未知模块并补上未来新增模块，避免升级后模块消失。 */
+    val homeModuleOrder: Flow<List<HomeModule>> = context.settingsDataStore.data.map { preferences ->
+        val saved = preferences[Keys.HOME_MODULE_ORDER]
+            ?.split(",")
+            ?.mapNotNull(HomeModule::fromStorage)
+            .orEmpty()
+        (saved + HomeModule.entries).distinct()
+    }
+    suspend fun setHomeCreatorData(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_CREATOR_DATA] = enabled } }
+    suspend fun setHomeSponsoring(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_SPONSORING] = enabled } }
+    suspend fun setHomeMarkedCreators(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_MARKED_CREATORS] = enabled } }
+    suspend fun setHomePayoutReminder(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_PAYOUT_REMINDER] = enabled } }
+    suspend fun setHomeEnabledModules(modules: Set<HomeModule>) {
+        context.settingsDataStore.edit { it[Keys.HOME_ENABLED_MODULES] = modules.joinToString(",") { module -> module.storageValue } }
+    }
+    suspend fun setHomeModuleOrder(order: List<HomeModule>) {
+        context.settingsDataStore.edit { it[Keys.HOME_MODULE_ORDER] = order.joinToString(",") { module -> module.storageValue } }
+    }
 
     suspend fun setDebugLogging(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.DEBUG_LOGGING] = enabled }
