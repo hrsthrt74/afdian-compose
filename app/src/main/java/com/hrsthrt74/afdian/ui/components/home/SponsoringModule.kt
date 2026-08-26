@@ -30,6 +30,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollHorizontal
 
 /** 已发电创作者模块。 */
 @Composable
@@ -67,11 +68,11 @@ fun SponsoringModule(context: HomeModuleContentContext) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp), textAlign = TextAlign.Center,
             )
         } else {
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(context.sponsoring, key = { it.id }) { item ->
                     val origin = rememberCreatorOrigin()
                     CreatorSmallCard(item.user.avatar, item.user.cover, item.user.name.ifBlank { "创作者" },
-                        origin.onClick { context.onOpenCreator(item.user) }, origin.trackModifier().width(156.dp))
+                        origin.onClick { context.onOpenCreator(item.user) }, origin.trackModifier().width(164.dp))
                 }
             }
         }

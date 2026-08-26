@@ -30,6 +30,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollHorizontal
 
 /** 收藏创作者模块。 */
 @Composable
@@ -72,7 +73,7 @@ private fun HomeMarkedCreators(
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(creators.take(8), key = { it.id }) { item ->
             val user = item.user ?: return@items
@@ -82,7 +83,7 @@ private fun HomeMarkedCreators(
                 coverUrl = user.cover,
                 creatorName = user.name.ifBlank { item.title.ifBlank { "创作者" } },
                 onClick = origin.onClick { onOpenCreator(user) },
-                modifier = origin.trackModifier().width(156.dp),
+                modifier = origin.trackModifier().width(164.dp),
             )
         }
     }
