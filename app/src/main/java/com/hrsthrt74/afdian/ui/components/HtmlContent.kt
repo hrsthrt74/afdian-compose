@@ -142,8 +142,19 @@ private fun InlineParagraph(nodes: List<Node>) {
         fun appendInline(node: Node, bold: Boolean, italic: Boolean, underline: Boolean, strike: Boolean, code: Boolean, linkUrl: String?) {
             when (node) {
                 is TextNode -> {
-                    // HTML 里连续空白在渲染上等价于一个空格
-                    val content = node.wholeText.replace(Regex("\\s+"), " ")
+                    // HTML 正文里常见的「软换行 / 段落空行」用的是真正的 \n，
+                    // 不能直接当成普通空白折叠掉，否则换行会全部变成空格、挤成一段。
+                    // 处理策略：
+                    //   1. 统一换行符为 \n（兼容 \r\n、\r）
+                    //   2. 连续的「空格/制表符/不换行空格」折叠成一个空格（HTML 规范）
+                    //   3. 去掉换行符紧邻的多余空格，避免行首/行尾多余留白
+                    //   4. 连续 3 个以上换行折叠为 2 个，防止超长空行
+                    val content = node.wholeText
+                        .replace("\r\n", "\n")
+                        .replace("\r", "\n")
+                        .replace(Regex("[ \t\u00A0]+"), " ")
+                        .replace(Regex(" *\n *"), "\n")
+                        .replace(Regex("\n{3,}"), "\n\n")
                     if (content.isEmpty()) return
                     val span = SpanStyle(
                         fontWeight = if (bold) FontWeight.Bold else null,
