@@ -18,9 +18,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.History
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,9 +53,11 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.All
+import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.MindMap
 import top.yukonga.miuix.kmp.icon.extended.Months
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -127,10 +131,10 @@ private fun ProfileMainScreen(
                 )
             ) {
                 item { Spacer(Modifier.height(8.dp)) }
-                // 快捷入口行：我发电的 / 我的收藏 / 我的订单，横向均分
+                // 快捷入口行
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         ProfileQuickEntry(
@@ -151,6 +155,12 @@ private fun ProfileMainScreen(
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.Orders) },
                         )
+                        ProfileQuickEntry(
+                            title = "历史记录",
+                            icon = Icons.Filled.History,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.History) },
+                        )
                     }
                 }
 
@@ -160,7 +170,7 @@ private fun ProfileMainScreen(
 
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         ProfileQuickEntry(
@@ -170,7 +180,7 @@ private fun ProfileMainScreen(
                             onClick = { onNavigate(Route.Management) },
                         )
                         ProfileQuickEntry(
-                            title = "赞助者感谢页",
+                            title = "感谢页",
                             icon = MiuixIcons.Months,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.ThankSponsors) },
@@ -180,6 +190,12 @@ private fun ProfileMainScreen(
                             icon = MiuixIcons.Demibold.MindMap,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
+                        )
+                        ProfileQuickEntry(
+                            title = "……",
+                            icon = MiuixIcons.Demibold.More,
+                            modifier = Modifier.weight(1f),
+                            onClick = {  },
                         )
                     }
                 }
@@ -225,7 +241,7 @@ private fun ProfileQuickEntry(
         // 圆形裁切的 Box：图标坐里面居中；点击范围限定在圆形内（clip 在前，水波纹也被裁成圆形）
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(68.dp)
                 .clip(CircleShape)
                 .background(containerColor)
                 .clickable(onClick = {
@@ -238,10 +254,10 @@ private fun ProfileQuickEntry(
                 imageVector = icon,
                 contentDescription = title,
                 tint = iconTint,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(32.dp),
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = title,
             style = MiuixTheme.textStyles.footnote1,

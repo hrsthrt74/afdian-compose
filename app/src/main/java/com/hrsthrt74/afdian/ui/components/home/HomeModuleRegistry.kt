@@ -16,6 +16,7 @@ object HomeModuleRegistry {
         HomeModuleSpec(HomeModule.CreatorData) { CreatorDataModule(it) },
         HomeModuleSpec(HomeModule.Sponsoring) { SponsoringModule(it) },
         HomeModuleSpec(HomeModule.MarkedCreators) { MarkedCreatorsModule(it) },
+        HomeModuleSpec(HomeModule.History) { HistoryModule(it) },
     )
 
     fun spec(module: HomeModule): HomeModuleSpec? = all.firstOrNull { it.module == module }

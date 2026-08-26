@@ -8,6 +8,8 @@ import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.CreatorDetail
+import com.hrsthrt74.afdian.data.history.HistoryEntry
+import com.hrsthrt74.afdian.data.history.HistoryStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +21,7 @@ class CreatorDetailViewModel(
     private val user: AfadianUser,
 ) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
+    private val historyStore = HistoryStore(application)
     private val _detail = MutableStateFlow<CreatorDetail?>(null)
     val detail = _detail.asStateFlow()
     private val _loading = MutableStateFlow(false)
@@ -34,11 +37,19 @@ class CreatorDetailViewModel(
         viewModelScope.launch {
             _loading.value = true
             _error.value = null
+            // 详情页生命周期只记录一次入口；历史开关关闭时仓库会直接忽略写入。
+            withContext(Dispatchers.IO) {
+                historyStore.recordOpened(HistoryEntry.from(user).target)
+            }
             // 调试日志：记录加载起点（创作者 user_id / slug）
             AppLog.d("CreatorDetail", "load: userId=${user.user_id}, slug=${user.url_slug}")
             runCatching { withContext(Dispatchers.IO) { service.fetchCreatorDetail(user) } }
                 .onSuccess {
                     _detail.value = it
+                    // 网络资料更完整时只更新快照，不改变用户真正进入页面的时间。
+                    viewModelScope.launch(Dispatchers.IO) {
+                        historyStore.updateSnapshot(HistoryEntry.from(it.profile).target)
+                    }
                     // 调试日志：各板块条数统计，便于确认数据完整性
                     AppLog.d(
                         "CreatorDetail",

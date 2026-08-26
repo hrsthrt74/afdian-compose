@@ -31,6 +31,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
@@ -64,6 +65,7 @@ fun SettingsScreen(
     val advancedTransition by viewModel.advancedTransition.collectAsState()
     val gestureBack by viewModel.gestureBack.collectAsState()
     val debugLogging by viewModel.debugLogging.collectAsState()
+    val historyEnabled by viewModel.historyEnabled.collectAsState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
@@ -162,6 +164,17 @@ fun SettingsScreen(
                 item { SmallTitle(text = "其他", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        SwitchPreference(
+                            checked = historyEnabled,
+                            onCheckedChange = viewModel::setHistoryEnabled,
+                            title = "记录浏览历史",
+                            summary = "记录创作者主页和动态详情的最近访问",
+                        )
+                        ArrowPreference(
+                            title = "清除历史记录缓存",
+                            summary = "删除历史记录使用的本地头像，不删除历史条目",
+                            onClick = viewModel::clearHistoryAvatarCache,
+                        )
                         SwitchPreference(
                             checked = debugLogging,
                             onCheckedChange = viewModel::setDebugLogging,

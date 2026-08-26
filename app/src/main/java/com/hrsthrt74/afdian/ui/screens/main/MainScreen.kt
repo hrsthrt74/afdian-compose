@@ -38,6 +38,10 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
+import com.hrsthrt74.afdian.data.history.HistoryTarget
+import com.hrsthrt74.afdian.data.history.toAfadianUser
+import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
@@ -93,6 +97,11 @@ private fun NavBackStack.pushUnique(route: Route) {
 @Composable
 fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
     val messagesViewModel: MessagesViewModel = viewModel()
+    val historyViewModel: HistoryViewModel = viewModel(
+        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
+            LocalContext.current.applicationContext as Application
+        )
+    )
     val backStack = rememberNavBackStack<Route>(Route.MainTabs)
 
     // 高级过渡动画开关：订阅设置后写入全局状态，由 CreatorDetailTransition 运行时切换
@@ -128,6 +137,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 onReady = onReady,
                 viewModel = viewModel,
                 messagesViewModel = messagesViewModel,
+                historyViewModel = historyViewModel,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 // 动态卡片点击 → 动态详情页（携带列表页已有数据秒开）
                 onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
@@ -227,6 +237,14 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         entry<Route.Settings> {
             SettingsScreen(onBack = { backStack.removeLastOrNull() }, onLogout = handleLogout)
         }
+        entry<Route.History> {
+            HistoryScreen(
+                viewModel = historyViewModel,
+                onBack = { backStack.removeLastOrNull() },
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+                onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
+            )
+        }
     }
 }
 
@@ -235,6 +253,7 @@ private fun MainTabsContent(
     onReady: () -> Unit,
     viewModel: MainViewModel,
     messagesViewModel: MessagesViewModel,
+    historyViewModel: HistoryViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
     onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
     onOpenConversation: (String, String, String?) -> Unit,
@@ -331,6 +350,14 @@ private fun MainTabsContent(
                         onOpenManagement = { onNavigate(Route.Management) },
                         onOpenFavorites = { onNavigate(Route.Favorites) },
                         onOpenSponsoring = { onNavigate(Route.Sponsoring) },
+                        historyViewModel = historyViewModel,
+                        onOpenHistory = { onNavigate(Route.History) },
+                        onOpenHistoryEntry = { entry ->
+                            when (val target = entry.target) {
+                                is HistoryTarget.CreatorDetailTarget -> onOpenCreator(target.toAfadianUser())
+                                is HistoryTarget.PostDetailTarget -> onOpenPost(target.toRecommendedPost())
+                            }
+                        },
                     )
                     1 -> DiscoverScreen(viewModel, onOpenCreator, onOpenPost)
                     2 -> MessagesScreen(messagesViewModel) { route ->

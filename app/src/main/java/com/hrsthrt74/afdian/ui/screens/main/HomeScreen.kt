@@ -44,6 +44,7 @@ import com.hrsthrt74.afdian.ui.components.home.HomeModuleContent
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContentContext
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -68,6 +69,9 @@ fun HomeScreen(
     onOpenManagement: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSponsoring: () -> Unit,
+    historyViewModel: HistoryViewModel,
+    onOpenHistory: () -> Unit,
+    onOpenHistoryEntry: (com.hrsthrt74.afdian.data.history.HistoryEntry) -> Unit,
 ) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -82,6 +86,7 @@ fun HomeScreen(
     val todayIncome by viewModel.todayIncome.collectAsState()
     val creatorOverview by viewModel.creatorOverview.collectAsState()
     val markedCreators by viewModel.markedCreators.collectAsState()
+    val historyEntries by historyViewModel.entries.collectAsState()
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
     val moduleOrder by settingsStore.homeModuleOrder.collectAsState(initial = HomeModule.entries)
     var showCustomizeSheet by remember { mutableStateOf(false) }
@@ -123,6 +128,10 @@ fun HomeScreen(
         settingsStore = settingsStore,
         onOpenCreator = onOpenCreator, onOpenManagement = onOpenManagement, onOpenFavorites = onOpenFavorites,
         onOpenSponsoring = onOpenSponsoring,
+        historyEntries = historyEntries,
+        historyAvatarModel = historyViewModel::avatarModel,
+        onOpenHistory = onOpenHistory,
+        onOpenHistoryEntry = onOpenHistoryEntry,
     )
 
     Scaffold(

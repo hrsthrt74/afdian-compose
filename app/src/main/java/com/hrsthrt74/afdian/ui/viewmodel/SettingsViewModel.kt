@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
+import com.hrsthrt74.afdian.data.history.HistoryStore
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +13,7 @@ import kotlinx.coroutines.launch
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val store = SettingsStore(application)
+    private val historyStore = HistoryStore(application)
 
     // 直接把 DataStore 的 flow 转成 StateFlow，写入后自动回推 UI
     val startupPage: StateFlow<Int> = store.startupPage
@@ -36,8 +38,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val debugLogging: StateFlow<Boolean> = store.debugLogging
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    /** 浏览历史记录开关，默认开启。 */
+    val historyEnabled: StateFlow<Boolean> = store.historyEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     fun setDebugLogging(enabled: Boolean) {
         viewModelScope.launch { store.setDebugLogging(enabled) }
+    }
+
+    fun setHistoryEnabled(enabled: Boolean) {
+        viewModelScope.launch { store.setHistoryEnabled(enabled) }
+    }
+
+    fun clearHistoryAvatarCache() {
+        viewModelScope.launch { historyStore.clearAvatarCache() }
     }
 
     fun setAdvancedTransition(enabled: Boolean) {

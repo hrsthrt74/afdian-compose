@@ -7,6 +7,8 @@ import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.RecommendedPost
+import com.hrsthrt74.afdian.data.history.HistoryEntry
+import com.hrsthrt74.afdian.data.history.HistoryStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +28,7 @@ class PostDetailViewModel(
 ) : AndroidViewModel(application) {
 
     private val service = AfadianContentService(AuthTokenStore(application))
+    private val historyStore = HistoryStore(application)
     // 全局共享的点赞/收藏状态（与发现页、收藏页互通）
     val interactions = PostInteractionController.get(application)
     private val _post = MutableStateFlow(initialPost)
@@ -44,6 +47,10 @@ class PostDetailViewModel(
         // 先固定 postId，避免协程期间 _post 被覆盖后日志口径不一致
         val postId = _post.value.id
         viewModelScope.launch {
+            // 先记录入口，再请求全文；即使网络失败，用户也能在本地历史里找回这条动态。
+            withContext(Dispatchers.IO) {
+                historyStore.recordOpened(HistoryEntry.from(_post.value).target)
+            }
             // 调试日志：记录详情加载起点
             AppLog.d("PostDetail", "load: postId=$postId")
             runCatching {
@@ -51,6 +58,10 @@ class PostDetailViewModel(
             }.onSuccess {
                 _post.value = it
                 _loading.value = false
+                // 占位路由（只有 post_id）成功加载后补全历史条目展示信息。
+                viewModelScope.launch(Dispatchers.IO) {
+                    historyStore.updateSnapshot(HistoryEntry.from(it).target)
+                }
                 // 调试日志：只输出信息量字段（标题长度、点赞/评论数），不打印全文正文
                 AppLog.d(
                     "PostDetail",

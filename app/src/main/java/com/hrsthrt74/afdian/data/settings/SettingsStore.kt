@@ -15,7 +15,8 @@ enum class HomeModule(val storageValue: String, val title: String, val summary: 
     CreatorData("creator_data", "创作者数据", "[创作者] 今日收入等数据"),
     Sponsoring("sponsoring", "我发电的", "快速访问已发电的创作者"),
     MarkedCreators("marked_creators", "收藏的创作者", "快速访问收藏的创作者"),
-    WithdrawalReminder("withdrawal_reminder", "提现提醒", "[创作者] 月底显示提现提醒");
+    WithdrawalReminder("withdrawal_reminder", "提现提醒", "[创作者] 月底显示提现提醒"),
+    History("history", "浏览历史", "快速访问最近浏览的创作者和动态");
 
     companion object {
         fun fromStorage(value: String): HomeModule? = entries.firstOrNull { it.storageValue == value }
@@ -39,6 +40,8 @@ class SettingsStore(private val context: Context) {
         val GESTURE_BACK = booleanPreferencesKey("gesture_back")
         // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
         val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
+        // 浏览历史开关：关闭后不再写入新的历史记录或头像缓存
+        val HISTORY_ENABLED = booleanPreferencesKey("history_enabled")
         val HOME_CREATOR_DATA = booleanPreferencesKey("home_creator_data")
         val HOME_SPONSORING = booleanPreferencesKey("home_sponsoring")
         val HOME_MARKED_CREATORS = booleanPreferencesKey("home_marked_creators")
@@ -75,6 +78,10 @@ class SettingsStore(private val context: Context) {
     val debugLogging: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.DEBUG_LOGGING] ?: false }
 
+    /** 是否记录浏览历史，默认开启；关闭只暂停新增，不删除已有记录。 */
+    val historyEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.HISTORY_ENABLED] ?: true }
+
     /** 首页模块开关，默认全部开启；新账号无需额外初始化配置。 */
     val homeCreatorData: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_CREATOR_DATA] ?: true }
     val homeSponsoring: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_SPONSORING] ?: true }
@@ -84,7 +91,8 @@ class SettingsStore(private val context: Context) {
     val homeEnabledModules: Flow<Set<HomeModule>> = context.settingsDataStore.data.map { preferences ->
         val stored = preferences[Keys.HOME_ENABLED_MODULES]
         if (stored != null) {
-            stored.split(",").mapNotNull(HomeModule::fromStorage).toSet()
+            // 已有用户配置也自动补入新增模块，避免历史记录模块升级后悄悄消失。
+            (stored.split(",").mapNotNull(HomeModule::fromStorage) + HomeModule.History).toSet()
         } else {
             HomeModule.entries.filter { module ->
                 when (module) {
@@ -92,6 +100,7 @@ class SettingsStore(private val context: Context) {
                     HomeModule.Sponsoring -> preferences[Keys.HOME_SPONSORING] ?: true
                     HomeModule.MarkedCreators -> preferences[Keys.HOME_MARKED_CREATORS] ?: true
                     HomeModule.WithdrawalReminder -> preferences[Keys.HOME_WITHDRAWAL_REMINDER] ?: true
+                    HomeModule.History -> true
                 }
             }.toSet()
         }
@@ -117,6 +126,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setDebugLogging(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.DEBUG_LOGGING] = enabled }
+    }
+
+    suspend fun setHistoryEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.HISTORY_ENABLED] = enabled }
     }
 
     suspend fun setAdvancedTransition(enabled: Boolean) {

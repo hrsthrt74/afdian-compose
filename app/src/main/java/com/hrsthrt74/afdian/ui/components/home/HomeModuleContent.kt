@@ -6,6 +6,7 @@ import com.hrsthrt74.afdian.data.content.FavoriteItem
 import com.hrsthrt74.afdian.data.content.ManagementResult
 import com.hrsthrt74.afdian.data.content.SponsoringItem
 import com.hrsthrt74.afdian.data.content.TodayIncome
+import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 
@@ -21,6 +22,10 @@ data class HomeModuleContentContext(
     val onOpenManagement: () -> Unit,
     val onOpenFavorites: () -> Unit,
     val onOpenSponsoring: () -> Unit,
+    val historyEntries: List<HistoryEntry>,
+    val historyAvatarModel: (String?) -> Any?,
+    val onOpenHistory: () -> Unit,
+    val onOpenHistoryEntry: (HistoryEntry) -> Unit,
 )
 
 /** 模块注册入口。新增模块时在 HomeModuleRegistry 中注册，不需要修改首页容器。 */
