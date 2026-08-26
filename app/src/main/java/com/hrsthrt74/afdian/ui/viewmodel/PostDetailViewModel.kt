@@ -32,6 +32,10 @@ class PostDetailViewModel(
     val post = _post.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+    // 仅当路由只带 id（占位 post）、还没有真实内容时处于加载中；
+    // 列表页携带完整 post 进入时初始即为 false，保持「秒显」体验
+    private val _loading = MutableStateFlow(initialPost.user.user_id.isBlank())
+    val loading = _loading.asStateFlow()
 
     init { load() }
 
@@ -46,12 +50,14 @@ class PostDetailViewModel(
                 withContext(Dispatchers.IO) { service.fetchPostDetail(postId) }
             }.onSuccess {
                 _post.value = it
+                _loading.value = false
                 // 调试日志：只输出信息量字段（标题长度、点赞/评论数），不打印全文正文
                 AppLog.d(
                     "PostDetail",
                     "load ok: postId=$postId, titleLen=${it.title.length}, likes=${it.like_count}, comments=${it.comment_count}"
                 )
             }.onFailure {
+                _loading.value = false
                 // 错误日志：用户模式下也能看到加载失败原因
                 AppLog.e("PostDetail", "load failed: postId=$postId", it)
                 _error.value = it.message ?: "动态详情加载失败"

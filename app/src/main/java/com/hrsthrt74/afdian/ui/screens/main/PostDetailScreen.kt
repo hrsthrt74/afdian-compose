@@ -40,6 +40,7 @@ import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.HtmlContent
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.PostActionBar
 import com.hrsthrt74.afdian.ui.components.PostHeader
 import com.hrsthrt74.afdian.ui.components.PostPaidBlock
@@ -95,6 +96,7 @@ fun PostDetailScreen(
     )
     val detail by vm.post.collectAsState()
     val error by vm.error.collectAsState()
+    val loading by vm.loading.collectAsState()
 
     val context = LocalContext.current
     val origin = rememberCreatorOrigin()
@@ -139,6 +141,16 @@ fun PostDetailScreen(
                     .fillMaxSize()
                     .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
             ) {
+                // 仅持有 id 打开（如「创作者指南」入口）时，先用占位 post 拉详情，
+                // 加载完成前显示统一加载组件，避免空白闪烁；已有完整内容则直接秒显
+                if (loading && error == null) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        LoadingComponent(text = "正在加载动态...")
+                    }
+                } else {
                 LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
@@ -295,7 +307,8 @@ fun PostDetailScreen(
                     )
                 }
             }
-            } // 采样层 Box 结束（操作栏必须在其外部，见上方注释）
+                } // else 分支结束（LazyColumn）
+                } // 采样层 Box 结束（操作栏必须在其外部，见上方注释）
 
             // ── 悬浮操作栏背景区（照抄 ConversationInputBar 的分层结构）：
             //   一个全宽、贴屏幕底缘的容器，渐变色底 + 渐进模糊铺满整个区域

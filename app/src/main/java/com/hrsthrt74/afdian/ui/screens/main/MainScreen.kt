@@ -25,6 +25,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.blurBarColors
@@ -148,6 +149,16 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         entry<Route.PostDetail> { route ->
             PostDetailScreen(
                 post = route.post,
+                onBack = { backStack.removeLastOrNull() },
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+                onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
+            )
+        }
+        // 按 id 打开动态详情：用只占 post_id 的占位 post 复用详情页，
+        // PostDetailViewModel 后台按 id 拉取全文；加载中由 PostDetailScreen 显示 LoadingComponent
+        entry<Route.PostDetailById> { route ->
+            PostDetailScreen(
+                post = RecommendedPost(post_id = route.postId),
                 onBack = { backStack.removeLastOrNull() },
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },

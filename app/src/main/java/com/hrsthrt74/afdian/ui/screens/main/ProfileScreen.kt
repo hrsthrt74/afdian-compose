@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,14 +26,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -41,19 +48,15 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.All
 import top.yukonga.miuix.kmp.icon.extended.Favorites
+import top.yukonga.miuix.kmp.icon.extended.MindMap
+import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
-import com.hrsthrt74.afdian.ui.components.BlurredBar
-import com.hrsthrt74.afdian.ui.components.blurBarColor
-import com.hrsthrt74.afdian.ui.components.contentBottomPadding
-import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
@@ -151,27 +154,38 @@ private fun ProfileMainScreen(
                     }
                 }
 
-                item { Spacer(Modifier.height(16.dp)) }
+                item { Spacer(Modifier.height(24.dp)) }
 
-                // 管理
                 item { SmallTitle(text = "创作者", modifier = Modifier.padding(start = 4.dp)) }
+
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                        ArrowPreference(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        ProfileQuickEntry(
                             title = "管理面板",
-                            summary = "收入、订单和赞助者",
-                            onClick = { onNavigate(Route.Management) }
+                            icon = MiuixIcons.Demibold.All,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.Management) },
                         )
-                        // 感谢页入口：默认展示上个月的赞助者
-                        ArrowPreference(
+                        ProfileQuickEntry(
                             title = "赞助者感谢页",
-                            summary = "每月一份独有的赞助者感谢页",
-                            onClick = { onNavigate(Route.ThankSponsors) }
+                            icon = MiuixIcons.Months,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.ThankSponsors) },
+                        )
+                        ProfileQuickEntry(
+                            title = "创作者指南",
+                            icon = MiuixIcons.Demibold.MindMap,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
                         )
                     }
                 }
 
-                // 我的收藏已上移到快捷入口行，这张卡只剩「设置」
+                item { Spacer(Modifier.height(36.dp)) }
+
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                         ArrowPreference(
