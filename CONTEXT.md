@@ -126,13 +126,12 @@
 ### 管理页（ManagementScreen）
 
 - TabRow 固定头部模式已应用（保留 `minWidth = 110.dp`）。
-- 已实现五个分区：整体概况、收入统计、收到发电、赞助者管理、每月汇总。
+- 已实现四个分区：整体概况、收入统计、收到发电、赞助者管理。
 - 通过 `ManagementService` 请求对应接口，并使用容错 JSON 摘要解析：
   - `/api/my/dashboard`
   - `/api/my/stat?page=1&type=day`
   - `/api/my/sponsored-bill-filter`
   - `/api/my/who-sponsored-me`
-  - `/api/my/income`
 - 当前显示的是概况和列表摘要，尚未做完整的订单行、图表、分页和详情页面。
 
 ## UI 模式与规范（重要）

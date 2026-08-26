@@ -24,7 +24,6 @@ class ManagementService(
             ManagementSection.Income -> get("/api/my/stat?page=1&type=day")
             ManagementSection.Received -> get("/api/my/sponsored-bill-filter?page=1&sort_field=update_time&sort_value=desc")
             ManagementSection.Sponsors -> get("/api/my/who-sponsored-me")
-            ManagementSection.Monthly -> get("/api/my/income")
         }
         val data = payload["data"]?.jsonObject ?: JsonObject(emptyMap())
         return when (section) {
@@ -50,10 +49,6 @@ class ManagementService(
                 "赞助者总数" to data.text("total_count"),
                 "总页数" to data.text("total_page"),
                 "当前列表" to data.arraySize("list").toString(),
-            ))
-            ManagementSection.Monthly -> ManagementResult(section, listOf(
-                "年度账单" to data.arraySize("monthly_bill").toString(),
-                "数据状态" to if (data.arraySize("monthly_bill") > 0) "已加载" else "暂无数据",
             ))
         }
     }
@@ -81,7 +76,7 @@ class ManagementService(
 }
 
 enum class ManagementSection(val title: String) {
-    Overview("整体概况"), Income("收入统计"), Received("收到发电"), Sponsors("赞助者管理"), Monthly("每月汇总")
+    Overview("整体概况"), Income("收入统计"), Received("收到发电"), Sponsors("赞助者管理")
 }
 
 data class ManagementResult(val section: ManagementSection, val rows: List<Pair<String, String>>)
