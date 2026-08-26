@@ -92,7 +92,7 @@ fun HomeCustomizationSheet(settingsStore: SettingsStore, show: Boolean, onDismis
 @Composable
 private fun HomeModuleSettingRow(module: HomeModule, checked: Boolean, onCheckedChange: (Boolean) -> Unit, dragModifier: Modifier) {
     Card(
-        colors = CardColors(MiuixTheme.colorScheme.surfaceContainerHighest, MiuixTheme.colorScheme.onSurfaceContainerHighest),
+        colors = CardColors(MiuixTheme.colorScheme.secondaryContainer, MiuixTheme.colorScheme.onSurfaceContainerHighest),
         modifier = Modifier.padding(bottom = 8.dp),
     ) {
         SwitchPreference(
