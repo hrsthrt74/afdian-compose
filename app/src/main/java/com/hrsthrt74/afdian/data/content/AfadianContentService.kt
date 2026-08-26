@@ -48,6 +48,94 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         ?: error("个人信息加载失败")
 
     suspend fun fetchSponsoring(): List<SponsoringItem> = get("/api/my/sponsoring?need_sponsor_info=1", SponsoringResponse.serializer()).data?.sponsoring.orEmpty()
+
+    /**
+     * 赞助者感谢页（创作者后台 get-thank-sponsors）：按年月分页拉取「该感谢谁」的用户资料。
+     * 响应里只有用户资料（无金额/计划）；分页只看 has_more。
+     */
+    suspend fun fetchThankSponsors(userId: String, year: Int, month: Int, page: Int = 1): ThankSponsorsPage {
+        val url = "https://afdian.com/api/creator/get-thank-sponsors".toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("user_id", userId)
+            .addQueryParameter("year", year.toString())
+            .addQueryParameter("month", month.toString())
+            .addQueryParameter("page", page.toString())
+            .build()
+        val request = Request.Builder().url(url).get().header("Cookie", "auth_token=${tokenStore.token}").build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "get-thank-sponsors year=$year month=$month page=$page -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("感谢页加载失败 (${response.code})")
+            }
+            val data = json.parseToJsonElement(response.body.string()).jsonObject["data"]?.jsonObject
+            val sponsors = data?.get("list")?.jsonArray.orEmpty().mapNotNull { element ->
+                val obj = element.jsonObject
+                // creator 字段类型不稳定：普通用户是空数组 []，创作者是对象，取 doing 前必须安全转型
+                val doing = (obj["creator"] as? JsonObject)?.string("doing")
+                ThankSponsor(
+                    user_id = obj.string("user_id") ?: return@mapNotNull null,
+                    name = obj.string("name").orEmpty(),
+                    avatar = obj.string("avatar"),
+                    url_slug = obj.string("url_slug"),
+                    doing = doing?.takeIf { it.isNotBlank() },
+                )
+            }
+            ThankSponsorsPage(
+                list = sponsors,
+                hasMore = (data?.get("has_more")?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0) == 1,
+                // ⚠️ total_count 不是数字，是给前端 tab 的展示文案（如「所有」），只用于标题展示
+                totalLabel = data?.get("total_count")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: "所有",
+            ).also {
+                AppLog.d(TAG, "get-thank-sponsors year=$year month=$month page=$page -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${it.list.size} 条，has_more=${it.hasMore}")
+            }
+        }
+    }
+
+    /**
+     * 读取感谢语（感谢页顶部创作者自定义文案，与年月无关，接口带年月参数但内容全局一份）
+     */
+    suspend fun fetchThankWord(userId: String, year: Int, month: Int): String =
+        // user_id 是 32 位 hex、year/month 是数字，直接拼 query 不会有转义问题
+        get("/api/creator/get-thank-word?user_id=$userId&year=$year&month=$month", ThankWordResponse.serializer(), host = IFDIAN_HOST)
+            .data?.content.orEmpty()
+
+    /**
+     * 保存感谢语：POST JSON {content, pic, year, month}（服务端会校验年月，缺失时报 year\month error），
+     * 成功时 ec=200、em=「感谢语保存成功」
+     */
+    suspend fun editThankWord(content: String, year: Int, month: Int) {
+        val url = (IFDIAN_HOST + "/api/creator/edit-thank-word").toHttpUrl()
+        val body = json.encodeToString(
+            JsonObject.serializer(),
+            buildJsonObject {
+                put("content", content)
+                put("pic", "")
+                put("year", year)
+                put("month", month)
+            }
+        ).toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(url).post(body)
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", IFDIAN_HOST + "/").build()
+        val start = System.currentTimeMillis()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                AppLog.e(TAG, "edit-thank-word -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("感谢语保存失败 (${response.code})")
+            }
+            val result = json.decodeFromString(ThankWordResponse.serializer(), response.body.string())
+            // ec != 200 属于业务失败（如未登录），抛错让上层提示
+            if ((result.ec ?: 0) != 200) {
+                AppLog.w(TAG, "edit-thank-word -> ec=${result.ec} em=${result.em}")
+                error(result.em ?: "感谢语保存失败")
+            }
+            AppLog.d(TAG, "edit-thank-word -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），${result.em}")
+        }
+    }
+
     suspend fun fetchMarkedCreators(): List<FavoriteItem> = fetchFavoriteList("/api/my/marked") { it["user"]?.jsonObject ?: it }
     // 收藏动态：每项里的 post 对象结构与精选接口（rec-list）完全一致，
     // 直接反序列化成 RecommendedPost，供 PostCard 组件渲染完整卡片
@@ -791,6 +879,34 @@ data class MarkedPostsPage(
 
 @Serializable data class SponsoringSale(val title: String? = null, val plan: SponsoringPlan? = null)
 @Serializable data class SponsoringPlan(val name: String? = null)
+
+/** 赞助者感谢页（get-thank-sponsors）的单条赞助者：接口只给用户资料，不含金额/计划信息 */
+@Serializable data class ThankSponsor(
+    val user_id: String = "", val name: String = "", val avatar: String? = null, val url_slug: String? = null,
+    // 赞助者同时是创作者时的「正在创作」内容，普通用户为 null
+    val doing: String? = null,
+) {
+    val id: String get() = user_id
+
+    /** 转成通用用户模型，用于跳转创作者主页 */
+    fun toAfadianUser() = AfadianUser(user_id = user_id, name = name, avatar = avatar, url_slug = url_slug)
+}
+
+/** 感谢页单页数据：has_more 控制翻页；totalLabel 是接口给的展示文案（如「所有」），只用于标题 */
+data class ThankSponsorsPage(
+    val list: List<ThankSponsor>,
+    val hasMore: Boolean,
+    val totalLabel: String,
+)
+
+/** get-thank-word / edit-thank-word 的响应：data 里是感谢语内容与配图（配图暂未使用） */
+@Serializable private data class ThankWordResponse(
+    val ec: Int? = null,
+    val em: String? = null,
+    val data: ThankWord? = null,
+)
+
+@Serializable private data class ThankWord(val content: String? = null, val pic: String? = null)
 
 @Serializable data class CreatorDetail(
     val profile: AfadianUser = AfadianUser(),

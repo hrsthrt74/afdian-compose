@@ -154,13 +154,19 @@ private fun ProfileMainScreen(
                 item { Spacer(Modifier.height(16.dp)) }
 
                 // 管理
-                item { SmallTitle(text = "管理", modifier = Modifier.padding(start = 4.dp)) }
+                item { SmallTitle(text = "创作者", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                         ArrowPreference(
-                            title = "管理中心",
-                            summary = "概况、收入、订单和赞助者",
+                            title = "管理面板",
+                            summary = "收入、订单和赞助者",
                             onClick = { onNavigate(Route.Management) }
+                        )
+                        // 感谢页入口：默认展示上个月的赞助者
+                        ArrowPreference(
+                            title = "赞助者感谢页",
+                            summary = "每月一份独有的赞助者感谢页",
+                            onClick = { onNavigate(Route.ThankSponsors) }
                         )
                     }
                 }
@@ -175,9 +181,6 @@ private fun ProfileMainScreen(
                         )
                     }
                 }
-
-                // 退出登录已移到「设置」页
-                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }
@@ -194,9 +197,9 @@ private fun ProfileQuickEntry(
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    // 圆形底的背景色，默认用 surfaceContainer（比卡片略深一点的灰）
+    // 圆形底的背景色
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    // 图标的着色，默认跟主题主色走
+    // 图标的着色，默认主色
     iconTint: Color = MiuixTheme.colorScheme.primary,
 ) {
     // 触觉反馈：点击入口时轻震一下
@@ -212,7 +215,6 @@ private fun ProfileQuickEntry(
                 .clip(CircleShape)
                 .background(containerColor)
                 .clickable(onClick = {
-                    // 先轻震再跳转
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onClick()
                 }),

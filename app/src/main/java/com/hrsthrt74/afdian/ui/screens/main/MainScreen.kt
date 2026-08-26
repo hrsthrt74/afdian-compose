@@ -21,6 +21,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.AfadianUser
@@ -38,6 +39,7 @@ import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
@@ -186,6 +188,30 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         }
         entry<Route.Management> {
             ManagementScreen(onBack = { backStack.removeLastOrNull() })
+        }
+        entry<Route.ThankSponsors> {
+            // 顶部创作者信息直接用当前登录账号的资料（/api/my/profile）
+            val myProfile by viewModel.profile.collectAsState()
+            val userId = myProfile?.user?.user_id.orEmpty()
+            val app = LocalContext.current.applicationContext as Application
+            val vm: ThankSponsorsViewModel = viewModel(
+                key = "thank-sponsors",
+                factory = remember(userId) {
+                    object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                            ThankSponsorsViewModel(app, userId = userId) as T
+                    }
+                }
+            )
+            ThankSponsorsScreen(
+                viewModel = vm,
+                creatorName = myProfile?.user?.name?.ifBlank { "爱发电用户" } ?: "爱发电用户",
+                creatorAvatar = myProfile?.user?.avatar,
+                creatorDoing = myProfile?.user?.creator?.doing,
+                onBack = { backStack.removeLastOrNull() },
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }
+            )
         }
         entry<Route.Settings> {
             SettingsScreen(onBack = { backStack.removeLastOrNull() }, onLogout = handleLogout)

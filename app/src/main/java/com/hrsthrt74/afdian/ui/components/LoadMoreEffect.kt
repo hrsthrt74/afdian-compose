@@ -6,6 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 
 /**
  * 滚动加载更多：当列表滚动到倒数第 [threshold] 个元素时触发 [onLoadMore]。
@@ -23,16 +24,22 @@ fun LoadMoreEffect(
     threshold: Int = 3,
     onLoadMore: () -> Unit,
 ) {
+    // rememberUpdatedState：derivedStateOf 的闭包只会在首次组合时创建，
+    // 直接捕获参数会拿到旧值（比如首屏 hasMore=false），之后永远不触发；
+    // 包一层 State 保证闭包里每次读取的都是最新值
+    val currentHasMore by rememberUpdatedState(hasMore)
+    val currentIsLoadingMore by rememberUpdatedState(isLoadingMore)
+    val currentOnLoadMore by rememberUpdatedState(onLoadMore)
     // derivedStateOf：只有「是否该加载更多」这个布尔值变化时才触发重组/副作用
     val shouldLoadMore by remember {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
             val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             val total = layoutInfo.totalItemsCount
-            hasMore && !isLoadingMore && total > 0 && lastVisible >= total - threshold
+            currentHasMore && !currentIsLoadingMore && total > 0 && lastVisible >= total - threshold
         }
     }
     LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) onLoadMore()
+        if (shouldLoadMore) currentOnLoadMore()
     }
 }
