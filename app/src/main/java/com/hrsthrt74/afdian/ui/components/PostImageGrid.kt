@@ -2,18 +2,22 @@ package com.hrsthrt74.afdian.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -59,21 +63,52 @@ fun PostImageGrid(images: List<String>) {
             }
         }
         else -> {
-            val rows = images.chunked(3)
+            // 9 张及以上：只展示前 9 张（3x3），第 9 张上叠一个「+n」表示还有多少张没显示
+            val showAll = images.size < 9
+            val display = if (showAll) images else images.take(9)
+            val remaining = if (showAll) 0 else images.size - 9
+            val rows = display.chunked(3)
             Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-                rows.forEach { row ->
+                rows.forEachIndexed { rowIndex, row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        row.forEach { url ->
-                            AsyncImage(
-                                model = normalizeImageUrl(url),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
+                        row.forEachIndexed { colIndex, url ->
+                            // 9 张及以上时，第 3 行第 3 列（索引 2,2）即第 9 张需要叠层
+                            val isNinth = !showAll && rowIndex == 2 && colIndex == 2
+                            // 把 aspectRatio 放到外层 Box 上，保证格子是正方形，
+                            // 叠层用 fillMaxSize 才能铺满整张图；剩余为 0（正好 9 张）则不显示
+                            Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .aspectRatio(1f)
-                                    .background(MiuixTheme.colorScheme.disabledSecondary, bgShape)
-                                    .clip(bgShape),
-                            )
+                                    .aspectRatio(1f),
+                            ) {
+                                AsyncImage(
+                                    model = normalizeImageUrl(url),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MiuixTheme.colorScheme.disabledSecondary, bgShape)
+                                        .clip(bgShape),
+                                )
+                                // 叠层：onSurface 半透明 + 居中「+n」文字
+                                if (isNinth && remaining > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                                bgShape,
+                                            ),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = "+$remaining",
+                                            color = MiuixTheme.colorScheme.onPrimary,
+                                            style = MiuixTheme.textStyles.title2,
+                                        )
+                                    }
+                                }
+                            }
                         }
                         // 补齐不满 3 个的行，用空 Spacer 占位
                         repeat(3 - row.size) {
