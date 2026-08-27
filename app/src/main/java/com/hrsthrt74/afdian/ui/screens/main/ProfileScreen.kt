@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +52,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.All
-import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.MindMap
 import top.yukonga.miuix.kmp.icon.extended.Months
@@ -156,7 +154,7 @@ private fun ProfileMainScreen(
                             onClick = { onNavigate(Route.Orders) },
                         )
                         ProfileQuickEntry(
-                            title = "历史记录",
+                            title = "浏览历史",
                             icon = Icons.Filled.History,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.History) },

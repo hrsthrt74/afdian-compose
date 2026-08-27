@@ -81,6 +81,15 @@ class HistoryStore(context: Context) {
         mutex.withLock { avatarCache.clear() }
     }
 
+    /** 清空所有浏览历史条目并同步删除头像缓存。 */
+    suspend fun clearAll() = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            writeEntries(emptyList())
+            avatarCache.clear()
+            AppLog.d("HistoryStore", "已清空浏览历史")
+        }
+    }
+
     fun avatarModel(url: String?): Any? = avatarCache.modelFor(url)
 
     private suspend fun readEntries(): List<HistoryEntry> = context.historyDataStore.data.first()[entriesKey]

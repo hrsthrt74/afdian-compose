@@ -27,4 +27,13 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                 .onFailure { AppLog.w("History", "设置页清除历史记录头像缓存失败", it) }
         }
     }
+
+    /** 清空所有浏览历史条目和头像缓存。 */
+    fun clearAll() {
+        viewModelScope.launch {
+            runCatching { store.clearAll() }
+                .onSuccess { AppLog.d("History", "已清空浏览历史") }
+                .onFailure { AppLog.w("History", "清空浏览历史失败", it) }
+        }
+    }
 }

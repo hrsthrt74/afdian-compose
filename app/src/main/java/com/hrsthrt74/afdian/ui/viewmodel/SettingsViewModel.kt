@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.viewmodel
 
 import android.app.Application
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
@@ -50,8 +51,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { store.setHistoryEnabled(enabled) }
     }
 
-    fun clearHistoryAvatarCache() {
-        viewModelScope.launch { historyStore.clearAvatarCache() }
+    fun clearHistoryAll() {
+        viewModelScope.launch {
+            runCatching { historyStore.clearAll() }
+                .onSuccess { Toast.makeText(getApplication(), "已清除浏览历史", Toast.LENGTH_SHORT).show() }
+        }
     }
 
     fun setAdvancedTransition(enabled: Boolean) {

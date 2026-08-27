@@ -1,7 +1,9 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,8 +11,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.history.HistoryEntry
@@ -19,15 +25,12 @@ import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.HistoryEntryOption
-import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -40,8 +43,14 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.window.WindowDialog
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /** 浏览历史完整页面：记录按访问时间分组，条目本身复用 HistoryEntryOption。 */
 @Composable
@@ -57,6 +66,8 @@ fun HistoryScreen(
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val groups = historyGroups(entries)
+    // 是否显示「清空历史记录」确认弹窗
+    var showClearDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -68,6 +79,14 @@ fun HistoryScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(MiuixIcons.Back, contentDescription = "返回")
+                        }
+                    },
+                    actions = {
+                        // 仅当有历史记录时才显示删除按钮
+                        if (entries.isNotEmpty()) {
+                            IconButton(onClick = { showClearDialog = true }) {
+                                Icon(MiuixIcons.Delete, contentDescription = "清空历史记录")
+                            }
                         }
                     },
                 )
@@ -88,6 +107,7 @@ fun HistoryScreen(
                             text = "还没有浏览记录",
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth().padding(32.dp),
                         )
                     }
@@ -97,7 +117,7 @@ fun HistoryScreen(
                         SmallTitle(text = group.title, modifier = Modifier.padding(start = 4.dp))
                     }
                     item(key = "card-${group.title}") {
-                        Card(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                             group.entries.forEach { entry ->
                                 HistoryEntryOption(
                                     entry = entry,
@@ -116,28 +136,62 @@ fun HistoryScreen(
             }
         }
     }
+
+    // 清空历史记录确认弹窗
+    if (showClearDialog) {
+        WindowDialog(
+            show = true,
+            onDismissRequest = { showClearDialog = false },
+            title = "清空浏览历史",
+        ) {
+            Text(
+                "确定要删除所有浏览记录吗？",
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = { showClearDialog = false },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("取消")
+                }
+                Button(
+                    onClick = {
+                        viewModel.clearAll()
+                        showClearDialog = false
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("清空", color = MiuixTheme.colorScheme.error)
+                }
+            }
+        }
+    }
 }
 
 private data class HistoryGroup(val title: String, val entries: List<HistoryEntry>)
 
 private fun historyGroups(entries: List<HistoryEntry>, now: Long = System.currentTimeMillis()): List<HistoryGroup> {
-    val calendar = Calendar.getInstance()
-    calendar.timeInMillis = now
-    val todayYear = calendar.get(Calendar.YEAR)
-    val todayDay = calendar.get(Calendar.DAY_OF_YEAR)
-    val yesterday = Calendar.getInstance().apply {
-        timeInMillis = now
-        add(Calendar.DAY_OF_YEAR, -1)
+    // 先用 Calendar 算出"今天"和"昨天"的零点时间戳，作为分组边界
+    val todayStart = Calendar.getInstance().apply { timeInMillis = now }.let { cal ->
+        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+        cal.timeInMillis
     }
+    val yesterdayStart = todayStart - 86_400_000L
+
+    val formatter = SimpleDateFormat("M月d日", Locale.getDefault())
     return entries.groupBy { entry ->
-        calendar.timeInMillis = entry.visitedAt
-        val year = calendar.get(Calendar.YEAR)
-        val day = calendar.get(Calendar.DAY_OF_YEAR)
+        val ts = entry.visitedAt
         when {
-            year == todayYear && day == todayDay && now - entry.visitedAt < 60_000L -> "刚刚"
-            year == todayYear && day == todayDay -> "今天早些时候"
-            year == yesterday.get(Calendar.YEAR) && day == yesterday.get(Calendar.DAY_OF_YEAR) -> "昨天"
-            else -> SimpleDateFormat("M月d日", Locale.getDefault()).format(Date(entry.visitedAt))
+            now - ts < 300_000L -> "刚刚"                          // 5 分钟内
+            ts >= todayStart  -> "今天"                     // 今天非"刚刚"
+            ts >= yesterdayStart -> "昨天"
+            else -> formatter.format(Date(ts))                     // 更早：x月x日
         }
     }.entries.map { (title, groupedEntries) -> HistoryGroup(title, groupedEntries) }
 }

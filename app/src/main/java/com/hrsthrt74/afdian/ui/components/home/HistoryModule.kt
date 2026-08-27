@@ -30,7 +30,7 @@ fun HistoryModule(context: HomeModuleContentContext) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SmallTitle("历史记录", modifier = Modifier.padding(start = 4.dp))
+            SmallTitle("浏览历史", modifier = Modifier.padding(start = 4.dp))
             Row(
                 modifier = Modifier
                     .clickable(
