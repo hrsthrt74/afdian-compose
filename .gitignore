@@ -26,3 +26,8 @@ adb
 /.idea/markdown.xml
 /.idea/deviceManager.xml
 /.kotlin/
+
+# 签名文件
+*.jks
+*.keystore
+key.properties
