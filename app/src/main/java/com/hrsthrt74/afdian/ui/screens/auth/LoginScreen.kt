@@ -30,7 +30,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.text.DateFormat
+import java.util.Date
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -52,13 +55,15 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * - 布局用可滚动 Column + safeDrawing insets，适配 edge-to-edge 与软键盘弹起；
  * - 密码默认掩码，trailing 图标切换显示/隐藏（MiuixIcons.Show / Hide）；
  * - 登录失败时输入框 label/边框变红，并在下方给出红字提示；
- * - 账号框回车跳密码框，密码框回车直接提交。
+ * - 账号框回车跳密码框，密码框回车直接提交；
+ * - 若传入 buildExpiresAtMs，则在底部显示「本构建将于 XXX 过期」提示。
  */
 @Composable
 fun LoginScreen(
     onLogin: (String, String) -> Unit,
     isLoggingIn: Boolean = false,
     errorMessage: String? = null,
+    buildExpiresAtMs: Long? = null,
 ) {
     // 表单草稿：rememberSaveable 保证进程重建后不丢用户已输入的内容
     var account by rememberSaveable { mutableStateOf("") }
@@ -110,13 +115,16 @@ fun LoginScreen(
         Text(
             text = "爱发电",
             style = MiuixTheme.textStyles.title1,
+            textAlign = TextAlign.Center,
             color = MiuixTheme.colorScheme.onBackground,
+            modifier = Modifier.fillMaxWidth()
         )
         Text(
             text = "登录以继续",
             style = MiuixTheme.textStyles.body2,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier.padding(top = 8.dp),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
 
         // 标题与表单之间拉开一段距离
@@ -126,7 +134,7 @@ fun LoginScreen(
         TextField(
             value = account,
             onValueChange = { account = it },
-            label = "账号",
+            label = "手机号或邮箱",
             useLabelAsPlaceholder = true,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -190,6 +198,20 @@ fun LoginScreen(
                 }
                 Text(if (isLoggingIn) "登录中…" else "登录")
             }
+        }
+
+        // 时间炸弹过期提示：仅在内测/调试版本且传入截止时间时显示
+        if (buildExpiresAtMs != null) {
+            val formatter = DateFormat.getDateTimeInstance()
+            Text(
+                text = "本构建将于 ${formatter.format(Date(buildExpiresAtMs))} 过期",
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp),
+            )
         }
 
         // 底部留白约屏高 1/3，整体内容略偏上、符合登录页视觉习惯

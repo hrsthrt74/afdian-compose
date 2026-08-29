@@ -1,7 +1,6 @@
 package com.hrsthrt74.afdian
 
 import android.app.Activity
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,19 +15,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
 import com.hrsthrt74.afdian.data.settings.SettingsStore
-import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerDialog
+import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
 import com.hrsthrt74.afdian.ui.screens.main.MainScreen
 import com.hrsthrt74.afdian.ui.theme.AfdianBrandColor
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     // 界面是否已可显示：SplashScreen 依据它决定是否继续停留在启动画面上。
@@ -43,12 +42,37 @@ class MainActivity : ComponentActivity() {
         // 首个真正可见的界面（主页布局就绪 / 登录页 / 免责声明）出现前不放行，
         // 冷启动已登录时直接从启动画面无缝进入主界面，不再闪「登录中」
         splash.setKeepOnScreenCondition { !appReady.value }
-        setContent { AfdianApp(appReady) }
+        val expired = BuildConfig.DEBUG || BuildConfig.INTERNAL_BUILD
+        val now = System.currentTimeMillis()
+        val expiresAt = TimeBomb.expiresAt(BuildConfig.BUILD_TIMESTAMP_MS)
+        if (expired && TimeBomb.isExpired(BuildConfig.BUILD_TIMESTAMP_MS, now)) {
+            AppLog.w("TimeBomb", "时间炸弹已过期，阻断应用启动 expiresAt=$expiresAt")
+        } else {
+            AppLog.d("TimeBomb", "时间炸弹检查通过 enabled=$expired expiresAt=$expiresAt")
+        }
+        setContent {
+            if (expired && TimeBomb.isExpired(BuildConfig.BUILD_TIMESTAMP_MS, System.currentTimeMillis())) {
+                appReady.value = true
+                AfdianTheme {
+                    ExpiredScreen(
+                        buildTimestampMs = BuildConfig.BUILD_TIMESTAMP_MS,
+                        expiresAtMs = expiresAt,
+                        onExit = ::finishAndRemoveTask,
+                    )
+                }
+        } else {
+            AfdianApp(appReady, expiresAtMs = expiresAt)
+        }
+        }
     }
 }
 
 @Composable
-private fun AfdianApp(appReady: MutableState<Boolean>, session: AuthSession = viewModel()) {
+private fun AfdianApp(
+    appReady: MutableState<Boolean>,
+    expiresAtMs: Long? = null,
+    session: AuthSession = viewModel(),
+) {
     val context = LocalContext.current
     // SettingsStore 内部是进程级单例 DataStore，remember 一个包装对象即可
     val settingsStore = remember { SettingsStore(context) }
@@ -100,7 +124,12 @@ private fun AfdianApp(appReady: MutableState<Boolean>, session: AuthSession = vi
                 } else {
                     val isLoggingIn by session.isLoggingIn.collectAsState()
                     val error by session.error.collectAsState()
-                    LoginScreen(onLogin = session::login, isLoggingIn = isLoggingIn, errorMessage = error)
+                    LoginScreen(
+                        onLogin = session::login,
+                        isLoggingIn = isLoggingIn,
+                        errorMessage = error,
+                        buildExpiresAtMs = expiresAtMs,
+                    )
                 }
             }
         }
