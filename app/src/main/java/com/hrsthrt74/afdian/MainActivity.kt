@@ -79,7 +79,7 @@ private fun AfdianApp(
     val scope = rememberCoroutineScope()
 
     // 主题色开关：订阅 DataStore，设置页改动后立即生效（替代旧 SP 监听器）
-    val useAfdianColor by settingsStore.useAfdianColor.collectAsState(initial = false)
+    val useAfdianColor by settingsStore.useAfdianColor.collectAsState(initial = true)
     // 配色模式：0=跟随系统 1=浅色 2=深色
     val colorMode by settingsStore.colorMode.collectAsState(initial = 0)
     // 调试日志开关：订阅 DataStore 并写入全局 AppLog，切换后即时生效、无需重启。
