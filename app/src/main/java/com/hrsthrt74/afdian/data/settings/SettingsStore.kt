@@ -12,10 +12,10 @@ import kotlinx.coroutines.flow.map
 
 /** 首页可配置模块。字符串值用于 DataStore 持久化，后续新增模块可兼容旧版本配置。 */
 enum class HomeModule(val storageValue: String, val title: String, val summary: String) {
+    WithdrawalReminder("withdrawal_reminder", "提现提醒", "[创作者] 月底显示提现提醒"),
     CreatorData("creator_data", "创作者数据", "[创作者] 今日收入等数据"),
     Sponsoring("sponsoring", "我发电的", "快速访问已发电的创作者"),
     MarkedCreators("marked_creators", "收藏的创作者", "快速访问收藏的创作者"),
-    WithdrawalReminder("withdrawal_reminder", "提现提醒", "[创作者] 月底显示提现提醒"),
     History("history", "浏览历史", "快速访问最近浏览的创作者和动态");
 
     companion object {
