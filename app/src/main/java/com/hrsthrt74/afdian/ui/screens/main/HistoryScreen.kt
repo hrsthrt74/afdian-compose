@@ -1,9 +1,7 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,9 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
@@ -30,7 +25,6 @@ import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -46,7 +40,8 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import top.yukonga.miuix.kmp.window.WindowDialog
+import com.hrsthrt74.afdian.ui.components.AppDialog
+import com.hrsthrt74.afdian.ui.components.rememberDialogState
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -67,7 +62,7 @@ fun HistoryScreen(
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val groups = historyGroups(entries)
     // 是否显示「清空历史记录」确认弹窗
-    var showClearDialog by remember { mutableStateOf(false) }
+    val clearDialogState = rememberDialogState()
 
     Scaffold(
         topBar = {
@@ -84,7 +79,7 @@ fun HistoryScreen(
                     actions = {
                         // 仅当有历史记录时才显示删除按钮
                         if (entries.isNotEmpty()) {
-                            IconButton(onClick = { showClearDialog = true }) {
+                            IconButton(onClick = { clearDialogState.show() }) {
                                 Icon(MiuixIcons.Delete, contentDescription = "清空历史记录")
                             }
                         }
@@ -138,38 +133,18 @@ fun HistoryScreen(
     }
 
     // 清空历史记录确认弹窗
-    if (showClearDialog) {
-        WindowDialog(
-            show = true,
-            onDismissRequest = { showClearDialog = false },
-            title = "清空浏览历史",
-        ) {
-            Text(
-                "确定要删除所有浏览记录吗？",
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = { showClearDialog = false },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("取消")
-                }
-                Button(
-                    onClick = {
-                        viewModel.clearAll()
-                        showClearDialog = false
-                    },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("清空", color = MiuixTheme.colorScheme.error)
-                }
-            }
-        }
+    AppDialog(
+        state = clearDialogState,
+        title = "清空浏览历史",
+        confirmText = "清空",
+        destructive = true,
+        onConfirm = { viewModel.clearAll() },
+    ) {
+        Text(
+            "确定要删除所有浏览记录吗？",
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
     }
 }
 
