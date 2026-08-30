@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,6 +85,7 @@ fun PostDetailScreen(
     onBack: () -> Unit,
     onOpenCreator: (AfadianUser) -> Unit,
     onNavigateToPost: (RecommendedPost) -> Unit,
+    onOpenUrl: ((String) -> Unit)? = null,
 ) {
     val app = LocalContext.current.applicationContext as Application
     // key 用 post_id：同一动态复用同一个 VM，避免重复请求全文
@@ -99,6 +101,7 @@ fun PostDetailScreen(
     val loading by vm.loading.collectAsState()
 
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val origin = rememberCreatorOrigin()
     // 与底部导航栏同款的「实时模糊」：backdrop 负责采样背后内容，
     // 操作栏通过 textureBlur 把采样结果糊化后垫在自己底下
@@ -216,7 +219,10 @@ fun PostDetailScreen(
                 // ── 正文（HTML 原生渲染）；get-detail 失败时降级显示列表页摘要并提示错误 ──
                 item(key = "content") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        HtmlContent(html = detail.content.orEmpty().ifBlank { detail.summary })
+                        HtmlContent(
+                            html = detail.content.orEmpty().ifBlank { detail.summary },
+                            onUrlClick = onOpenUrl ?: uriHandler::openUri,
+                        )
                         error?.let {
                             Text(
                                 text = it,

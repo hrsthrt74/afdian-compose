@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.LinkInteractionListener
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.platform.LocalUriHandler
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.hrsthrt74.afdian.AppLog
@@ -59,15 +61,22 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param modifier 外部修饰符
  */
 @Composable
-fun HtmlContent(html: String, modifier: Modifier = Modifier) {
+fun HtmlContent(
+    html: String,
+    modifier: Modifier = Modifier,
+    onUrlClick: ((String) -> Unit)? = null,
+) {
     // 空白正文直接不占布局
     if (html.isBlank()) return
+    val uriHandler = LocalUriHandler.current
+    // 有自定义处理器时交给上层，否则保持原有行为：用系统方式打开链接。
+    val handleUrl: (String) -> Unit = { url -> onUrlClick?.invoke(url) ?: uriHandler.openUri(url) }
     // parseBodyFragment：按片段解析并包一层 <body>，取其子节点即为顶层内容
     Column(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        RenderBlocks(Jsoup.parseBodyFragment(html).body().childNodes())
+        RenderBlocks(Jsoup.parseBodyFragment(html).body().childNodes(), handleUrl)
     }
 }
 
@@ -79,13 +88,13 @@ private val BLOCK_TAGS = setOf(
 
 /** 依次渲染一组节点；连续的内联节点会合并成一个段落，避免逐词断行 */
 @Composable
-private fun RenderBlocks(nodes: List<Node>) {
+private fun RenderBlocks(nodes: List<Node>, onUrlClick: (String) -> Unit) {
     // 按「块级元素」切段：段与段之间是独立的 Compose 子项，
     // 段内的连续内联节点（文本/加粗/链接…）合并进同一个 Text
     var inlineBuffer = mutableListOf<Node>()
     val flush: @Composable () -> Unit = {
         if (inlineBuffer.any { it.hasTextContent() }) {
-            InlineParagraph(inlineBuffer.toList())
+            InlineParagraph(inlineBuffer.toList(), onUrlClick)
         }
     }
     for (node in nodes) {
@@ -93,7 +102,7 @@ private fun RenderBlocks(nodes: List<Node>) {
         if (isBlock) {
             flush()
             inlineBuffer = mutableListOf()
-            RenderSingleBlock(node as Element)
+            RenderSingleBlock(node as Element, onUrlClick)
         } else {
             inlineBuffer += node
         }
@@ -110,22 +119,22 @@ private fun Node.hasTextContent(): Boolean = when (this) {
 
 /** 单个块级元素的分发渲染（标题/正文全部使用 MiuixTheme.textStyles 现成样式） */
 @Composable
-private fun RenderSingleBlock(element: Element) = when (val tag = element.tagName().lowercase()) {
+private fun RenderSingleBlock(element: Element, onUrlClick: (String) -> Unit) = when (val tag = element.tagName().lowercase()) {
     "br" -> Spacer(modifier = Modifier.height(20.dp))
     "img", "figure" -> HtmlImage(element)
-    "blockquote" -> BlockQuote(element)
+    "blockquote" -> BlockQuote(element, onUrlClick)
     // 标题层级 → miuix 字阶：h1=title2(24sp) h2=title3(20sp) h3=title4(18sp) 其余=subtitle(14sp Bold)
     "h1" -> Heading(element, MiuixTheme.textStyles.title2)
     "h2" -> Heading(element, MiuixTheme.textStyles.title3)
     "h3" -> Heading(element, MiuixTheme.textStyles.title4)
     "h4", "h5", "h6" -> Heading(element, MiuixTheme.textStyles.subtitle)
-    "ul" -> ListBlock(element, ordered = false)
-    "ol" -> ListBlock(element, ordered = true)
+    "ul" -> ListBlock(element, ordered = false, onUrlClick = onUrlClick)
+    "ol" -> ListBlock(element, ordered = true, onUrlClick = onUrlClick)
     "hr" -> Divider()
     "pre" -> PreBlock(element)
     // figcaption 跟随 figure 已处理；p/div 等「文字容器」递归其子节点，
     // 其余未知标签也走这里当作透明容器，尽量把文本显示出来
-    else -> if (tag == "figcaption") Caption(element) else RenderBlocks(element.childNodes())
+    else -> if (tag == "figcaption") Caption(element) else RenderBlocks(element.childNodes(), onUrlClick)
 }
 
 /** 把节点列表拆成若干「内联段」，供引用块/列表项等容器复用 */
@@ -133,7 +142,7 @@ private fun List<Node>.chunkedByInline() = listOf(this)
 
 /** 段落内联内容：<strong>/<em>/<a> 等样式合并进一个 AnnotatedString */
 @Composable
-private fun InlineParagraph(nodes: List<Node>) {
+private fun InlineParagraph(nodes: List<Node>, onUrlClick: (String) -> Unit) {
     val linkColor = MiuixTheme.colorScheme.primary
     val textColor = MiuixTheme.colorScheme.onSurface
 
@@ -169,7 +178,14 @@ private fun InlineParagraph(nodes: List<Node>) {
                     )
                     if (linkUrl != null) {
                         // 链接：用 LinkAnnotation.Url，Compose 会自动调起系统浏览器打开
-                        withLink(LinkAnnotation.Url(linkUrl)) {
+                        // 自定义监听器让上层可以拦截创作者主页等特殊链接。
+                        // 未被拦截的 URL 仍由上层回退到系统浏览器处理。
+                        withLink(
+                            LinkAnnotation.Url(
+                                url = linkUrl,
+                                linkInteractionListener = LinkInteractionListener { onUrlClick(linkUrl) },
+                            )
+                        ) {
                             withStyle(span.copy(color = linkColor, textDecoration = TextDecoration.Underline)) { append(content) }
                         }
                     } else {
@@ -256,7 +272,7 @@ private fun HtmlImage(element: Element) {
 
 /** 引用块：左侧主题色竖线 + 内容缩进，内部仍支持内联样式与嵌套段落 */
 @Composable
-private fun BlockQuote(element: Element) {
+private fun BlockQuote(element: Element, onUrlClick: (String) -> Unit) {
     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
         Box(
             modifier = Modifier
@@ -270,7 +286,7 @@ private fun BlockQuote(element: Element) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             element.childNodes().chunkedByInline().forEach { chunk ->
-                if (chunk.any { it.hasTextContent() }) InlineParagraph(chunk)
+                if (chunk.any { it.hasTextContent() }) InlineParagraph(chunk, onUrlClick)
             }
         }
     }
@@ -303,7 +319,7 @@ private fun Caption(element: Element) {
 
 /** 列表：<ol> 数字前缀，<ul> 圆点前缀；<li> 内容仍支持完整内联样式递归 */
 @Composable
-private fun ListBlock(list: Element, ordered: Boolean) {
+private fun ListBlock(list: Element, ordered: Boolean, onUrlClick: (String) -> Unit) {
     val items = list.children().filter { it.tagName().lowercase() == "li" }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.forEachIndexed { index, li ->
@@ -317,11 +333,13 @@ private fun ListBlock(list: Element, ordered: Boolean) {
                 Column(modifier = Modifier.weight(1f)) {
                     // 文本部分按内联段落渲染（支持加粗/链接等样式）
                     li.childNodes().chunkedByInline().forEach { chunk ->
-                        if (chunk.any { it.hasTextContent() }) InlineParagraph(chunk)
+                        if (chunk.any { it.hasTextContent() }) InlineParagraph(chunk, onUrlClick)
                     }
                     // 嵌套列表单独渲染一次，避免放进内联循环里重复输出
                     li.children().filter { it.tagName().lowercase() in setOf("ul", "ol") }
-                        .forEach { nested -> ListBlock(nested, ordered = nested.tagName().lowercase() == "ol") }
+                        .forEach {
+                            nested -> ListBlock(nested, ordered = nested.tagName().lowercase() == "ol", onUrlClick = onUrlClick)
+                        }
                 }
             }
         }

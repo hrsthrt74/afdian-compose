@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -19,12 +21,16 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.auth.AuthTokenStore
+import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
@@ -66,6 +72,9 @@ import top.yukonga.miuix.kmp.nav.gesture.PredictiveBackHandler
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 底部导航 Tab 定义：标题 + 图标。
@@ -124,6 +133,54 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
 
     // 高级过渡动画开关：订阅设置后写入全局状态，由 CreatorDetailTransition 运行时切换
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    val coroutineScope = rememberCoroutineScope()
+    val contentService = remember {
+        AfadianContentService(AuthTokenStore(context.applicationContext as Application))
+    }
+
+    // 拦截爱发电新旧两种公开创作者主页链接；其他 URL 保持原行为交给系统浏览器。
+    val handleContentUrl: (String) -> Unit = urlHandler@{ url ->
+        val uri = runCatching { Uri.parse(url) }.getOrNull()
+        val host = uri?.host?.lowercase()
+        val segments = uri?.pathSegments.orEmpty()
+
+        // 动态链接：https://afdian.com/p/{post_id}，使用已有的按 ID 详情路由。
+        val postId = segments.getOrNull(1)?.takeIf {
+            segments.size == 2 && segments[0] == "p" && it.isNotBlank()
+        }
+        if (host in setOf("ifdian.net", "afdian.com") && postId != null) {
+            backStack.pushUnique(Route.PostDetailById(postId))
+            return@urlHandler
+        }
+
+        val slug = when {
+            // 新格式：https://afdian.com/a/username
+            segments.size == 2 && segments[0] == "a" -> segments[1].takeIf { it.isNotBlank() }
+            // 旧格式：https://afdian.com/@username
+            segments.size == 1 && segments[0].startsWith("@") ->
+                segments[0].removePrefix("@").takeIf { it.isNotBlank() }
+            else -> null
+        }
+        if (host !in setOf("ifdian.net", "afdian.com") || slug == null) {
+            uriHandler.openUri(url)
+        } else {
+            coroutineScope.launch {
+                AppLog.d("MainScreen", "拦截创作者链接并解析 slug=$slug")
+                runCatching {
+                    withContext(Dispatchers.IO) { contentService.fetchProfileBySlug(slug) }
+                }.onSuccess { user ->
+                    if (user.user_id.isBlank()) {
+                        AppLog.w("MainScreen", "创作者链接解析成功但缺少 user_id，slug=$slug")
+                    } else {
+                        backStack.pushUnique(Route.CreatorDetail(user))
+                    }
+                }.onFailure { error ->
+                    AppLog.e("MainScreen", "创作者链接解析失败，slug=$slug", error)
+                }
+            }
+        }
+    }
     val settingsStore = remember { SettingsStore(context) }
     val advancedTransition by settingsStore.advancedTransition.collectAsState(initial = true)
     val gestureBack by settingsStore.gestureBack.collectAsState(initial = true)
@@ -186,6 +243,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 onBack = { backStack.removeLastOrNull() },
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
+                onOpenUrl = handleContentUrl,
             )
         }
         // 按 id 打开动态详情：用只占 post_id 的占位 post 复用详情页，
@@ -197,6 +255,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 onBack = { backStack.removeLastOrNull() },
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
+                onOpenUrl = handleContentUrl,
             )
         }
         entry<Route.MessageConversation> { route ->

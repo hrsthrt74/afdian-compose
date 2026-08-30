@@ -615,7 +615,8 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         }
     }
 
-    private fun fetchProfileBySlug(slug: String): AfadianUser =
+    /** 根据公开主页 slug 获取完整用户资料，供正文创作者链接跳转使用。 */
+    fun fetchProfileBySlug(slug: String): AfadianUser =
         get("/api/user/get-profile-by-slug?url_slug=$slug", UserProfileResponse.serializer()).data?.user
             ?: error("用户信息加载失败")
 
