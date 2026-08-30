@@ -9,17 +9,17 @@ class TimeBombTest {
     private val buildTime = 1_000_000L
 
     @Test
-    fun before72HoursIsAvailable() {
+    fun before120HoursIsAvailable() {
         assertFalse(TimeBomb.isExpired(buildTime, buildTime + TimeBomb.VALIDITY_MS - 1))
     }
 
     @Test
-    fun exactly72HoursIsExpired() {
+    fun exactly120HoursIsExpired() {
         assertTrue(TimeBomb.isExpired(buildTime, buildTime + TimeBomb.VALIDITY_MS))
     }
 
     @Test
-    fun after72HoursIsExpired() {
+    fun after120HoursIsExpired() {
         assertTrue(TimeBomb.isExpired(buildTime, buildTime + TimeBomb.VALIDITY_MS + 1))
     }
 }
