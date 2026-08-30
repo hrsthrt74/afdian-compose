@@ -62,6 +62,7 @@ import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
+import top.yukonga.miuix.kmp.nav.gesture.PredictiveBackHandler
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -88,6 +89,23 @@ private fun NavBackStack.pushUnique(route: Route) {
 }
 
 /**
+ * 在当前导航 entry 内消费系统预测性返回事件。
+ *
+ * miuix-nav 会为每个 entry 创建父 dispatcher 的子 dispatcher，entry 内注册的 handler
+ * 优先于 NavDisplay 自身的 handler。因此关闭设置后消费手势进度，避免 NavDisplay 驱动
+ * 预测性动画；提交时仍执行原有 pop，让系统返回键和返回手势保持可用。
+ */
+@Composable
+private fun PredictiveBackGuard(enabled: Boolean, onCommit: () -> Unit) {
+    PredictiveBackHandler(
+        enabled = enabled,
+        onProgress = {},
+        onCommit = onCommit,
+        onCancel = {},
+    )
+}
+
+/**
  * 主界面壳层：全局 [NavDisplay] 管理创作者主页等覆盖路由，
  * 根路由 [Route.MainTabs] 承载底部 [NavigationBar] + [HorizontalPager] 横滑切换。
  *
@@ -109,8 +127,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
     val settingsStore = remember { SettingsStore(context) }
     val advancedTransition by settingsStore.advancedTransition.collectAsState(initial = true)
     val gestureBack by settingsStore.gestureBack.collectAsState(initial = true)
+    val predictiveBack by settingsStore.predictiveBack.collectAsState(initial = true)
     CreatorExpandOrigin.enabled = advancedTransition
     CreatorExpandOrigin.gestureBack = gestureBack
+    // 根 entry 没有上一级页面时不注册拦截器，避免关闭开关后系统返回无法退出应用。
+    val blockPredictiveBack = !predictiveBack && backStack.size > 1
 
     // 读取设备屏幕圆角，供「主页展开」过渡在全屏停稳时对齐（直角屏为 0.dp）
     CreatorExpandOrigin.screenCorner = rememberNavSystemCornerRadius()
@@ -133,6 +154,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius()),
     ) {
         entry<Route.MainTabs> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             MainTabsContent(
                 onReady = onReady,
                 viewModel = viewModel,
@@ -153,10 +175,12 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         entry<Route.CreatorDetail>(
             transition = CreatorDetailTransition,
         ) { route ->
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() }, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) })
         }
         // 动态详情：全文正文 HTML 渲染 + 分享/点赞/收藏
         entry<Route.PostDetail> { route ->
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             PostDetailScreen(
                 post = route.post,
                 onBack = { backStack.removeLastOrNull() },
@@ -167,6 +191,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         // 按 id 打开动态详情：用只占 post_id 的占位 post 复用详情页，
         // PostDetailViewModel 后台按 id 拉取全文；加载中由 PostDetailScreen 显示 LoadingComponent
         entry<Route.PostDetailById> { route ->
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             PostDetailScreen(
                 post = RecommendedPost(post_id = route.postId),
                 onBack = { backStack.removeLastOrNull() },
@@ -175,6 +200,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             )
         }
         entry<Route.MessageConversation> { route ->
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 从 MainViewModel 的资料缓存取自己的头像，替换聊天里「我」的占位头像
             val myProfile by viewModel.profile.collectAsState()
             MessageConversationScreen(
@@ -190,6 +216,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         // =====「我的」的二级屏幕：全部提升到外层栈，push 时盖住底部导航栏 =====
 
         entry<Route.Favorites> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             val vm: FavoritesViewModel = viewModel(
                 factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
                     LocalContext.current.applicationContext as Application
@@ -200,17 +227,21 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             }
         }
         entry<Route.Sponsoring> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SponsoringScreen(viewModel, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }) {
                 backStack.removeLastOrNull()
             }
         }
         entry<Route.Orders> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             OrderScreen(onBack = { backStack.removeLastOrNull() })
         }
         entry<Route.Management> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             ManagementScreen(onBack = { backStack.removeLastOrNull() })
         }
         entry<Route.ThankSponsors> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 顶部创作者信息直接用当前登录账号的资料（/api/my/profile）
             val myProfile by viewModel.profile.collectAsState()
             val userId = myProfile?.user?.user_id.orEmpty()
@@ -235,9 +266,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             )
         }
         entry<Route.Settings> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SettingsScreen(onBack = { backStack.removeLastOrNull() }, onLogout = handleLogout)
         }
         entry<Route.History> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             HistoryScreen(
                 viewModel = historyViewModel,
                 onBack = { backStack.removeLastOrNull() },

@@ -7,6 +7,7 @@ import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
 import com.hrsthrt74.afdian.data.history.HistoryStore
 import androidx.lifecycle.viewModelScope
+import com.hrsthrt74.afdian.AppLog
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -33,6 +34,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /** 页面内边缘滑动返回手势，默认开启 */
     val gestureBack: StateFlow<Boolean> = store.gestureBack
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /** 系统预测性返回开关，默认开启。 */
+    val predictiveBack: StateFlow<Boolean> = store.predictiveBack
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     /** 调试日志总开关，默认关闭（关闭时 AppLog 只输出警告/错误） */
@@ -64,6 +69,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setGestureBack(enabled: Boolean) {
         viewModelScope.launch { store.setGestureBack(enabled) }
+    }
+
+    fun setPredictiveBack(enabled: Boolean) {
+        AppLog.d("Settings", "预测性返回已${if (enabled) "开启" else "关闭"}")
+        viewModelScope.launch { store.setPredictiveBack(enabled) }
     }
 
     fun setColorMode(mode: Int) {

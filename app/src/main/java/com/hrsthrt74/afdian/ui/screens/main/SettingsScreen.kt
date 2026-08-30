@@ -63,6 +63,7 @@ fun SettingsScreen(
     val colorMode by viewModel.colorMode.collectAsState()
     val advancedTransition by viewModel.advancedTransition.collectAsState()
     val gestureBack by viewModel.gestureBack.collectAsState()
+    val predictiveBack by viewModel.predictiveBack.collectAsState()
     val debugLogging by viewModel.debugLogging.collectAsState()
     val historyEnabled by viewModel.historyEnabled.collectAsState()
     val themeSettings = LocalThemeSettings.current
@@ -157,6 +158,12 @@ fun SettingsScreen(
                             onCheckedChange = viewModel::setGestureBack,
                             title = "手势返回",
                             summary = "在页面左缘向右滑动即可返回上一页（系统返回手势不受影响；退出此页面后生效）",
+                        )
+                        SwitchPreference(
+                            checked = predictiveBack,
+                            onCheckedChange = viewModel::setPredictiveBack,
+                            title = "预测性返回",
+                            summary = "关闭系统返回时的页面预览动画，返回键和返回手势仍然可用",
                         )
                     }
                 }

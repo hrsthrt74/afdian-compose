@@ -38,6 +38,8 @@ class SettingsStore(private val context: Context) {
         val ADVANCED_TRANSITION = booleanPreferencesKey("advanced_transition")
         // 页面内边缘滑动返回手势总开关
         val GESTURE_BACK = booleanPreferencesKey("gesture_back")
+        // 系统预测性返回总开关；关闭后由导航 entry 消费系统返回事件
+        val PREDICTIVE_BACK = booleanPreferencesKey("predictive_back")
         // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
         val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
         // 浏览历史开关：关闭后不再写入新的历史记录或头像缓存
@@ -70,6 +72,10 @@ class SettingsStore(private val context: Context) {
     /** 页面内边缘滑动返回手势，默认开启（系统预测性返回不受此控制） */
     val gestureBack: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.GESTURE_BACK] ?: true }
+
+    /** 系统预测性返回，默认开启。 */
+    val predictiveBack: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.PREDICTIVE_BACK] ?: true }
 
     /**
      * 调试日志开关，默认关闭。
@@ -138,6 +144,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setGestureBack(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.GESTURE_BACK] = enabled }
+    }
+
+    suspend fun setPredictiveBack(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.PREDICTIVE_BACK] = enabled }
     }
 
     suspend fun setColorMode(mode: Int) {
