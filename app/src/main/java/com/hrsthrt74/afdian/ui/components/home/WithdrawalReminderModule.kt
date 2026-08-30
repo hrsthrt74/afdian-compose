@@ -64,7 +64,7 @@ fun WithdrawalReminderModule(context: HomeModuleContentContext) {
         ?.second
         ?.takeIf { it.isNotBlank() && it != "--" }
         ?: "---"
-    // 计算实际到手金额（平台抽成约6%，实际到手94%）
+    // 计算实际到手金额（平台抽成约6%，实际到手94%，小数点后第二位向下取整）
     val actualIncomeText = remember(monthIncomeStr) {
         if (monthIncomeStr == "---") {
             "---"
@@ -73,8 +73,8 @@ fun WithdrawalReminderModule(context: HomeModuleContentContext) {
                 // 去除可能存在的逗号和货币符号，提取数字
                 val cleanStr = monthIncomeStr.replace("[,，￥¥$]".toRegex(), "")
                 val income = cleanStr.toDouble()
-                // 计算94%，保留两位小数
-                val actualIncome = income * 0.94
+                // 计算94%，向下取整到小数点后两位（如234.2292→234.22）
+                val actualIncome = Math.floor(income * 0.94 * 100) / 100
                 // 格式化：如果小数部分为0则显示整数，否则保留两位小数
                 if (actualIncome == actualIncome.toLong().toDouble()) {
                     actualIncome.toLong().toString()
