@@ -427,6 +427,7 @@ private fun CardNavItem(
                 color = MiuixTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
