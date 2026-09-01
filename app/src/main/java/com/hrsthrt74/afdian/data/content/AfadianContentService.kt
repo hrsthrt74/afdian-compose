@@ -774,6 +774,42 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
     }
 
     private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
+
+    // ── /api/my/check：轻量未读检查（无参数，返回全部未读分类计数）──
+    suspend fun fetchMyCheck(): MyCheckData {
+        val url = (AFDIAN_HOST + "/api/my/check").toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .build()
+        val start = System.currentTimeMillis()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "/api/my/check -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("未读检查失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            val ec = root["ec"]?.jsonPrimitive?.content?.toIntOrNull()
+            if (ec != 200) {
+                // 业务错误码走 W 级日志，便于排查 Cookie 失效等情况
+                AppLog.w(TAG, "/api/my/check -> ec=$ec")
+                error("未读检查失败 (ec=$ec)")
+            }
+            val data = root["data"]?.jsonObject ?: error("未读检查返回结构异常")
+            val countObj = data["unread_count"]?.jsonObject
+            MyCheckData(
+                unreadMessageNum = data["unread_message_num"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                unreadComment = countObj?.get("comment")?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                unreadLike = countObj?.get("like")?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                unreadPrivateMsg = countObj?.get("message")?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+            ).also {
+                // 埋点：D 级调试日志，记录各分类未读数
+                AppLog.d(TAG, "/api/my/check -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），message=${it.unreadMessageNum} comment=${it.unreadComment} like=${it.unreadLike}")
+            }
+        }
+    }
 }
 
 /** 今日收入统计结果（金额单位：元） */
@@ -1137,3 +1173,11 @@ private fun MessageRecordRaw.toMessageRecord(): MessageRecord {
 @Serializable private data class MessageSendResponse(val ec: Int? = null, val message: String? = null, val data: MessageItemRaw? = null) {
     fun toMessageItem() = data?.toMessageItem()
 }
+
+/** /api/my/check 响应：轻量级未读计数，包含评论、点赞、私信三类 */
+data class MyCheckData(
+    val unreadMessageNum: Int = 0,   // 未读消息总数（评论+点赞+私信）
+    val unreadComment: Int = 0,      // 未读评论数
+    val unreadLike: Int = 0,         // 未读点赞数
+    val unreadPrivateMsg: Int = 0,   // 未读私信数
+)
