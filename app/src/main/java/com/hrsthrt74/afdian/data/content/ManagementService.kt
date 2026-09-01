@@ -37,7 +37,7 @@ class ManagementService(
                 // 访客 PV
                 "主页访问次数" to data.objectText("summary", "pv"),
                 "当前可提现" to data.text("balance"),
-                "当前可提现（税后）" to data.text("balance_after_tax"),
+                "提现实际到手" to data.text("balance_after_tax"),
             ))
             ManagementSection.Income -> ManagementResult(section, data.arrayTexts("list").take(30).mapIndexed { index, value -> "第 ${index + 1} 条" to value })
             ManagementSection.Received -> ManagementResult(section, listOf(

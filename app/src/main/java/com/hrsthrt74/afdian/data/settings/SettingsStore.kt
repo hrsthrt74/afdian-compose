@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.data.settings
 
 import android.content.Context
+import com.hrsthrt74.afdian.AppLog
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -9,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
 
 /** 首页可配置模块。字符串值用于 DataStore 持久化，后续新增模块可兼容旧版本配置。 */
 enum class HomeModule(val storageValue: String, val title: String, val summary: String) {
@@ -50,6 +52,7 @@ class SettingsStore(private val context: Context) {
         val HOME_WITHDRAWAL_REMINDER = booleanPreferencesKey("home_withdrawal_reminder")
         val HOME_ENABLED_MODULES = androidx.datastore.preferences.core.stringPreferencesKey("home_enabled_modules")
         val HOME_MODULE_ORDER = androidx.datastore.preferences.core.stringPreferencesKey("home_module_order")
+        val MANAGEMENT_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("management_layout")
 
     }
 
@@ -98,7 +101,7 @@ class SettingsStore(private val context: Context) {
         val stored = preferences[Keys.HOME_ENABLED_MODULES]
         if (stored != null) {
             // 已有用户配置也自动补入新增模块，避免历史记录模块升级后悄悄消失。
-            (stored.split(",").mapNotNull(HomeModule::fromStorage) + HomeModule.History).toSet()
+            stored.split(",").mapNotNull(HomeModule::fromStorage).toSet()
         } else {
             HomeModule.entries.filter { module ->
                 when (module) {
@@ -119,6 +122,18 @@ class SettingsStore(private val context: Context) {
             .orEmpty()
         (saved + HomeModule.entries).distinct()
     }
+
+    /** 管理页布局；未知卡片会被过滤，用户关闭的卡片不会被自动重新加入。 */
+    val managementLayout: Flow<List<ManagementLayoutEntry>> = context.settingsDataStore.data.map { preferences ->
+        val stored = preferences[Keys.MANAGEMENT_LAYOUT]
+            ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
+            ?: defaultManagementLayout
+        val knownItems = stored.filter {
+            it.type != ManagementLayoutType.CARD || ManagementCardId.fromStorage(it.value) != null
+        }
+        knownItems
+    }
+
     suspend fun setHomeCreatorData(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_CREATOR_DATA] = enabled } }
     suspend fun setHomeSponsoring(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_SPONSORING] = enabled } }
     suspend fun setHomeMarkedCreators(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_MARKED_CREATORS] = enabled } }
@@ -129,6 +144,12 @@ class SettingsStore(private val context: Context) {
     suspend fun setHomeModuleOrder(order: List<HomeModule>) {
         context.settingsDataStore.edit { it[Keys.HOME_MODULE_ORDER] = order.joinToString(",") { module -> module.storageValue } }
     }
+
+    suspend fun setManagementLayout(layout: List<ManagementLayoutEntry>) {
+        AppLog.d("Settings", "保存管理页数据卡片布局，项目数=${layout.size}")
+        context.settingsDataStore.edit { it[Keys.MANAGEMENT_LAYOUT] = Json.encodeToString(layout) }
+    }
+
 
     suspend fun setDebugLogging(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.DEBUG_LOGGING] = enabled }

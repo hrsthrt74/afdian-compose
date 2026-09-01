@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,24 +13,43 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.ManagementSection
+import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
+import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
-import com.hrsthrt74.afdian.ui.components.TodayIncomeCard
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.data.ManagementAddCardSheet
+import com.hrsthrt74.afdian.ui.components.data.ManagementDataLayout
+import com.hrsthrt74.afdian.ui.components.data.ManagementEditableDataGrid
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.viewmodel.ManagementViewModel
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.Card
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -40,17 +58,13 @@ import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.hrsthrt74.afdian.ui.viewmodel.ManagementViewModel
-import com.hrsthrt74.afdian.ui.components.BlurredBar
-import com.hrsthrt74.afdian.ui.components.blurBarColor
-import com.hrsthrt74.afdian.ui.components.contentBottomPadding
-import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Edit
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
@@ -70,24 +84,69 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
+    val context = LocalContext.current
+    val settingsStore = remember { SettingsStore(context) }
+    val managementLayout by settingsStore.managementLayout.collectAsState(initial = emptyList())
+    var showCustomization by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    var editableLayout by remember(managementLayout) { mutableStateOf(managementLayout) }
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val overviewRows = todayIncome?.let { income ->
+        listOf("今日收入" to "%.2f".format(income.amount), "今日订单数" to income.orderCount.toString())
+    }.orEmpty() + result?.rows.orEmpty()
 
     Scaffold(
         topBar = {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
-            TopAppBar(
-                title = "管理",
-                largeTitle = "管理",
-                color = blurBarColor(backdrop),
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "Back"
-                        )
+                TopAppBar(
+                    title = "管理",
+                    largeTitle = "管理",
+                    color = blurBarColor(backdrop),
+                    scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = MiuixIcons.Back,
+                                contentDescription = "Back"
+                            )
+                        }
+                    },
+                    actions = {
+                        AnimatedContent(
+                            targetState = editing,
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            label = "top_bar_actions",
+                        ) { isEditing ->
+                            if (isEditing) {
+                                // 编辑态：添加 + 确认图标
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        showCustomization = true
+                                    }) {
+                                        Icon(imageVector = MiuixIcons.Add, contentDescription = "添加卡片")
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    IconButton(onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        editing = false
+                                    }) {
+                                        Icon(imageVector = MiuixIcons.Ok, contentDescription = "完成")
+                                    }
+                                }
+                            } else {
+                                // 非编辑态：编辑图标
+                                IconButton(onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    editing = true
+                                }) {
+                                    Icon(imageVector = MiuixIcons.Edit, contentDescription = "编辑")
+                                }
+                            }
+                        }
                     }
-                }
-            )
+                )
             }
         }
     ) { paddingValues ->
@@ -118,11 +177,23 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                 )
             }
 
-            LazyColumn(
+            if (editing && section == ManagementSection.Overview && !loading && error == null) {
+                ManagementEditableDataGrid(
+                    rows = overviewRows,
+                    layout = editableLayout,
+                    onLayoutChanged = { nextLayout ->
+                        editableLayout = nextLayout
+                    },
+                    onLayoutCommitted = { committedLayout ->
+                        // 拖拽过程中只更新内存，松手后一次性持久化最终顺序。
+                        scope.launch { settingsStore.setManagementLayout(committedLayout) }
+                    },
+                    modifier = Modifier.weight(1f).nestedScroll(scrollBehavior.nestedScrollConnection),
+                )
+            } else LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
-                    // 放在 nestedScroll 之后（最贴近列表），fling 到边界的剩余速度最先被它捕获
                     .scrollEndHaptic(),
                 contentPadding = PaddingValues(
                     bottom = contentBottomPadding()
@@ -146,51 +217,12 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
 
                 if (!loading && error == null) {
                     if (section == ManagementSection.Overview) {
-                        // 创作者数据板块：固定在所有 Tab 数据之前，加载成功才显示
-                        todayIncome?.let { income ->
-                            item {
-                                TodayIncomeCard(
-                                    income = income,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                                )
-                            }
-                            // 与下方 Tab 数据之间的分割线
-                            item {
-                                HorizontalDivider(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                        items(result?.rows.orEmpty().chunked(2)) { row ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                row.forEach { (title, value) ->
-                                    Card(
-                                        modifier = Modifier.weight(1f),
-                                        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
-                                    ) {
-                                        Column {
-                                            Text(
-                                                title,
-                                                color = MiuixTheme.colorScheme.primary,
-                                                style = MiuixTheme.textStyles.subtitle,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                value,
-                                                style = MiuixTheme.textStyles.title1,
-                                                maxLines = 1,
-                                                autoSize = TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 32.sp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                        item {
+                            ManagementDataLayout(
+                                rows = overviewRows,
+                                layout = managementLayout,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
                         }
                     } else {
                         items(result?.rows.orEmpty(), key = { it.first }) { (title, value) ->
@@ -210,4 +242,16 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
             }
         }
     }
+    ManagementAddCardSheet(
+        layout = editableLayout,
+        rows = overviewRows,
+        show = showCustomization,
+        onAdd = { entry ->
+            if (!(entry.type == ManagementLayoutType.CARD && editableLayout.any { it.type == ManagementLayoutType.CARD && it.value == entry.value })) {
+                editableLayout = editableLayout + entry
+                scope.launch { settingsStore.setManagementLayout(editableLayout) }
+            }
+        },
+        onDismiss = { showCustomization = false },
+    )
 }
