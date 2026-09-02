@@ -5,12 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
-import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.ManagementResult
 import com.hrsthrt74.afdian.data.content.ManagementSection
 import com.hrsthrt74.afdian.data.content.ManagementService
-import com.hrsthrt74.afdian.data.content.TodayIncome
+import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
+import com.hrsthrt74.afdian.data.stats.DataCardModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -18,8 +20,7 @@ import kotlinx.coroutines.withContext
 
 class ManagementViewModel(application: Application) : AndroidViewModel(application) {
     private val service = ManagementService(AuthTokenStore(application))
-    // 今日收入走内容服务（sponsored-bill-filter 翻页统计逻辑在 AfadianContentService 中）
-    private val contentService = AfadianContentService(AuthTokenStore(application))
+    private val statsRepository = CreatorStatsRepository(AuthTokenStore(application))
     private val _section = MutableStateFlow(ManagementSection.Overview)
     val section = _section.asStateFlow()
     private val _result = MutableStateFlow<ManagementResult?>(null)
@@ -28,45 +29,54 @@ class ManagementViewModel(application: Application) : AndroidViewModel(applicati
     val loading = _loading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
-    // 创作者今日收入（独立于 Tab 数据，null 表示加载失败，页面隐藏该板块）
-    private val _todayIncome = MutableStateFlow<TodayIncome?>(null)
-    val todayIncome = _todayIncome.asStateFlow()
+    /** 整体概况的类型化卡片数据，key 使用 CardKey.storageValue。 */
+    private val _cards = MutableStateFlow<Map<String, DataCardModel>>(emptyMap())
+    val cards = _cards.asStateFlow()
+    private var loadJob: Job? = null
+    private var loadGeneration = 0L
 
     init {
         load(ManagementSection.Overview)
-        loadTodayIncome()
-    }
-
-    /** 独立加载今日收入：失败只隐藏对应板块，不影响 Tab 数据 */
-    private fun loadTodayIncome() {
-        viewModelScope.launch {
-            runCatching { withContext(Dispatchers.IO) { contentService.fetchTodayIncome() } }
-                .onSuccess {
-                    _todayIncome.value = it
-                    AppLog.d("Management", "今日收入: ¥${it.amount}, 订单数=${it.orderCount}")
-                }
-                .onFailure { AppLog.w("Management", "今日收入加载失败", it) }        }
     }
 
     fun load(section: ManagementSection) {
+        loadJob?.cancel()
         _section.value = section
-        viewModelScope.launch {
+        _result.value = null
+        val generation = ++loadGeneration
+        loadJob = viewModelScope.launch {
             _loading.value = true
             _error.value = null
             // 调试日志：记录请求的管理板块
             AppLog.d("Management", "load: section=${section.name}")
-            runCatching { withContext(Dispatchers.IO) { service.load(section) } }
-                .onSuccess {
-                    _result.value = it
-                    // 调试日志：板块与数据行数统计
-                    AppLog.d("Management", "load ok: section=${section.name}, rows=${it.rows.size}")
+            try {
+                if (section == ManagementSection.Overview) {
+                    val loadedCards = withContext(Dispatchers.IO) {
+                        statsRepository.loadOverviewCards()
+                    }
+                    if (generation == loadGeneration) {
+                        _cards.value = loadedCards
+                        _result.value = ManagementResult(section, emptyList())
+                        AppLog.d("Management", "load ok: section=${section.name}, cards=${loadedCards.size}")
+                    }
+                } else {
+                    val loadedResult = withContext(Dispatchers.IO) { service.load(section) }
+                    if (generation == loadGeneration) {
+                        _result.value = loadedResult
+                        AppLog.d("Management", "load ok: section=${section.name}, rows=${loadedResult.rows.size}")
+                    }
                 }
-                .onFailure {
-                    // 错误日志：用户模式下也能看到管理数据加载失败
-                    AppLog.e("Management", "load failed: section=${section.name}", it)
-                    _error.value = it.message ?: "管理数据加载失败"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 错误日志：用户模式下也能看到管理数据加载失败
+                if (generation == loadGeneration) {
+                    AppLog.e("Management", "load failed: section=${section.name}", e)
+                    _error.value = e.message ?: "管理数据加载失败"
                 }
-            _loading.value = false
+            } finally {
+                if (generation == loadGeneration) _loading.value = false
+            }
         }
     }
 }

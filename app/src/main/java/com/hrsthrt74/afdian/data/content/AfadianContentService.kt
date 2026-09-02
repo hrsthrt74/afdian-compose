@@ -247,79 +247,6 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         }
     }
 
-    /**
-     * 今日收入统计：基于「收到的赞助账单筛选」接口（sponsored-bill-filter）。
-     * 按 update_time 倒序翻页，累加今天（本地时区 0 点起）内已支付订单的金额与笔数；
-     * 一旦遇到早于今日的订单即可停止翻页（后续必然更早），避免无意义的全量拉取。
-     */
-    suspend fun fetchTodayIncome(): TodayIncome {
-        // 本地时区今日 0 点的时间戳（秒），作为统计下界
-        val todayStart = java.time.LocalDate.now()
-            .atStartOfDay(java.time.ZoneId.systemDefault())
-            .toEpochSecond()
-        var page = 1
-        var lastOrderId = ""
-        var hasMore = true
-        // 累加器：今日总金额（元）与订单数
-        var amount = 0.0
-        var orderCount = 0
-        while (hasMore) {
-            val url = (AFDIAN_HOST + "/api/my/sponsored-bill-filter").toHttpUrl().newBuilder()
-                .addQueryParameter("auth_token", tokenStore.token)
-                .addQueryParameter("page", page.toString())
-                .addQueryParameter("sort_field", "update_time")
-                .addQueryParameter("sort_value", "desc")
-                // 游标分页：带上上一页最后一个订单 ID，保证翻页连续
-                .apply { if (lastOrderId.isNotBlank()) addQueryParameter("last_order_id", lastOrderId) }
-                .build()
-            val request = Request.Builder().url(url).get()
-                .header("Cookie", "auth_token=${tokenStore.token}").build()
-            // 埋点：每页请求前记录起始时间，用于统计接口耗时
-            val start = System.currentTimeMillis()
-            val data = client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    // 非 2xx 属于异常路径，E 级日志始终输出
-                    AppLog.e(TAG, "/api/my/sponsored-bill-filter page=$page -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
-                    error("今日收入加载失败 (${response.code})")
-                }
-                val root = json.parseToJsonElement(response.body.string()).jsonObject
-                val ec = root["ec"]?.jsonPrimitive?.content?.toIntOrNull()
-                if (ec != 200) {
-                    // 业务错误码走 W 级日志，便于排查 Cookie 失效等情况
-                    AppLog.w(TAG, "/api/my/sponsored-bill-filter page=$page 业务失败 ec=$ec")
-                    error("今日收入加载失败 (ec=$ec)")
-                }
-                root["data"]?.jsonObject ?: error("今日收入返回结构异常")
-            }.also {
-                AppLog.d(TAG, "/api/my/sponsored-bill-filter page=$page -> HTTP OK（${System.currentTimeMillis() - start}ms）")
-            }
-            val orders = data["list"]?.jsonArray.orEmpty()
-            for (element in orders) {
-                val order = element.jsonObject
-                // 只统计已支付订单（status=2）
-                val status = order["status"]?.jsonPrimitive?.content?.toIntOrNull() ?: continue
-                // update_time 为 Unix 秒；缺失时跳过该条，防止误算
-                val updateTime = order["update_time"]?.jsonPrimitive?.content?.toLongOrNull() ?: continue
-                // 列表按 update_time 倒序，遇到早于今日的订单说明今天的都统计完了
-                if (updateTime < todayStart) return TodayIncome(amount, orderCount)
-                if (status == 2) {
-                    amount += order.string("total_amount")?.toDoubleOrNull() ?: 0.0
-                    orderCount++
-                }
-            }
-            // 本页全是今日订单且仍有更多 → 用游标继续翻下一页
-            lastOrderId = data.string("last_order_id").orEmpty()
-            hasMore = (data["has_more"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0) == 1 && lastOrderId.isNotBlank()
-            page++
-            // 防御性上限：最多翻 50 页，避免接口异常时死循环
-            if (page > 50) {
-                AppLog.w(TAG, "sponsored-bill-filter 翻页超过 50 页，提前截断")
-                break
-            }
-        }
-        return TodayIncome(amount, orderCount)
-    }
-
     suspend fun fetchCreatorDetail(user: AfadianUser): CreatorDetail {
         val userID = user.user_id
         return coroutineScope {
@@ -811,9 +738,6 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         }
     }
 }
-
-/** 今日收入统计结果（金额单位：元） */
-@Serializable data class TodayIncome(val amount: Double, val orderCount: Int)
 
 @Serializable data class FavoriteItem(
     val id: String, val title: String, val subtitle: String, val image: String? = null,

@@ -1,24 +1,10 @@
 package com.hrsthrt74.afdian.data.settings
 
+import com.hrsthrt74.afdian.data.stats.CardKey
+import com.hrsthrt74.afdian.data.stats.CardMetric
+import com.hrsthrt74.afdian.data.stats.CardPeriod
+import com.hrsthrt74.afdian.data.stats.defaultHomeCreatorDataCardKeys
 import kotlinx.serialization.Serializable
-
-/** 管理页可选择的数据卡片。新增数据时只需扩展目录和数据映射。 */
-enum class ManagementCardId(val storageValue: String, val title: String, val group: String) {
-    TodayIncome("today_income", "今日收入", "收入"),
-    TodayOrders("today_orders", "今日订单数", "收入"),
-    MonthIncome("month_income", "本月收入", "收入"),
-    TotalIncome("total_income", "累计收入", "收入"),
-    MonthSponsors("month_sponsors", "近 31 天赞助者", "收入"),
-    TotalSponsors("total_sponsors", "历史赞助者", "收入"),
-    ProfileVisitors("profile_visitors", "主页访问人数", "访问数据"),
-    ProfileViews("profile_views", "主页访问次数", "访问数据"),
-    Balance("balance", "当前可提现", "提现"),
-    BalanceAfterTax("balance_after_tax", "提现实际到手", "提现");
-
-    companion object {
-        fun fromStorage(value: String): ManagementCardId? = entries.firstOrNull { it.storageValue == value }
-    }
-}
 
 /** 预置的管理页布局元素。标题不允许自由输入，避免设置数据和文案失控。 */
 @Serializable
@@ -30,21 +16,46 @@ data class ManagementLayoutEntry(
     val value: String,
 )
 
-/** 默认布局：按数据含义分组，同时保留所有原有 Overview 数据。 */
+/** 默认布局：经典爱发电布局，但是更好~ */
 val defaultManagementLayout = listOf(
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.TodayIncome.storageValue),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.TodayOrders.storageValue),
     ManagementLayoutEntry(ManagementLayoutType.TITLE, "收入"),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.MonthIncome.storageValue),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.TotalIncome.storageValue),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.MonthSponsors.storageValue),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.TotalSponsors.storageValue),
-    ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_income"),
+    cardEntry(CardMetric.Income, CardPeriod.Today),
+    cardEntry(CardMetric.SponsorOrderCount, CardPeriod.Today),
+    cardEntry(CardMetric.Income, CardPeriod.ThisMonth),
+    cardEntry(CardMetric.Income, CardPeriod.History),
+
+//    ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_income"),
+
+    ManagementLayoutEntry(ManagementLayoutType.TITLE, "发电人数"),
+    cardEntry(CardMetric.SponsorCount, CardPeriod.ThisMonth),
+    cardEntry(CardMetric.SponsorCount, CardPeriod.History),
+
+    ManagementLayoutEntry(ManagementLayoutType.TITLE, "发电次数"),
+    cardEntry(CardMetric.SponsorOrderCount, CardPeriod.Yesterday),
+    cardEntry(CardMetric.SponsorOrderCount, CardPeriod.ThisMonth),
+
+//    ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_sponsor"),
+
     ManagementLayoutEntry(ManagementLayoutType.TITLE, "访问数据"),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.ProfileVisitors.storageValue),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.ProfileViews.storageValue),
-    ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_visitors"),
+    cardEntry(CardMetric.ProfileUv, CardPeriod.History),
+    cardEntry(CardMetric.ProfilePv, CardPeriod.History),
+
+//    ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_visitors"),
+
     ManagementLayoutEntry(ManagementLayoutType.TITLE, "提现"),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.Balance.storageValue),
-    ManagementLayoutEntry(ManagementLayoutType.CARD, ManagementCardId.BalanceAfterTax.storageValue),
+    cardEntry(CardMetric.Balance),
+    cardEntry(CardMetric.BalanceAfterTax),
+    cardEntry(CardMetric.WithdrawalRemainingDays),
+
+    // 其他分类预留，暂不添加卡片：
+    // ManagementLayoutEntry(ManagementLayoutType.TITLE, "其他"),
+    // cardEntry(...),
 )
+
+private fun cardEntry(metric: CardMetric, period: CardPeriod? = null): ManagementLayoutEntry =
+    ManagementLayoutEntry(ManagementLayoutType.CARD, CardKey(metric, period).storageValue)
+
+/** 首页创作者数据模块默认只放卡片，标题和分割线由编辑模式添加。 */
+val defaultHomeCreatorDataLayout = defaultHomeCreatorDataCardKeys.map {
+    ManagementLayoutEntry(ManagementLayoutType.CARD, it)
+}

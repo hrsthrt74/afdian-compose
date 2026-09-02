@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.ManagementSection
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
@@ -77,8 +78,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
     val result by viewModel.result.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
-    // 创作者今日收入（null 表示未加载成功，板块整体隐藏）
-    val todayIncome by viewModel.todayIncome.collectAsState()
+    val cardModels by viewModel.cards.collectAsState()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -87,15 +87,14 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
     val context = LocalContext.current
     val settingsStore = remember { SettingsStore(context) }
     val managementLayout by settingsStore.managementLayout.collectAsState(initial = emptyList())
+    val cardItems = remember(cardModels) {
+        cardModels.mapValues { (_, card) -> card.toDataCardItem() }
+    }
     var showCustomization by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var editableLayout by remember(managementLayout) { mutableStateOf(managementLayout) }
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
-    val overviewRows = todayIncome?.let { income ->
-        listOf("今日收入" to "%.2f".format(income.amount), "今日订单数" to income.orderCount.toString())
-    }.orEmpty() + result?.rows.orEmpty()
-
     Scaffold(
         topBar = {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
@@ -179,7 +178,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
 
             if (editing && section == ManagementSection.Overview && !loading && error == null) {
                 ManagementEditableDataGrid(
-                    rows = overviewRows,
+                    cards = cardItems,
                     layout = editableLayout,
                     onLayoutChanged = { nextLayout ->
                         editableLayout = nextLayout
@@ -219,7 +218,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                     if (section == ManagementSection.Overview) {
                         item {
                             ManagementDataLayout(
-                                rows = overviewRows,
+                                cards = cardItems,
                                 layout = managementLayout,
                                 modifier = Modifier.padding(horizontal = 16.dp),
                             )
@@ -244,7 +243,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
     }
     ManagementAddCardSheet(
         layout = editableLayout,
-        rows = overviewRows,
+        cards = cardItems,
         show = showCustomization,
         onAdd = { entry ->
             if (!(entry.type == ManagementLayoutType.CARD && editableLayout.any { it.type == ManagementLayoutType.CARD && it.value == entry.value })) {

@@ -30,23 +30,23 @@ class ManagementService(
             ManagementSection.Overview -> ManagementResult(section, listOf(
                 "本月收入" to data.objectText("summary", "month_amount"),
                 "累计收入" to data.objectText("summary", "all_sum_amount"),
-                "近 31 天赞助者" to data.objectText("summary", "month_sponsor_count"),
-                "历史赞助者" to data.objectText("summary", "all_sponsor_count"),
+                "本月发电者" to data.objectText("summary", "month_sponsor_count"),
+                "历史发电者" to data.objectText("summary", "all_sponsor_count"),
                 // 访客 UV
                 "主页访问人数" to data.objectText("summary", "uv"),
                 // 访客 PV
                 "主页访问次数" to data.objectText("summary", "pv"),
-                "当前可提现" to data.text("balance"),
-                "提现实际到手" to data.text("balance_after_tax"),
+                "可提现（抽成前）" to data.text("balance"),
+                "可提现（抽成后）" to data.text("balance_after_tax"),
             ))
             ManagementSection.Income -> ManagementResult(section, data.arrayTexts("list").take(30).mapIndexed { index, value -> "第 ${index + 1} 条" to value })
             ManagementSection.Received -> ManagementResult(section, listOf(
                 "收入订单" to data.arraySize("list").toString(),
-                "赞助人数" to data.text("sponsored_count"),
+                "发电人数" to data.text("sponsored_count"),
                 "支付笔数" to data.text("payment_count"),
             ))
             ManagementSection.Sponsors -> ManagementResult(section, listOf(
-                "赞助者总数" to data.text("total_count"),
+                "发电者总数" to data.text("total_count"),
                 "总页数" to data.text("total_page"),
                 "当前列表" to data.arraySize("list").toString(),
             ))
@@ -76,7 +76,7 @@ class ManagementService(
 }
 
 enum class ManagementSection(val title: String) {
-    Overview("整体概况"), Income("收入统计"), Received("收到发电"), Sponsors("赞助者管理")
+    Overview("整体概况"), Income("收入统计"), Received("收到发电"), Sponsors("发电者管理")
 }
 
 data class ManagementResult(val section: ManagementSection, val rows: List<Pair<String, String>>)

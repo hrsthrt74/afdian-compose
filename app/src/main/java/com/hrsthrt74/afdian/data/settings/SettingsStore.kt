@@ -2,6 +2,7 @@ package com.hrsthrt74.afdian.data.settings
 
 import android.content.Context
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -50,6 +51,7 @@ class SettingsStore(private val context: Context) {
         val HOME_SPONSORING = booleanPreferencesKey("home_sponsoring")
         val HOME_MARKED_CREATORS = booleanPreferencesKey("home_marked_creators")
         val HOME_WITHDRAWAL_REMINDER = booleanPreferencesKey("home_withdrawal_reminder")
+        val HOME_CREATOR_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("home_creator_layout")
         val HOME_ENABLED_MODULES = androidx.datastore.preferences.core.stringPreferencesKey("home_enabled_modules")
         val HOME_MODULE_ORDER = androidx.datastore.preferences.core.stringPreferencesKey("home_module_order")
         val MANAGEMENT_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("management_layout")
@@ -96,6 +98,13 @@ class SettingsStore(private val context: Context) {
     val homeSponsoring: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_SPONSORING] ?: true }
     val homeMarkedCreators: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_MARKED_CREATORS] ?: true }
     val homeWithdrawalReminder: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_WITHDRAWAL_REMINDER] ?: true }
+    /** 首页创作者数据布局，和管理页共用卡片、标题、分割线三种布局元素。 */
+    val homeCreatorDataLayout: Flow<List<ManagementLayoutEntry>> = context.settingsDataStore.data.map { preferences ->
+        preferences[Keys.HOME_CREATOR_LAYOUT]
+            ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
+            ?.filter { it.type != ManagementLayoutType.CARD || DataCardCatalog.find(it.value) != null }
+            ?: defaultHomeCreatorDataLayout
+    }
     /** 首页启用模块集合；未写入时从旧版分散布尔开关迁移，确保升级不丢用户配置。 */
     val homeEnabledModules: Flow<Set<HomeModule>> = context.settingsDataStore.data.map { preferences ->
         val stored = preferences[Keys.HOME_ENABLED_MODULES]
@@ -129,15 +138,21 @@ class SettingsStore(private val context: Context) {
             ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
             ?: defaultManagementLayout
         val knownItems = stored.filter {
-            it.type != ManagementLayoutType.CARD || ManagementCardId.fromStorage(it.value) != null
+            it.type != ManagementLayoutType.CARD || DataCardCatalog.find(it.value) != null
         }
-        knownItems
+        // 旧版本布局中的卡片键已不再认识时直接回到新默认布局，不做旧键转换。
+        knownItems.takeIf { items -> items.any { it.type == ManagementLayoutType.CARD } }
+            ?: defaultManagementLayout
     }
 
     suspend fun setHomeCreatorData(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_CREATOR_DATA] = enabled } }
     suspend fun setHomeSponsoring(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_SPONSORING] = enabled } }
     suspend fun setHomeMarkedCreators(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_MARKED_CREATORS] = enabled } }
     suspend fun setHomeWithdrawalReminder(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_WITHDRAWAL_REMINDER] = enabled } }
+    suspend fun setHomeCreatorDataLayout(layout: List<ManagementLayoutEntry>) {
+        AppLog.d("Settings", "保存首页创作者数据卡布局，项目数=${layout.size}")
+        context.settingsDataStore.edit { it[Keys.HOME_CREATOR_LAYOUT] = Json.encodeToString(layout) }
+    }
     suspend fun setHomeEnabledModules(modules: Set<HomeModule>) {
         context.settingsDataStore.edit { it[Keys.HOME_ENABLED_MODULES] = modules.joinToString(",") { module -> module.storageValue } }
     }

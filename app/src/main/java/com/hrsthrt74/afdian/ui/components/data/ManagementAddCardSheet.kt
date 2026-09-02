@@ -23,9 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.utils.SinkFeedback
 import top.yukonga.miuix.kmp.utils.pressable
-import com.hrsthrt74.afdian.data.settings.ManagementCardId
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutEntry
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
+import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.ui.components.DataCard
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -45,18 +45,15 @@ import top.yukonga.miuix.kmp.window.WindowBottomSheet
 @Composable
 fun ManagementAddCardSheet(
     layout: List<ManagementLayoutEntry>,
-    rows: List<Pair<String, String>>,
+    cards: Map<String, DataCardItem>,
     show: Boolean,
     onAdd: (ManagementLayoutEntry) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // 将 rows 转为 Map 以便快速查找
-    val values = remember(rows) { rows.toMap() }
-
     // 过滤掉已添加的卡片
     val availableCards = remember(layout) {
-        ManagementCardId.entries.filterNot { card ->
-            layout.any { it.type == ManagementLayoutType.CARD && it.value == card.storageValue }
+        DataCardCatalog.all.filterNot { card ->
+            layout.any { it.type == ManagementLayoutType.CARD && it.value == card.key.storageValue }
         }
     }
 
@@ -82,20 +79,27 @@ fun ManagementAddCardSheet(
             item(key = "add_titles") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SmallTitle("小标题", insideMargin = PaddingValues(16.dp, 12.dp, 8.dp, 0.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        listOf("收入", "访问数据", "提现").forEach { title ->
-                            val alreadyAdded = layout.any {
-                                it.type == ManagementLayoutType.TITLE && it.value == title
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DataCardCatalog.groups.chunked(3).forEach { titles ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                titles.forEach { title ->
+                                    val alreadyAdded = layout.any {
+                                        it.type == ManagementLayoutType.TITLE && it.value == title
+                                    }
+                                    Button(
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(color = MiuixTheme.colorScheme.surface),
+                                        onClick = { onAdd(ManagementLayoutEntry(ManagementLayoutType.TITLE, title)) },
+                                        enabled = !alreadyAdded,
+                                    ) { Text(title) }
+                                }
+                                repeat(3 - titles.size) {
+                                    Spacer(Modifier.weight(1f))
+                                }
                             }
-                            Button(
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(color = MiuixTheme.colorScheme.surface),
-                                onClick = { onAdd(ManagementLayoutEntry(ManagementLayoutType.TITLE, title)) },
-                                enabled = !alreadyAdded,
-                            ) { Text(title) }
                         }
                     }
                 }
@@ -139,7 +143,7 @@ fun ManagementAddCardSheet(
             // ===== 数据卡片区域 =====
             if (availableCards.isNotEmpty()) {
                 // 按分组渲染卡片
-                groupedCards.forEach { (group, cards) ->
+                groupedCards.forEach { (group, definitions) ->
                     item(key = "group_$group") {
                         SmallTitle(group, insideMargin = PaddingValues(16.dp, 12.dp, 8.dp, 0.dp))
                     }
@@ -147,13 +151,14 @@ fun ManagementAddCardSheet(
                     // 使用 DataCardGrid 网格布局展示卡片
                     item(key = "cards_$group") {
                         DataCardGrid(
-                            items = cards.map { card ->
-                                DataCardItem(card.title, values[card.title] ?: "--")
+                            items = definitions.map { card ->
+                                cards[card.key.storageValue]
+                                    ?: DataCardItem(id = card.key.storageValue, title = card.title, value = "--")
                             },
                             modifier = Modifier.fillMaxWidth(),
                             onItemClick = { item ->
-                                cards.firstOrNull { it.title == item.title }?.let { card ->
-                                    onAdd(ManagementLayoutEntry(ManagementLayoutType.CARD, card.storageValue))
+                                DataCardCatalog.find(item.id)?.let { card ->
+                                    onAdd(ManagementLayoutEntry(ManagementLayoutType.CARD, card.key.storageValue))
                                 }
                             },
                             cardColors = CardColors(

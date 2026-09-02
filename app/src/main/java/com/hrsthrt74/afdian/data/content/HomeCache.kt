@@ -19,12 +19,16 @@ data class HomeCacheSnapshot(
     val ownerUserId: String = "",
     val sponsoring: List<SponsoringItem> = emptyList(),
     val markedCreators: List<FavoriteItem> = emptyList(),
-    val todayIncome: TodayIncome? = null,
-    val overviewRows: List<HomeCacheRow> = emptyList(),
+    val creatorCards: List<HomeCacheCard> = emptyList(),
 )
 
 @Serializable
-data class HomeCacheRow(val title: String, val value: String)
+data class HomeCacheCard(
+    val id: String,
+    val title: String,
+    val value: String,
+    val subtitle: String? = null,
+)
 
 class HomeCache(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true; isLenient = true }

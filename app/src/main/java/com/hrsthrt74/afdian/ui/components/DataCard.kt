@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian.ui.components
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -37,6 +38,8 @@ import top.yukonga.miuix.kmp.utils.pressable
  * @param minFontSize 数值自适应最小字号（px），默认 14sp，设为 null 则禁用自适应
  * @param maxFontSize 数值自适应最大字号（px），默认 32sp，仅当 minFontSize 非 null 时生效
  * @param colors 卡片颜色，虚影等特殊状态可以传入透明背景
+ * @param subtitle 可选的补充说明，显示在数值下方
+ * @param onLongClick 长按回调，适合进入卡片编辑模式
  */
 @Composable
 fun DataCard(
@@ -51,12 +54,23 @@ fun DataCard(
     maxFontSize: TextUnit = 32.sp,
     colors: CardColors = CardDefaults.defaultColors(),
     onClick: (() -> Unit)? = null,
+    subtitle: String? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Card(
         // 所有数据卡片统一使用按压下沉反馈，包含不可点击的编辑态虚影。
         modifier = modifier
             .pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(
+                if (onClick != null || onLongClick != null) {
+                    Modifier.combinedClickable(
+                        onClick = onClick ?: {},
+                        onLongClick = onLongClick,
+                    )
+                } else {
+                    Modifier
+                }
+            ),
         insideMargin = insideMargin,
         colors = colors,
     ) {
@@ -78,6 +92,15 @@ fun DataCard(
                     null
                 }
             )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    subtitle,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

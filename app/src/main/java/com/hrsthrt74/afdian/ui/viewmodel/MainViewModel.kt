@@ -11,14 +11,14 @@ import com.hrsthrt74.afdian.data.content.AfadianAccount
 import com.hrsthrt74.afdian.data.content.AfadianProfile
 import com.hrsthrt74.afdian.data.content.ProfileCache
 import com.hrsthrt74.afdian.data.content.SponsoringItem
-import com.hrsthrt74.afdian.data.content.TodayIncome
 import com.hrsthrt74.afdian.data.content.FavoriteItem
-import com.hrsthrt74.afdian.data.content.ManagementResult
-import com.hrsthrt74.afdian.data.content.ManagementSection
-import com.hrsthrt74.afdian.data.content.ManagementService
 import com.hrsthrt74.afdian.data.content.HomeCache
 import com.hrsthrt74.afdian.data.content.HomeCacheSnapshot
-import com.hrsthrt74.afdian.data.content.HomeCacheRow
+import com.hrsthrt74.afdian.data.content.HomeCacheCard
+import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
+import com.hrsthrt74.afdian.data.stats.CardValue
+import com.hrsthrt74.afdian.data.stats.DataCardModel
+import com.hrsthrt74.afdian.data.stats.displayText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -30,7 +30,7 @@ import kotlinx.coroutines.sync.withLock
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
-    private val managementService = ManagementService(AuthTokenStore(application))
+    private val statsRepository = CreatorStatsRepository(AuthTokenStore(application))
     // 个人资料磁盘缓存：冷启动先回填，消除「我的」页用户名/头像闪烁
     private val profileCache = ProfileCache(application)
     // 首页首屏快照缓存：只缓存可展示数据，不缓存加载状态和分页游标。
@@ -44,12 +44,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val profile = _profile.asStateFlow()
     private val _sponsoring = MutableStateFlow<List<SponsoringItem>>(emptyList())
     val sponsoring = _sponsoring.asStateFlow()
-    // 创作者今日收入（null 表示未加载成功，主页对应板块整体隐藏）
-    private val _todayIncome = MutableStateFlow<TodayIncome?>(null)
-    val todayIncome = _todayIncome.asStateFlow()
-    // 首页额外展示的管理概况；单独加载，失败时不影响普通用户首页。
-    private val _creatorOverview = MutableStateFlow<ManagementResult?>(null)
-    val creatorOverview = _creatorOverview.asStateFlow()
+    // 首页和管理页共用的类型化创作者卡片；ID 使用稳定的 CardKey.storageValue。
+    private val _creatorCards = MutableStateFlow<Map<String, DataCardModel>>(emptyMap())
+    val creatorCards = _creatorCards.asStateFlow()
     private val _markedCreators = MutableStateFlow<List<FavoriteItem>>(emptyList())
     val markedCreators = _markedCreators.asStateFlow()
     private val _isLoading = MutableStateFlow(false)
@@ -119,27 +116,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _isLoading.value = false
             }
-            // 创作者数据独立加载：失败只置空对应板块，不影响首页其他内容刷新
+            // 创作者数据独立加载：失败只影响创作者卡片，不影响首页其他内容刷新
             viewModelScope.launch {
                 try {
-                    val income = withContext(Dispatchers.IO) { service.fetchTodayIncome() }
-                    _todayIncome.value = income
-                    saveHomeCache()
-                    AppLog.d("Discover", "今日收入: ¥${income.amount}, 订单数=${income.orderCount}")
-                } catch (e: Exception) {
-                    // 加载失败时保留旧值（首次则为 null，主页隐藏该板块）
-                    AppLog.w("Discover", "今日收入加载失败", e)
-                }
-            }
-            // 管理概况只对创作者账号有意义；接口失败时保持 null，首页隐藏该模块。
-            viewModelScope.launch {
-                runCatching { withContext(Dispatchers.IO) { managementService.load(ManagementSection.Overview) } }
-                    .onSuccess {
-                        _creatorOverview.value = it
-                        saveHomeCache()
-                        AppLog.d("Home", "创作者概况加载成功，卡片=${it.rows.size}")
+                    val cards = withContext(Dispatchers.IO) {
+                        statsRepository.loadOverviewCards()
                     }
-                    .onFailure { AppLog.w("Home", "创作者概况加载失败", it) }
+                    _creatorCards.value = cards
+                    saveHomeCache()
+                    AppLog.d("Home", "创作者卡片加载成功，卡片=${cards.size}")
+                } catch (e: Exception) {
+                    // 加载失败时保留旧值；首次失败时卡片集合为空，主页隐藏该板块。
+                    AppLog.w("Home", "创作者卡片加载失败", e)
+                }
             }
         }
     }
@@ -152,8 +141,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             homeCache.clear()
             _sponsoring.value = emptyList()
             _markedCreators.value = emptyList()
-            _todayIncome.value = null
-            _creatorOverview.value = null
+            _creatorCards.value = emptyMap()
         }
     }
 
@@ -167,8 +155,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         ownerUserId = ownerUserId,
                         sponsoring = _sponsoring.value,
                         markedCreators = _markedCreators.value,
-                        todayIncome = _todayIncome.value,
-                        overviewRows = _creatorOverview.value?.rows.orEmpty().map { HomeCacheRow(it.first, it.second) },
+                        creatorCards = _creatorCards.value.values.map {
+                            HomeCacheCard(it.id, it.title, it.value.displayText(), it.subtitle)
+                        },
                     )
                 )
             }
@@ -182,12 +171,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         homeCache.load(cachedProfile?.user?.user_id)?.let { snapshot ->
             _sponsoring.value = snapshot.sponsoring
             _markedCreators.value = snapshot.markedCreators
-            _todayIncome.value = snapshot.todayIncome
-            if (snapshot.overviewRows.isNotEmpty()) {
-                _creatorOverview.value = ManagementResult(
-                    ManagementSection.Overview,
-                    snapshot.overviewRows.map { it.title to it.value },
-                )
+            _creatorCards.value = snapshot.creatorCards.associate {
+                it.id to DataCardModel(it.id, it.title, CardValue.Text(it.value), it.subtitle)
             }
             AppLog.d("Home", "已用缓存回填首页首屏")
         }

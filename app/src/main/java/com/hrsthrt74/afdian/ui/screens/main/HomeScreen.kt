@@ -40,8 +40,10 @@ import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.home.HomeCustomizationSheet
+import com.hrsthrt74.afdian.ui.components.home.CreatorDataEditPage
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContent
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContentContext
+import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
@@ -83,14 +85,18 @@ fun HomeScreen(
 
     val sponsoring by viewModel.sponsoring.collectAsState()
     val loading by viewModel.isLoading.collectAsState()
-    val todayIncome by viewModel.todayIncome.collectAsState()
-    val creatorOverview by viewModel.creatorOverview.collectAsState()
+    val creatorCards by viewModel.creatorCards.collectAsState()
+    val creatorCardItems = remember(creatorCards) {
+        creatorCards.mapValues { (_, card) -> card.toDataCardItem() }
+    }
     val markedCreators by viewModel.markedCreators.collectAsState()
     val historyEntries by historyViewModel.entries.collectAsState()
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
     val moduleOrder by settingsStore.homeModuleOrder.collectAsState(initial = HomeModule.entries)
     var showCustomizeSheet by remember { mutableStateOf(false) }
     var showRefreshAnimation by remember { mutableStateOf(false) }
+    // 创作者数据是否处于整页编辑：为 true 时隐藏其它模块，只渲染可拖拽的编辑页。
+    var editingCreatorData by remember { mutableStateOf(false) }
     var refreshStartedAt by remember { mutableStateOf(0L) }
     val refreshAnimation = rememberInfiniteTransition(label = "home_refresh_animation")
     val refreshRotation by refreshAnimation.animateFloat(
@@ -123,8 +129,8 @@ fun HomeScreen(
     }
 
     val moduleContext = HomeModuleContentContext(
-        sponsoring = sponsoring, loading = loading, todayIncome = todayIncome,
-        creatorOverview = creatorOverview, markedCreators = markedCreators,
+        sponsoring = sponsoring, loading = loading, creatorCards = creatorCardItems,
+        markedCreators = markedCreators,
         settingsStore = settingsStore,
         onOpenCreator = onOpenCreator, onOpenManagement = onOpenManagement, onOpenFavorites = onOpenFavorites,
         onOpenSponsoring = onOpenSponsoring,
@@ -132,20 +138,24 @@ fun HomeScreen(
         historyAvatarModel = historyViewModel::avatarModel,
         onOpenHistory = onOpenHistory,
         onOpenHistoryEntry = onOpenHistoryEntry,
+        onEditCreatorData = { editingCreatorData = true },
     )
 
     Scaffold(
         topBar = {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 TopAppBar(
-                    title = "首页", color = blurBarColor(backdrop), scrollBehavior = scrollBehavior,
+                    title = if (editingCreatorData) "编辑创作者数据" else "首页",
+                    color = blurBarColor(backdrop), scrollBehavior = scrollBehavior,
                     actions = {
-                        IconButton(onClick = viewModel::refresh) {
-                            Icon(
-                                MiuixIcons.Refresh,
-                                contentDescription = null,
-                                modifier = Modifier.rotate(if (showRefreshAnimation) refreshRotation else 0f),
-                            )
+                        if (!editingCreatorData) {
+                            IconButton(onClick = viewModel::refresh) {
+                                Icon(
+                                    MiuixIcons.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.rotate(if (showRefreshAnimation) refreshRotation else 0f),
+                                )
+                            }
                         }
                     },
                 )
@@ -153,32 +163,43 @@ fun HomeScreen(
         },
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection).scrollEndHaptic(),
-                contentPadding = PaddingValues(top = paddingValues.calculateTopPadding(), bottom = contentBottomPadding()),
-            ) {
-                moduleOrder.filter { it in enabledModules }.forEach { module ->
-                    item(key = module.storageValue) { HomeModuleContent(module, moduleContext) }
-                }
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).pressable(interactionSource = null, indication = SinkFeedback(), delay = null),
-                        contentAlignment = Alignment.Center,
-                    ) {
+            if (editingCreatorData) {
+                // 整页编辑：隐藏其它模块，编辑网格作为唯一滚动层，避免“双层滚动”。
+                CreatorDataEditPage(
+                    context = moduleContext,
+                    modifier = Modifier
+                        .padding(top = paddingValues.calculateTopPadding())
+                        .padding(bottom = contentBottomPadding()),
+                    onExit = { editingCreatorData = false },
+                )
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection).scrollEndHaptic(),
+                    contentPadding = PaddingValues(top = paddingValues.calculateTopPadding(), bottom = contentBottomPadding()),
+                ) {
+                    moduleOrder.filter { it in enabledModules }.forEach { module ->
+                        item(key = module.storageValue) { HomeModuleContent(module, moduleContext) }
+                    }
+                    item {
                         Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(48.dp))
-                                .background(MiuixTheme.colorScheme.surfaceContainer)
-                                .clickable { showCustomizeSheet = true }
-                                .padding(16.dp, 8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).pressable(interactionSource = null, indication = SinkFeedback(), delay = null),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                "自定义",
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                textAlign = TextAlign.Center,
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(48.dp))
+                                    .background(MiuixTheme.colorScheme.surfaceContainer)
+                                    .clickable { showCustomizeSheet = true }
+                                    .padding(16.dp, 8.dp)
+                            ) {
+                                Text(
+                                    "自定义",
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
                     }
                 }

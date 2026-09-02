@@ -22,8 +22,8 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.runtime.Composable
@@ -34,22 +34,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
-import com.hrsthrt74.afdian.data.settings.ManagementCardId
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutEntry
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
+import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.ui.components.DataCard
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
-import top.yukonga.miuix.kmp.basic.BadgedBox
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -63,36 +62,42 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 @Composable
 fun ManagementDataLayout(
-    rows: List<Pair<String, String>>,
+    cards: Map<String, DataCardItem>,
     layout: List<ManagementLayoutEntry>,
     modifier: Modifier = Modifier,
+    editing: Boolean = false,
+    onCardLongClick: ((DataCardItem) -> Unit)? = null,
+    onCardRemove: ((DataCardItem) -> Unit)? = null,
 ) {
-    val values = rows.toMap()
     Column(modifier = modifier) {
         var index = 0
         while (index < layout.size) {
             val entry = layout[index]
             when (entry.type) {
                 ManagementLayoutType.CARD -> {
-                    val cards = buildList {
+                    val cardItems = buildList {
                         var cardIndex = index
                         while (cardIndex < layout.size && layout[cardIndex].type == ManagementLayoutType.CARD) {
-                            val cardId = ManagementCardId.fromStorage(layout[cardIndex].value)
-                            val title = cardId?.title
-                            val value = title?.let(values::get)
-                            if (title != null && value != null) add(DataCardItem(title, value))
+                            cardItemFor(layout[cardIndex].value, cards)?.let(::add)
                             cardIndex++
                         }
                         index = cardIndex
                     }
-                    if (cards.isNotEmpty()) DataCardGrid(cards)
+                    if (cardItems.isNotEmpty()) {
+                        DataCardGrid(
+                            items = cardItems,
+                            onItemLongClick = onCardLongClick,
+                            showRemoveBadge = editing,
+                            onItemRemove = onCardRemove,
+                        )
+                    }
                 }
                 ManagementLayoutType.TITLE -> {
                     SmallTitle(text = entry.value, insideMargin = PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
                     index++
                 }
                 ManagementLayoutType.DIVIDER -> {
-                    HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                    HorizontalDivider(Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
                     index++
                 }
             }
@@ -103,13 +108,12 @@ fun ManagementDataLayout(
 /** 编辑态管理页：真实卡片直接处于可拖拽网格中。 */
 @Composable
 fun ManagementEditableDataGrid(
-    rows: List<Pair<String, String>>,
+    cards: Map<String, DataCardItem>,
     layout: List<ManagementLayoutEntry>,
     onLayoutChanged: (List<ManagementLayoutEntry>) -> Unit,
     onLayoutCommitted: (List<ManagementLayoutEntry>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val values = rows.toMap()
     val gridState = rememberLazyGridState()
     val haptic = LocalHapticFeedback.current
     var lastMove by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -180,7 +184,7 @@ fun ManagementEditableDataGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -239,69 +243,20 @@ fun ManagementEditableDataGrid(
                         )
                         .scale(dragScale.value)
                 }
-                BadgedBox(
-                    badge = {
-                        // Badge 自身不拦截锚点事件，点击减号只负责删除当前布局项。
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .size(20.dp)
-                                .background(MiuixTheme.colorScheme.error),
-                        ) {
-                            Box(Modifier.clickable {
-                                val nextLayout = layout - entry
-                                onLayoutChanged(nextLayout)
-                                onLayoutCommitted(nextLayout)
-                            }){
-                                Icon(Icons.Filled.Remove, contentDescription = null, tint = MiuixTheme.colorScheme.onError)
-                            }
-                        }
+                EditableLayoutEntryContent(
+                    entry = entry,
+                    cards = cards,
+                    dragModifier = dragModifier.shadow(
+                        elevation = dragElevation.value,
+                        shape = RoundedCornerShape(16.dp),
+                    ),
+                    onRemove = {
+                        val nextLayout = layout - entry
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLayoutChanged(nextLayout)
+                        onLayoutCommitted(nextLayout)
                     },
-                ) {
-                    when (entry.type) {
-                        ManagementLayoutType.CARD -> {
-                            val card = ManagementCardId.fromStorage(entry.value)
-                            if (card != null) {
-                                DataCard(
-                                    title = card.title,
-                                    value = values[card.title] ?: "--",
-                                    modifier = dragModifier.shadow(
-                                        elevation = dragElevation.value,
-                                        shape = RoundedCornerShape(16.dp),
-                                    ),
-                                )
-                            }
-                        }
-                        ManagementLayoutType.TITLE -> SmallTitle(
-                            text = entry.value,
-                            insideMargin = PaddingValues(start = 16.dp, top = 8.dp, bottom = 8.dp),
-                            modifier = dragModifier
-                                .squircleBorder(width = 2.dp, color = MiuixTheme.colorScheme.outline, cornerRadius = 16.dp)
-                                .padding(horizontal = 8.dp),
-                        )
-                        ManagementLayoutType.DIVIDER -> Box(
-                            modifier = dragModifier
-                                .height(40.dp)
-                                .squircleBorder(width = 2.dp, color = MiuixTheme.colorScheme.outline, cornerRadius = 16.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            // 编辑态用左右线条和文字明确标识分割线，同时保留整行拖拽热区。
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                HorizontalDivider(modifier = Modifier.weight(1f))
-                                Text(
-                                    text = "分割线",
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                                HorizontalDivider(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
+                )
                 }
             }
             }
@@ -315,4 +270,76 @@ fun ManagementEditableDataGrid(
 private sealed interface EditableGridItem {
     data class Entry(val entry: ManagementLayoutEntry) : EditableGridItem
     data class Placeholder(val key: String) : EditableGridItem
+}
+
+/** 布局里的卡片即使暂时没有数据，也要用目录元数据渲染出可编辑的占位卡。 */
+internal fun cardItemFor(key: String, cards: Map<String, DataCardItem>): DataCardItem? {
+    val definition = DataCardCatalog.find(key) ?: return null
+    return cards[key] ?: DataCardItem(id = key, title = definition.title, value = "--")
+}
+
+/** 管理页和首页编辑态共用的布局元素渲染与删除 badge。 */
+@Composable
+internal fun EditableLayoutEntryContent(
+    entry: ManagementLayoutEntry,
+    cards: Map<String, DataCardItem>,
+    dragModifier: Modifier,
+    onRemove: () -> Unit,
+) {
+    BadgedBox(
+        badge = {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .size(22.dp)
+                    .background(MiuixTheme.colorScheme.error)
+                    .clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Remove,
+                    contentDescription = "删除布局元素",
+                    tint = MiuixTheme.colorScheme.onError,
+                )
+            }
+        },
+    ) {
+        when (entry.type) {
+            ManagementLayoutType.CARD -> cardItemFor(entry.value, cards)?.let { card ->
+                DataCard(
+                    title = card.title,
+                    value = card.value,
+                    subtitle = card.subtitle,
+                    modifier = dragModifier,
+                )
+            }
+            ManagementLayoutType.TITLE -> SmallTitle(
+                text = entry.value,
+                insideMargin = PaddingValues(start = 12.dp, top = 8.dp, bottom = 8.dp),
+                modifier = dragModifier
+                    .squircleBorder(width = 2.dp, color = MiuixTheme.colorScheme.outline, cornerRadius = 16.dp)
+                    .padding(horizontal = 8.dp),
+            )
+            ManagementLayoutType.DIVIDER -> Box(
+                modifier = dragModifier
+                    .height(40.dp)
+                    .squircleBorder(width = 2.dp, color = MiuixTheme.colorScheme.outline, cornerRadius = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    HorizontalDivider(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "分割线",
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                    HorizontalDivider(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
 }
