@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.components.home
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,12 +18,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.hrsthrt74.afdian.data.settings.ManagementLayoutEntry
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
-import com.hrsthrt74.afdian.data.settings.defaultHomeCreatorDataLayout
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.data.ManagementAddCardSheet
 import com.hrsthrt74.afdian.ui.components.data.ManagementDataLayout
 import com.hrsthrt74.afdian.ui.components.data.ManagementEditableDataGrid
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -39,19 +42,23 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 @Composable
 fun CreatorDataModule(context: HomeModuleContentContext) {
-    val savedLayout by context.settingsStore.homeCreatorDataLayout.collectAsState(
-        initial = defaultHomeCreatorDataLayout,
-    )
+    // 用可空状态等待 DataStore 真值：布局流未就绪前不渲染模块，
+    // 避免退出编辑页回首页时，首页模块先用默认布局闪一帧再切成用户配置。
+    var savedLayout by remember { mutableStateOf<List<ManagementLayoutEntry>?>(null) }
+    LaunchedEffect(Unit) {
+        context.settingsStore.homeCreatorDataLayout.collect { savedLayout = it }
+    }
+    val readyLayout = savedLayout ?: return
     // 有实际数字卡、或有用户主动添加的图表卡时，才展示该模块。
-    val hasData = savedLayout.any {
+    val hasData = readyLayout.any {
         it.type == ManagementLayoutType.CARD && context.creatorCards[it.value]?.value != "--"
-    } || savedLayout.any { it.type == ManagementLayoutType.CHART }
+    } || readyLayout.any { it.type == ManagementLayoutType.CHART }
     if (!hasData) return
     Column {
         ClickableSmallTitle(title = "创作者数据", onClick = context.onOpenManagement)
         ManagementDataLayout(
             cards = context.creatorCards,
-            layout = savedLayout,
+            layout = readyLayout,
             charts = context.creatorCharts,
             onCardLongClick = { context.onEditCreatorData() },
             onChartLongClick = { context.onEditCreatorData() },
@@ -75,44 +82,71 @@ fun CreatorDataEditPage(
     onExit: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val savedLayout by context.settingsStore.homeCreatorDataLayout.collectAsState(
-        initial = defaultHomeCreatorDataLayout,
-    )
-    var layout by remember(savedLayout) { mutableStateOf(savedLayout) }
+    // 用可空状态等待 DataStore 真值：真值未到前不渲染编辑网格，
+    // 避免 collectAsState(initial = 默认布局) 在首帧闪一下默认再跳成用户配置。
+    var savedLayout by remember { mutableStateOf<List<ManagementLayoutEntry>?>(null) }
+    LaunchedEffect(Unit) {
+        context.settingsStore.homeCreatorDataLayout.collect { savedLayout = it }
+    }
+    // 本地编辑态只在首次拿到真值后初始化一次；初始化后不再随 savedLayout 变化重置，
+    // 这样拖拽/添加产生的编辑状态不会被数据流回推打断。
+    var layout by remember { mutableStateOf<List<ManagementLayoutEntry>?>(null) }
+    LaunchedEffect(savedLayout) {
+        val ready = savedLayout
+        if (layout == null && ready != null) {
+            layout = ready
+        }
+    }
     var showAddSheet by remember { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxSize()) {
         CreatorDataEditToolbar(
-            onAdd = { showAddSheet = true },
+            onAdd = { if (layout != null) showAddSheet = true },
             onDone = onExit,
         )
-        ManagementEditableDataGrid(
-            cards = context.creatorCards,
-            layout = layout,
-            charts = context.creatorCharts,
-            onLayoutChanged = { layout = it },
-            onLayoutCommitted = {
-                scope.launch { context.settingsStore.setHomeCreatorDataLayout(it) }
-            },
-            modifier = Modifier.weight(1f),
-        )
+        val currentLayout = layout
+        if (currentLayout == null) {
+            // 布局真值尚未读到：显示加载占位，避免闪默认布局
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadingComponent(text = "加载布局中...")
+            }
+        } else {
+            ManagementEditableDataGrid(
+                cards = context.creatorCards,
+                layout = currentLayout,
+                charts = context.creatorCharts,
+                onLayoutChanged = { layout = it },
+                onLayoutCommitted = {
+                    scope.launch { context.settingsStore.setHomeCreatorDataLayout(it) }
+                },
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 
-    ManagementAddCardSheet(
-        layout = layout,
-        cards = context.creatorCards,
-        charts = context.creatorCharts,
-        show = showAddSheet,
-        onAdd = { entry ->
-            val alreadyExists = layout.any { it.type == entry.type && it.value == entry.value }
-            if (!alreadyExists || entry.type == ManagementLayoutType.DIVIDER) {
-                val nextLayout = layout + entry
-                layout = nextLayout
-                scope.launch { context.settingsStore.setHomeCreatorDataLayout(nextLayout) }
-            }
-            showAddSheet = false
-        },
-        onDismiss = { showAddSheet = false },
-    )
+    val sheetLayout = layout
+    if (sheetLayout != null) {
+        ManagementAddCardSheet(
+            layout = sheetLayout,
+            cards = context.creatorCards,
+            charts = context.creatorCharts,
+            show = showAddSheet,
+            onAdd = { entry ->
+                val alreadyExists = sheetLayout.any { it.type == entry.type && it.value == entry.value }
+                if (!alreadyExists || entry.type == ManagementLayoutType.DIVIDER) {
+                    val nextLayout = sheetLayout + entry
+                    layout = nextLayout
+                    scope.launch { context.settingsStore.setHomeCreatorDataLayout(nextLayout) }
+                }
+                showAddSheet = false
+            },
+            onDismiss = { showAddSheet = false },
+        )
+    }
 }
 
 /** 首页创作者数据卡编辑工具栏，动作图标与管理页 TopAppBar 保持一致。 */

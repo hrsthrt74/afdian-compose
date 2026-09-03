@@ -198,11 +198,18 @@ fun ManagementEditableDataGrid(
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         }
         // 拖动期间只更新 Compose 内存状态，松手后才写入 DataStore，避免外部流重组拖拽网格。
+        // 注意：isAnyItemDragging 初始即为 false，若不记录“上一帧是否在拖拽”，
+        // 首次进入编辑页（还没拖过任何卡片）就会误触发一次提交，把当前 layout
+        // （此时可能还是 initial 默认值）覆盖写进 DataStore，导致用户保存的布局被重置。
+        var wasDragging by remember { mutableStateOf(false) }
         LaunchedEffect(reorderableState.isAnyItemDragging) {
-            if (!reorderableState.isAnyItemDragging) {
+            val isDragging = reorderableState.isAnyItemDragging
+            // 只有“上一帧在拖、这一帧松手”才算一次真实的拖拽结束，才允许提交。
+            if (wasDragging && !isDragging) {
                 lastMove = null
                 onLayoutCommitted(layout)
             }
+            wasDragging = isDragging
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),

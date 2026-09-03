@@ -4,7 +4,6 @@ import com.hrsthrt74.afdian.data.stats.CardKey
 import com.hrsthrt74.afdian.data.stats.CardMetric
 import com.hrsthrt74.afdian.data.stats.CardPeriod
 import com.hrsthrt74.afdian.data.stats.ChartType
-import com.hrsthrt74.afdian.data.stats.defaultHomeCreatorDataCardKeys
 import kotlinx.serialization.Serializable
 
 /** 预置的管理页布局元素。标题不允许自由输入，避免设置数据和文案失控。 */
@@ -60,6 +59,21 @@ private fun cardEntry(metric: CardMetric, period: CardPeriod? = null): Managemen
 
 private fun chartEntry(chart: ChartType): ManagementLayoutEntry =
     ManagementLayoutEntry(ManagementLayoutType.CHART, chart.storageValue)
+
+/**
+ * 首页创作者数据模块的默认卡片顺序。
+ * 用户进入编辑模式后可继续追加目录中的卡片。
+ * 与 [defaultHomeCreatorDataLayout] 归置在同一文件，避免默认布局散落多处。
+ */
+val defaultHomeCreatorDataCardKeys = listOf(
+    CardKey(CardMetric.Income, CardPeriod.Today),
+    CardKey(CardMetric.SponsorOrderCount, CardPeriod.Today),
+    CardKey(CardMetric.Income, CardPeriod.ThisMonth),
+    CardKey(CardMetric.IncomeAfterFee, CardPeriod.ThisMonth),
+    CardKey(CardMetric.SponsorCount, CardPeriod.ThisMonth),
+    CardKey(CardMetric.ProfileUv, CardPeriod.History),
+    CardKey(CardMetric.ProfilePv, CardPeriod.History),
+).map { it.storageValue }
 
 /** 首页创作者数据模块默认只放卡片，标题和分割线由编辑模式添加。 */
 val defaultHomeCreatorDataLayout = defaultHomeCreatorDataCardKeys.map {

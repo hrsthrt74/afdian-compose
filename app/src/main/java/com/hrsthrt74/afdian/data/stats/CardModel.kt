@@ -179,17 +179,6 @@ object DataCardCatalog {
     }
 }
 
-/** 首页创作者数据模块的默认卡片顺序。用户进入编辑模式后可继续追加目录中的卡片。 */
-val defaultHomeCreatorDataCardKeys = listOf(
-    CardKey(CardMetric.Income, CardPeriod.Today),
-    CardKey(CardMetric.SponsorOrderCount, CardPeriod.Today),
-    CardKey(CardMetric.Income, CardPeriod.ThisMonth),
-    CardKey(CardMetric.IncomeAfterFee, CardPeriod.ThisMonth),
-    CardKey(CardMetric.SponsorCount, CardPeriod.ThisMonth),
-    CardKey(CardMetric.ProfileUv, CardPeriod.History),
-    CardKey(CardMetric.ProfilePv, CardPeriod.History),
-).map { it.storageValue }
-
 /** 卡片值保留业务类型，最终展示文本只在 UI 边界格式化。 */
 sealed interface CardValue {
     data class Money(val amount: BigDecimal) : CardValue
