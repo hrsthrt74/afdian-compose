@@ -89,6 +89,7 @@ fun HomeScreen(
     val creatorCardItems = remember(creatorCards) {
         creatorCards.mapValues { (_, card) -> card.toDataCardItem() }
     }
+    val charts by viewModel.creatorCharts.collectAsState()
     val markedCreators by viewModel.markedCreators.collectAsState()
     val historyEntries by historyViewModel.entries.collectAsState()
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
@@ -130,6 +131,7 @@ fun HomeScreen(
 
     val moduleContext = HomeModuleContentContext(
         sponsoring = sponsoring, loading = loading, creatorCards = creatorCardItems,
+        creatorCharts = charts,
         markedCreators = markedCreators,
         settingsStore = settingsStore,
         onOpenCreator = onOpenCreator, onOpenManagement = onOpenManagement, onOpenFavorites = onOpenFavorites,

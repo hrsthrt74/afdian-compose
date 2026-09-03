@@ -3,12 +3,13 @@ package com.hrsthrt74.afdian.data.settings
 import com.hrsthrt74.afdian.data.stats.CardKey
 import com.hrsthrt74.afdian.data.stats.CardMetric
 import com.hrsthrt74.afdian.data.stats.CardPeriod
+import com.hrsthrt74.afdian.data.stats.ChartType
 import com.hrsthrt74.afdian.data.stats.defaultHomeCreatorDataCardKeys
 import kotlinx.serialization.Serializable
 
 /** 预置的管理页布局元素。标题不允许自由输入，避免设置数据和文案失控。 */
 @Serializable
-enum class ManagementLayoutType { CARD, TITLE, DIVIDER }
+enum class ManagementLayoutType { CARD, CHART, TITLE, DIVIDER }
 
 @Serializable
 data class ManagementLayoutEntry(
@@ -23,6 +24,7 @@ val defaultManagementLayout = listOf(
     cardEntry(CardMetric.SponsorOrderCount, CardPeriod.Today),
     cardEntry(CardMetric.Income, CardPeriod.ThisMonth),
     cardEntry(CardMetric.Income, CardPeriod.History),
+    chartEntry(ChartType.IncomeDaily30),
 
 //    ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_income"),
 
@@ -39,6 +41,7 @@ val defaultManagementLayout = listOf(
     ManagementLayoutEntry(ManagementLayoutType.TITLE, "访问数据"),
     cardEntry(CardMetric.ProfileUv, CardPeriod.History),
     cardEntry(CardMetric.ProfilePv, CardPeriod.History),
+    chartEntry(ChartType.UvDaily30),
 
 //    ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_visitors"),
 
@@ -54,6 +57,9 @@ val defaultManagementLayout = listOf(
 
 private fun cardEntry(metric: CardMetric, period: CardPeriod? = null): ManagementLayoutEntry =
     ManagementLayoutEntry(ManagementLayoutType.CARD, CardKey(metric, period).storageValue)
+
+private fun chartEntry(chart: ChartType): ManagementLayoutEntry =
+    ManagementLayoutEntry(ManagementLayoutType.CHART, chart.storageValue)
 
 /** 首页创作者数据模块默认只放卡片，标题和分割线由编辑模式添加。 */
 val defaultHomeCreatorDataLayout = defaultHomeCreatorDataCardKeys.map {

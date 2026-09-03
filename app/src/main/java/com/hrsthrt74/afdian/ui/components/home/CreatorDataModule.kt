@@ -42,16 +42,19 @@ fun CreatorDataModule(context: HomeModuleContentContext) {
     val savedLayout by context.settingsStore.homeCreatorDataLayout.collectAsState(
         initial = defaultHomeCreatorDataLayout,
     )
-    val hasCardData = savedLayout.any {
+    // 有实际数字卡、或有用户主动添加的图表卡时，才展示该模块。
+    val hasData = savedLayout.any {
         it.type == ManagementLayoutType.CARD && context.creatorCards[it.value]?.value != "--"
-    }
-    if (!hasCardData) return
+    } || savedLayout.any { it.type == ManagementLayoutType.CHART }
+    if (!hasData) return
     Column {
         ClickableSmallTitle(title = "创作者数据", onClick = context.onOpenManagement)
         ManagementDataLayout(
             cards = context.creatorCards,
             layout = savedLayout,
+            charts = context.creatorCharts,
             onCardLongClick = { context.onEditCreatorData() },
+            onChartLongClick = { context.onEditCreatorData() },
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         Spacer(Modifier.height(16.dp))
@@ -85,6 +88,7 @@ fun CreatorDataEditPage(
         ManagementEditableDataGrid(
             cards = context.creatorCards,
             layout = layout,
+            charts = context.creatorCharts,
             onLayoutChanged = { layout = it },
             onLayoutCommitted = {
                 scope.launch { context.settingsStore.setHomeCreatorDataLayout(it) }
@@ -96,6 +100,7 @@ fun CreatorDataEditPage(
     ManagementAddCardSheet(
         layout = layout,
         cards = context.creatorCards,
+        charts = context.creatorCharts,
         show = showAddSheet,
         onAdd = { entry ->
             val alreadyExists = layout.any { it.type == entry.type && it.value == entry.value }

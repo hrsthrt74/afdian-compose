@@ -46,6 +46,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Alignment
@@ -79,6 +80,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
     val cardModels by viewModel.cards.collectAsState()
+    val charts by viewModel.charts.collectAsState()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -180,6 +182,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                 ManagementEditableDataGrid(
                     cards = cardItems,
                     layout = editableLayout,
+                    charts = charts,
                     onLayoutChanged = { nextLayout ->
                         editableLayout = nextLayout
                     },
@@ -198,16 +201,21 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                     bottom = contentBottomPadding()
                 )
             ) {
+                // 加载错误提示
                 item {
                     when {
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                         error != null -> {
                             Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(horizontal = 12.dp)
+                                modifier = Modifier.fillMaxSize().padding(16.dp, 48.dp)
                             ) {
                                 Text(error!!)
-                                Button(onClick = { viewModel.load(section) }) { Text("重试") }
+                                Button(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = { viewModel.load(section) })
+                                { Text("重试") }
                             }
                         }
                         result == null -> Text("暂无数据")
@@ -220,6 +228,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                             ManagementDataLayout(
                                 cards = cardItems,
                                 layout = managementLayout,
+                                charts = charts,
                                 modifier = Modifier.padding(horizontal = 16.dp),
                             )
                         }
@@ -244,6 +253,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
     ManagementAddCardSheet(
         layout = editableLayout,
         cards = cardItems,
+        charts = charts,
         show = showCustomization,
         onAdd = { entry ->
             if (!(entry.type == ManagementLayoutType.CARD && editableLayout.any { it.type == ManagementLayoutType.CARD && it.value == entry.value })) {

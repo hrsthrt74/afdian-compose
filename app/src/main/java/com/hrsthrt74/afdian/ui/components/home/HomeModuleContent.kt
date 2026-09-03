@@ -7,6 +7,7 @@ import com.hrsthrt74.afdian.data.content.SponsoringItem
 import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.ui.components.data.DataCardItem
 
 /** 首页模块渲染上下文。模块之间通过明确的数据和回调通信，避免直接依赖 HomeScreen。 */
@@ -14,6 +15,7 @@ data class HomeModuleContentContext(
     val sponsoring: List<SponsoringItem>,
     val loading: Boolean,
     val creatorCards: Map<String, DataCardItem>,
+    val creatorCharts: Map<String, ChartDataItem>,
     val markedCreators: List<FavoriteItem>,
     val settingsStore: SettingsStore,
     val onOpenCreator: (AfadianUser) -> Unit,

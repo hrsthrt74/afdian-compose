@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutEntry
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
+import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.ui.components.DataCard
 import sh.calvin.reorderable.ReorderableItem
@@ -58,7 +59,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 按用户保存的布局渲染管理页数据。
- * 连续的数据项会合并为一个自适应网格，标题和分割线则作为独立布局项插入。
+ * 包括：数据卡片网格、图表卡；小标题、分割线。
  */
 @Composable
 fun ManagementDataLayout(
@@ -68,12 +69,20 @@ fun ManagementDataLayout(
     editing: Boolean = false,
     onCardLongClick: ((DataCardItem) -> Unit)? = null,
     onCardRemove: ((DataCardItem) -> Unit)? = null,
+    charts: Map<String, ChartDataItem> = emptyMap(),
+    /** 长按图表卡（如首页创作者数据模块）时进入编辑。 */
+    onChartLongClick: (() -> Unit)? = null,
 ) {
-    Column(modifier = modifier) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp), // 统一管理项目 vertical 间距
+        modifier = modifier
+    ) {
         var index = 0
         while (index < layout.size) {
             val entry = layout[index]
             when (entry.type) {
+
+                // 数据卡片网格
                 ManagementLayoutType.CARD -> {
                     val cardItems = buildList {
                         var cardIndex = index
@@ -92,12 +101,26 @@ fun ManagementDataLayout(
                         )
                     }
                 }
+
+                // 小标题
                 ManagementLayoutType.TITLE -> {
-                    SmallTitle(text = entry.value, insideMargin = PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
+                    SmallTitle(text = entry.value, insideMargin = PaddingValues(start = 16.dp, top = 8.dp))
                     index++
                 }
+
+                // 图表卡，独占一行
+                ManagementLayoutType.CHART -> {
+                    ChartDataCard(
+                        key = entry.value,
+                        data = charts[entry.value],
+                        onLongClick = onChartLongClick,
+                    )
+                    index++
+                }
+
+                // 分割线
                 ManagementLayoutType.DIVIDER -> {
-                    HorizontalDivider(Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
+                    HorizontalDivider(Modifier.padding(horizontal = 4.dp))
                     index++
                 }
             }
@@ -113,6 +136,7 @@ fun ManagementEditableDataGrid(
     onLayoutChanged: (List<ManagementLayoutEntry>) -> Unit,
     onLayoutCommitted: (List<ManagementLayoutEntry>) -> Unit,
     modifier: Modifier = Modifier,
+    charts: Map<String, ChartDataItem> = emptyMap(),
 ) {
     val gridState = rememberLazyGridState()
     val haptic = LocalHapticFeedback.current
@@ -203,6 +227,7 @@ fun ManagementEditableDataGrid(
                     }
                 },
             ) { item ->
+                // 卡片占位符（实线框）
                 if (item is EditableGridItem.Placeholder) {
                     DataCard(
                         title = " ",
@@ -214,7 +239,7 @@ fun ManagementEditableDataGrid(
                         modifier = Modifier
                             .fillMaxWidth()
                             .squircleBorder(
-                                width = 2.dp,
+                                width = 1.5.dp,
                                 color = MiuixTheme.colorScheme.outline,
                                 cornerRadius = 16.dp,
                             ),
@@ -222,7 +247,7 @@ fun ManagementEditableDataGrid(
                 } else {
                     val entry = (item as EditableGridItem.Entry).entry
             ReorderableItem(reorderableState, key = "${entry.type}:${entry.value}") { isDragging ->
-                // 参考 exTile：拖动时卡片抬起并放大，松手后通过弹簧动画自然恢复。
+                // 拖动时卡片抬起并放大，松手后通过弹簧动画自然恢复。
                 val dragScale = animateFloatAsState(
                     targetValue = if (isDragging) 1.1f else 1f,
                     animationSpec = spring(),
@@ -246,6 +271,7 @@ fun ManagementEditableDataGrid(
                 EditableLayoutEntryContent(
                     entry = entry,
                     cards = cards,
+                    charts = charts,
                     dragModifier = dragModifier.shadow(
                         elevation = dragElevation.value,
                         shape = RoundedCornerShape(16.dp),
@@ -278,14 +304,16 @@ internal fun cardItemFor(key: String, cards: Map<String, DataCardItem>): DataCar
     return cards[key] ?: DataCardItem(id = key, title = definition.title, value = "--")
 }
 
-/** 管理页和首页编辑态共用的布局元素渲染与删除 badge。 */
+/** 编辑态的 布局元素渲染 与删除 badge */
 @Composable
 internal fun EditableLayoutEntryContent(
     entry: ManagementLayoutEntry,
     cards: Map<String, DataCardItem>,
     dragModifier: Modifier,
     onRemove: () -> Unit,
+    charts: Map<String, ChartDataItem> = emptyMap(),
 ) {
+    // 删除 badge 按钮
     BadgedBox(
         badge = {
             Box(
@@ -304,7 +332,11 @@ internal fun EditableLayoutEntryContent(
             }
         },
     ) {
+        // 编辑态的各元素的特殊样式，
+        // 如分割线显示边框，便于拖动/识别
         when (entry.type) {
+
+            // 数据卡
             ManagementLayoutType.CARD -> cardItemFor(entry.value, cards)?.let { card ->
                 DataCard(
                     title = card.title,
@@ -313,31 +345,43 @@ internal fun EditableLayoutEntryContent(
                     modifier = dragModifier,
                 )
             }
+
+            // 图表卡
+            ManagementLayoutType.CHART -> ChartDataCard(
+                key = entry.value,
+                data = charts[entry.value],
+                modifier = dragModifier,
+            )
+
+            // 小标题
             ManagementLayoutType.TITLE -> SmallTitle(
                 text = entry.value,
                 insideMargin = PaddingValues(start = 12.dp, top = 8.dp, bottom = 8.dp),
                 modifier = dragModifier
-                    .squircleBorder(width = 2.dp, color = MiuixTheme.colorScheme.outline, cornerRadius = 16.dp)
+                    .background(MiuixTheme.colorScheme.surface)
+                    .squircleBorder(width = 1.5.dp, color = MiuixTheme.colorScheme.outline, cornerRadius = 16.dp)
                     .padding(horizontal = 8.dp),
             )
+
+            // 分割线
             ManagementLayoutType.DIVIDER -> Box(
                 modifier = dragModifier
+                    .background(MiuixTheme.colorScheme.surface)
                     .height(40.dp)
-                    .squircleBorder(width = 2.dp, color = MiuixTheme.colorScheme.outline, cornerRadius = 16.dp),
+                    .squircleBorder(width = 1.5.dp, color = MiuixTheme.colorScheme.outline, cornerRadius = 16.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    HorizontalDivider(modifier = Modifier.weight(1f))
+                    HorizontalDivider(modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                     Text(
                         text = "分割线",
                         style = MiuixTheme.textStyles.footnote2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
-                    HorizontalDivider(modifier = Modifier.weight(1f))
+                    HorizontalDivider(modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                 }
             }
         }

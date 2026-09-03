@@ -38,13 +38,15 @@ class CreatorStatsRepository(
     }
 
     /**
-     * 加载管理页和首页共用的创作者卡片。
+     * 加载管理页和首页共用的创作者数字卡与图表卡。
      * dashboard 是基础接口，失败时向上抛出；其他统计接口失败时只让对应卡片显示“--”。
+     *
+     * 图表序列复用同一次已抓取的原始数据（按日统计 / 月度账单）生成，不再额外发网络请求。
      */
-    suspend fun loadOverviewCards(
+    suspend fun loadOverview(
         now: LocalDateTime = LocalDateTime.now(),
         zoneId: ZoneId = ZoneId.systemDefault(),
-    ): Map<String, DataCardModel> = coroutineScope {
+    ): OverviewData = coroutineScope {
         val today = now.toLocalDate()
         val boundedPeriods = listOf(
             CardPeriod.Today,
@@ -156,14 +158,27 @@ class CreatorStatsRepository(
             CardMetric.WithdrawalRemainingDays,
             CardValue.DurationDays(withdrawalStatus.remainingDays),
         )
+        // 图表卡复用上面已抓取的原始序列生成：缺失数据源的图不加入结果，
+        // UI 对应展示“暂无数据”。
+        val charts = mutableMapOf<String, ChartDataItem>()
+        dailyStatsResult.getOrNull()?.let { dailyStats ->
+            charts[ChartType.IncomeDaily30.storageValue] = buildDailyIncomeChart(dailyStats, today, 30)
+            charts[ChartType.UvDaily30.storageValue] = buildUvChart(dailyStats, today, 30)
+        }
+        monthlyIncome?.takeIf { it.isNotEmpty() }?.let {
+            charts[ChartType.IncomeMonthly.storageValue] = buildMonthlyIncomeChart(it)
+        }
+
         AppLog.d(
             TAG,
-            "创作者卡片加载完成：订单=${ordersResult.getOrNull()?.size ?: 0}，按日统计=${dailyStatsResult.getOrNull()?.size ?: 0}，卡片=${values.size}",
+            "创作者数据加载完成：订单=${ordersResult.getOrNull()?.size ?: 0}，按日统计=${dailyStatsResult.getOrNull()?.size ?: 0}，" +
+                "卡片=${values.size}，图表=${charts.size}",
         )
-        DataCardCatalog.all.associate { definition ->
+        val cards = DataCardCatalog.all.associate { definition ->
             val id = definition.key.storageValue
             id to DataCardModel(id = id, title = definition.title, value = values[id] ?: CardValue.Unavailable)
         }
+        OverviewData(cards = cards, charts = charts)
     }
 
     /** 拉取指定时间段内的已支付账单，用于金额和去重人数统计。 */
@@ -217,8 +232,8 @@ class CreatorStatsRepository(
         return result
     }
 
-    /** 拉取月度账单，抽成后金额只使用接口明确返回的 creator_amount。 */
-    private fun fetchMonthlyIncome(): List<MonthlyIncomeRecord> {
+    /** 拉取月度账单；抽成后金额只用接口明确返回的 creator_amount。 */
+    private fun fetchMonthlyIncome(): List<MonthlyBillRecord> {
         val data = getData("/api/my/income")
         return data["monthly_bill"]?.jsonArray.orEmpty().flatMap { yearElement ->
             val yearObject = yearElement.jsonObject
@@ -228,7 +243,12 @@ class CreatorStatsRepository(
                 val month = monthObject.long("month") ?: return@mapNotNull null
                 val bill = monthObject["data"]?.jsonObject ?: return@mapNotNull null
                 val creatorAmount = bill.money("creator_amount") ?: return@mapNotNull null
-                MonthlyIncomeRecord(LocalDate.of(year.toInt(), month.toInt(), 1), creatorAmount)
+                MonthlyBillRecord(
+                    month = LocalDate.of(year.toInt(), month.toInt(), 1),
+                    totalAmount = bill.money("total_amount") ?: creatorAmount,
+                    creatorAmount = creatorAmount,
+                    sponsorCount = bill.long("sponsor_count") ?: 0L,
+                )
             }
         }
     }
@@ -314,9 +334,3 @@ class CreatorStatsRepository(
         const val MAX_PAGE_COUNT = 100
     }
 }
-
-/** 月度账单的抽成后收入。 */
-private data class MonthlyIncomeRecord(
-    val month: LocalDate,
-    val creatorAmount: BigDecimal,
-)

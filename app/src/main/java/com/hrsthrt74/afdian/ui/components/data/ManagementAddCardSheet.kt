@@ -1,7 +1,8 @@
 package com.hrsthrt74.afdian.ui.components.data
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,17 +17,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.dp
-import top.yukonga.miuix.kmp.utils.SinkFeedback
-import top.yukonga.miuix.kmp.utils.pressable
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutEntry
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
+import com.hrsthrt74.afdian.data.stats.ChartCatalog
+import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
-import com.hrsthrt74.afdian.ui.components.DataCard
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -36,6 +35,8 @@ import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.pressable
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 /**
@@ -46,6 +47,7 @@ import top.yukonga.miuix.kmp.window.WindowBottomSheet
 fun ManagementAddCardSheet(
     layout: List<ManagementLayoutEntry>,
     cards: Map<String, DataCardItem>,
+    charts: Map<String, ChartDataItem> = emptyMap(),
     show: Boolean,
     onAdd: (ManagementLayoutEntry) -> Unit,
     onDismiss: () -> Unit,
@@ -54,6 +56,13 @@ fun ManagementAddCardSheet(
     val availableCards = remember(layout) {
         DataCardCatalog.all.filterNot { card ->
             layout.any { it.type == ManagementLayoutType.CARD && it.value == card.key.storageValue }
+        }
+    }
+
+    // 过滤掉已添加的图表卡
+    val availableCharts = remember(layout) {
+        ChartCatalog.all.filterNot { chart ->
+            layout.any { it.type == ManagementLayoutType.CHART && it.value == chart.storageValue }
         }
     }
 
@@ -71,7 +80,7 @@ fun ManagementAddCardSheet(
         onDismissRequest = onDismiss,
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().scrollEndHaptic(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // ===== 布局元素区域 =====
@@ -137,6 +146,33 @@ fun ManagementAddCardSheet(
                             }
                         }
                     }
+                }
+            }
+
+            // ===== 图表卡区域 =====
+            // 与数据卡一致：真实渲染图表本身（带真实数据），点击整卡加入布局。
+            // 每张图一个独立 LazyColumn item + 稳定 key：添加/移除某张图时，
+            // 其它图表的 item 因 key 不变不会重组重绘，避免整组一起重建造成的卡顿。
+            if (availableCharts.isNotEmpty()) {
+                item(key = "charts_section_title") {
+                    SmallTitle("图表", insideMargin = PaddingValues(16.dp, 12.dp, 8.dp, 0.dp))
+                }
+                items(
+                    items = availableCharts,
+                    key = { it.storageValue },
+                ) { chart ->
+                    ChartDataCard(
+                        key = chart.storageValue,
+                        data = charts[chart.storageValue],
+                        onClick = {
+                            onAdd(ManagementLayoutEntry(ManagementLayoutType.CHART, chart.storageValue))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardColors(
+                            color = MiuixTheme.colorScheme.surface,
+                            contentColor = MiuixTheme.colorScheme.onSurfaceContainerHighest,
+                        )
+                    )
                 }
             }
 

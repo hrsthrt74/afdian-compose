@@ -2,6 +2,7 @@ package com.hrsthrt74.afdian.data.settings
 
 import android.content.Context
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -98,11 +99,11 @@ class SettingsStore(private val context: Context) {
     val homeSponsoring: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_SPONSORING] ?: true }
     val homeMarkedCreators: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_MARKED_CREATORS] ?: true }
     val homeWithdrawalReminder: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_WITHDRAWAL_REMINDER] ?: true }
-    /** 首页创作者数据布局，和管理页共用卡片、标题、分割线三种布局元素。 */
+    /** 首页创作者数据布局，和管理页共用卡片、图表、标题、分割线布局元素。 */
     val homeCreatorDataLayout: Flow<List<ManagementLayoutEntry>> = context.settingsDataStore.data.map { preferences ->
         preferences[Keys.HOME_CREATOR_LAYOUT]
             ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
-            ?.filter { it.type != ManagementLayoutType.CARD || DataCardCatalog.find(it.value) != null }
+            ?.filter { it.isKnownLayoutEntry() }
             ?: defaultHomeCreatorDataLayout
     }
     /** 首页启用模块集合；未写入时从旧版分散布尔开关迁移，确保升级不丢用户配置。 */
@@ -137,9 +138,7 @@ class SettingsStore(private val context: Context) {
         val stored = preferences[Keys.MANAGEMENT_LAYOUT]
             ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
             ?: defaultManagementLayout
-        val knownItems = stored.filter {
-            it.type != ManagementLayoutType.CARD || DataCardCatalog.find(it.value) != null
-        }
+        val knownItems = stored.filter { it.isKnownLayoutEntry() }
         // 旧版本布局中的卡片键已不再认识时直接回到新默认布局，不做旧键转换。
         knownItems.takeIf { items -> items.any { it.type == ManagementLayoutType.CARD } }
             ?: defaultManagementLayout
@@ -201,4 +200,14 @@ class SettingsStore(private val context: Context) {
     suspend fun acceptDisclaimer() {
         context.settingsDataStore.edit { it[Keys.DISCLAIMER] = true }
     }
+}
+
+/**
+ * 布局条目是否仍被识别：未知卡片/图表键会被过滤掉，
+ * 避免 DataStore 里残留升级前不认识的键导致异常渲染。
+ */
+private fun ManagementLayoutEntry.isKnownLayoutEntry(): Boolean = when (type) {
+    ManagementLayoutType.CARD -> DataCardCatalog.find(value) != null
+    ManagementLayoutType.CHART -> ChartCatalog.find(value) != null
+    ManagementLayoutType.TITLE, ManagementLayoutType.DIVIDER -> true
 }

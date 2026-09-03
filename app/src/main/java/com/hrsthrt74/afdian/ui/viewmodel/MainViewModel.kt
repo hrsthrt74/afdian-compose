@@ -15,6 +15,7 @@ import com.hrsthrt74.afdian.data.content.FavoriteItem
 import com.hrsthrt74.afdian.data.content.HomeCache
 import com.hrsthrt74.afdian.data.content.HomeCacheSnapshot
 import com.hrsthrt74.afdian.data.content.HomeCacheCard
+import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
 import com.hrsthrt74.afdian.data.stats.CardValue
 import com.hrsthrt74.afdian.data.stats.DataCardModel
@@ -47,6 +48,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // 首页和管理页共用的类型化创作者卡片；ID 使用稳定的 CardKey.storageValue。
     private val _creatorCards = MutableStateFlow<Map<String, DataCardModel>>(emptyMap())
     val creatorCards = _creatorCards.asStateFlow()
+    // 创作者图表卡数据；key 使用 ChartType.storageValue。不写入磁盘缓存，失败时图表显示“--”。
+    private val _creatorCharts = MutableStateFlow<Map<String, ChartDataItem>>(emptyMap())
+    val creatorCharts = _creatorCharts.asStateFlow()
     private val _markedCreators = MutableStateFlow<List<FavoriteItem>>(emptyList())
     val markedCreators = _markedCreators.asStateFlow()
     private val _isLoading = MutableStateFlow(false)
@@ -116,18 +120,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _isLoading.value = false
             }
-            // 创作者数据独立加载：失败只影响创作者卡片，不影响首页其他内容刷新
+            // 创作者数据独立加载：失败只影响创作者卡片/图表，不影响首页其他内容刷新
             viewModelScope.launch {
                 try {
-                    val cards = withContext(Dispatchers.IO) {
-                        statsRepository.loadOverviewCards()
+                    val overview = withContext(Dispatchers.IO) {
+                        statsRepository.loadOverview()
                     }
-                    _creatorCards.value = cards
+                    _creatorCards.value = overview.cards
+                    _creatorCharts.value = overview.charts
                     saveHomeCache()
-                    AppLog.d("Home", "创作者卡片加载成功，卡片=${cards.size}")
+                    AppLog.d("Home", "创作者数据加载成功，卡片=${overview.cards.size}，图表=${overview.charts.size}")
                 } catch (e: Exception) {
                     // 加载失败时保留旧值；首次失败时卡片集合为空，主页隐藏该板块。
-                    AppLog.w("Home", "创作者卡片加载失败", e)
+                    AppLog.w("Home", "创作者数据加载失败", e)
                 }
             }
         }
@@ -142,6 +147,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _sponsoring.value = emptyList()
             _markedCreators.value = emptyList()
             _creatorCards.value = emptyMap()
+            _creatorCharts.value = emptyMap()
         }
     }
 

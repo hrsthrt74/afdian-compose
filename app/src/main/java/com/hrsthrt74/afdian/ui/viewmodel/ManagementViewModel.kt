@@ -8,6 +8,7 @@ import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.ManagementResult
 import com.hrsthrt74.afdian.data.content.ManagementSection
 import com.hrsthrt74.afdian.data.content.ManagementService
+import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
 import com.hrsthrt74.afdian.data.stats.DataCardModel
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,9 @@ class ManagementViewModel(application: Application) : AndroidViewModel(applicati
     /** 整体概况的类型化卡片数据，key 使用 CardKey.storageValue。 */
     private val _cards = MutableStateFlow<Map<String, DataCardModel>>(emptyMap())
     val cards = _cards.asStateFlow()
+    /** 整体概况的图表卡数据，key 使用 ChartType.storageValue。 */
+    private val _charts = MutableStateFlow<Map<String, ChartDataItem>>(emptyMap())
+    val charts = _charts.asStateFlow()
     private var loadJob: Job? = null
     private var loadGeneration = 0L
 
@@ -51,13 +55,17 @@ class ManagementViewModel(application: Application) : AndroidViewModel(applicati
             AppLog.d("Management", "load: section=${section.name}")
             try {
                 if (section == ManagementSection.Overview) {
-                    val loadedCards = withContext(Dispatchers.IO) {
-                        statsRepository.loadOverviewCards()
+                    val overview = withContext(Dispatchers.IO) {
+                        statsRepository.loadOverview()
                     }
                     if (generation == loadGeneration) {
-                        _cards.value = loadedCards
+                        _cards.value = overview.cards
+                        _charts.value = overview.charts
                         _result.value = ManagementResult(section, emptyList())
-                        AppLog.d("Management", "load ok: section=${section.name}, cards=${loadedCards.size}")
+                        AppLog.d(
+                            "Management",
+                            "load ok: section=${section.name}, cards=${overview.cards.size}, charts=${overview.charts.size}",
+                        )
                     }
                 } else {
                     val loadedResult = withContext(Dispatchers.IO) { service.load(section) }
