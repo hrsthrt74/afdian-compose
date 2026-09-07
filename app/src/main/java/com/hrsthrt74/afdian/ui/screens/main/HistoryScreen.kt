@@ -19,10 +19,12 @@ import com.hrsthrt74.afdian.data.history.HistoryTarget
 import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.HistoryEntryOption
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import top.yukonga.miuix.kmp.basic.Card
@@ -38,6 +40,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import com.hrsthrt74.afdian.ui.components.AppDialog
@@ -52,6 +55,7 @@ import java.util.Locale
 fun HistoryScreen(
     viewModel: HistoryViewModel,
     onBack: () -> Unit,
+    backStack: NavBackStack,
     onOpenCreator: (AfadianUser) -> Unit,
     onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
 ) {
@@ -72,9 +76,7 @@ fun HistoryScreen(
                     color = blurBarColor(backdrop),
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(MiuixIcons.Back, contentDescription = "返回")
-                        }
+                        BackButton(onBack = onBack, backStack = backStack)
                     },
                     actions = {
                         // 仅当有历史记录时才显示删除按钮

@@ -39,6 +39,7 @@ import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
+import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.HtmlContent
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
@@ -65,9 +66,13 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Share
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.pressable
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
  * 动态详情页。
@@ -83,6 +88,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun PostDetailScreen(
     post: RecommendedPost,
     onBack: () -> Unit,
+    backStack: NavBackStack,
     onOpenCreator: (AfadianUser) -> Unit,
     onNavigateToPost: (RecommendedPost) -> Unit,
     onOpenUrl: ((String) -> Unit)? = null,
@@ -117,9 +123,7 @@ fun PostDetailScreen(
                     title = "",
                     color = blurBarColor(backdrop),
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(imageVector = MiuixIcons.Back, contentDescription = "返回")
-                        }
+                        BackButton(onBack = onBack, backStack = backStack)
                     },
                     actions = {
                         // 分享：调起系统分享面板，分享该动态的网页链接
@@ -155,13 +159,13 @@ fun PostDetailScreen(
                     }
                 } else {
                 LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding(),
-                    // 底部额外留出悬浮操作栏的高度 + 边距，保证正文最后一段不被遮挡
-                    bottom = paddingValues.calculateBottomPadding() + 92.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize().scrollEndHaptic(),
+                    contentPadding = PaddingValues(
+                        top = paddingValues.calculateTopPadding(),
+                        // 底部额外留出悬浮操作栏的高度 + 边距，保证正文最后一段不被遮挡
+                        bottom = paddingValues.calculateBottomPadding() + 92.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 // ── 创作者头部（与卡片同款，可点进主页）──
                 item(key = "header") {
@@ -249,7 +253,7 @@ fun PostDetailScreen(
                                     contentScale = ContentScale.FillWidth,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp)),
+                                        .squircleClip(cornerRadius = 16.dp)
                                 )
                             }
                         }
@@ -304,13 +308,16 @@ fun PostDetailScreen(
                 }
                 // ── 文章末尾创作者头部：再次展示创作者信息，方便长文阅读后快速关注 ──
                 item(key = "footer_header") {
-                    PostHeader(
-                        post = detail,
-                        profile = detail.user,
-                        onCreatorClick = origin.onClick { onOpenCreator(detail.user) },
-                        showDoing = true,
-                        origin = origin,
-                    )
+                    Card(Modifier.pressable(interactionSource = null, indication = SinkFeedback(), delay = null).padding(horizontal = 16.dp)) {
+                        PostHeader(
+                            post = detail,
+                            profile = detail.user,
+                            onCreatorClick = origin.onClick { onOpenCreator(detail.user) },
+                            showDoing = true,
+                            origin = origin,
+                        )
+
+                    }
                 }
             }
                 } // else 分支结束（LazyColumn）
@@ -323,8 +330,6 @@ fun PostDetailScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    // 背景区块只在顶部收圆角，底部直接贴屏幕边缘
-//                    .shadow(16.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), clip = false)
             ) {
                 val bgShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
                 // 始终存在的渐变色底：顶部透明 → 底部 surface，无模糊时也保证正文可读
@@ -333,7 +338,7 @@ fun PostDetailScreen(
                         .matchParentSize()
                         .background(
                             Brush.verticalGradient(
-                                listOf(Color.Transparent, MiuixTheme.colorScheme.surface.copy(alpha = 0.7f))
+                                listOf(Color.Transparent, MiuixTheme.colorScheme.surface.copy(alpha = 0.8f))
                             ),
                             bgShape,
                         ),
@@ -366,7 +371,7 @@ fun PostDetailScreen(
                             // 圆角卡片外观：半透明底色让渐进模糊透出来，细描边勾出轮廓；
                             // 普通模糊开启时（非渐进），在卡片上叠一层实时糊化
                             .background(
-                                MiuixTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                MiuixTheme.colorScheme.surface.copy(alpha = 0.6f),
                                 RoundedCornerShape(24.dp),
                             )
                             .then(
@@ -382,7 +387,7 @@ fun PostDetailScreen(
                                 } else Modifier
                             )
                             .border(
-                                width = 1.dp,
+                                width = 0.75.dp,
                                 color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.1f),
                                 shape = RoundedCornerShape(24.dp),
                             )
@@ -409,7 +414,7 @@ private fun CardNavItem(
         Spacer(modifier = modifier)
         return
     }
-    Card(modifier = modifier) {
+    Card(modifier = modifier.pressable(interactionSource = null, indication = SinkFeedback(), delay = null).then(modifier)) {
         Column(
             modifier = Modifier
                 .clickable { onClick?.invoke() }

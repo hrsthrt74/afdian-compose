@@ -233,7 +233,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             transition = CreatorDetailTransition,
         ) { route ->
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() }, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) })
+            CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() }, backStack = backStack, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) })
         }
         // 动态详情：全文正文 HTML 渲染 + 分享/点赞/收藏
         entry<Route.PostDetail> { route ->
@@ -241,6 +241,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PostDetailScreen(
                 post = route.post,
                 onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
                 onOpenUrl = handleContentUrl,
@@ -253,6 +254,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PostDetailScreen(
                 post = RecommendedPost(post_id = route.postId),
                 onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
                 onOpenUrl = handleContentUrl,
@@ -268,7 +270,8 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 avatarUrl = route.avatarUrl,
                 myAvatarUrl = myProfile?.user?.avatar,
                 viewModel = messagesViewModel,
-                onBack = { backStack.removeLastOrNull() }
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
             )
         }
 
@@ -281,23 +284,23 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                     LocalContext.current.applicationContext as Application
                 )
             )
-            FavoritesScreen(vm, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) }) {
+            FavoritesScreen(vm, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) }, backStack = backStack) {
                 backStack.removeLastOrNull()
             }
         }
         entry<Route.Sponsoring> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            SponsoringScreen(viewModel, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }) {
+            SponsoringScreen(viewModel, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }, backStack = backStack) {
                 backStack.removeLastOrNull()
             }
         }
         entry<Route.Orders> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            OrderScreen(onBack = { backStack.removeLastOrNull() })
+            OrderScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Management> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            ManagementScreen(onBack = { backStack.removeLastOrNull() })
+            ManagementScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.ThankSponsors> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
@@ -321,18 +324,20 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 creatorAvatar = myProfile?.user?.avatar,
                 creatorDoing = myProfile?.user?.creator?.doing,
                 onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }
             )
         }
         entry<Route.Settings> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            SettingsScreen(onBack = { backStack.removeLastOrNull() }, onLogout = handleLogout)
+            SettingsScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack, onLogout = handleLogout)
         }
         entry<Route.History> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             HistoryScreen(
                 viewModel = historyViewModel,
                 onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
             )

@@ -30,6 +30,7 @@ import com.hrsthrt74.afdian.data.content.ManagementSection
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
+import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
@@ -38,6 +39,7 @@ import com.hrsthrt74.afdian.ui.components.data.ManagementAddCardSheet
 import com.hrsthrt74.afdian.ui.components.data.ManagementDataLayout
 import com.hrsthrt74.afdian.ui.components.data.ManagementEditableDataGrid
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.ManagementViewModel
 import kotlinx.coroutines.launch
@@ -66,11 +68,12 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
-fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel? = null) {
+fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewModel: ManagementViewModel? = null) {
     val application = LocalContext.current.applicationContext as Application
     val viewModel = providedViewModel ?: viewModel<ManagementViewModel>(
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application),
@@ -106,12 +109,7 @@ fun ManagementScreen(onBack: () -> Unit, providedViewModel: ManagementViewModel?
                     color = blurBarColor(backdrop),
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = "Back"
-                            )
-                        }
+                        BackButton(onBack = onBack, backStack = backStack)
                     },
                     actions = {
                         AnimatedContent(

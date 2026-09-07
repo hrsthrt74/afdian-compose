@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import android.app.Application
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -46,8 +47,15 @@ import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.CreatorDetail
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.BackButton
+import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.PostCard
+import com.hrsthrt74.afdian.ui.components.blurBarColor
+import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.viewmodel.CreatorDetailViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -60,26 +68,19 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.hrsthrt74.afdian.ui.viewmodel.CreatorDetailViewModel
-import com.hrsthrt74.afdian.ui.components.BlurredBar
-import com.hrsthrt74.afdian.ui.components.blurBarColor
-import com.hrsthrt74.afdian.ui.components.contentBottomPadding
-import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 private enum class CreatorSection { Plans, Products, Albums, Posts, Sponsors }
 
 @Composable
-fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit = {}) {
+fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, backStack: NavBackStack, onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit = {}) {
     val app = LocalContext.current.applicationContext as Application
     val vm: CreatorDetailViewModel = viewModel(
         key = "creator-${user.user_id}",
@@ -113,9 +114,7 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, onOpenPost: (com.
                 color = blurBarColor(backdrop),
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(MiuixIcons.Back, contentDescription = "返回")
-                    }
+                    BackButton(onBack = onBack, backStack = backStack)
                 },
                 actions = {
                     if (detail != null) {

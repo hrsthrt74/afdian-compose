@@ -73,12 +73,14 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.blurBarColors
 import com.hrsthrt74.afdian.ui.components.progressiveBlurBarColors
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import kotlinx.coroutines.CancellationException
@@ -104,6 +106,7 @@ import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.pressable
 // Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
@@ -120,7 +123,8 @@ fun MessageConversationScreen(
     avatarUrl: String?,
     myAvatarUrl: String? = null,
     viewModel: MessagesViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    backStack: NavBackStack,
 ) {
     val messages = remember { mutableStateListOf<MessageItem>() }
     val faqs = remember { mutableStateListOf<MessageFAQ>() }
@@ -293,12 +297,7 @@ fun MessageConversationScreen(
                 title = userName,
                 color = blurBarColor(backdrop),
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = "Back"
-                        )
-                    }
+                    BackButton(onBack = onBack, backStack = backStack)
                 }
             )
             }

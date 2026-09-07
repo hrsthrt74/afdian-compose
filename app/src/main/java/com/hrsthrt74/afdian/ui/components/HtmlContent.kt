@@ -38,6 +38,7 @@ import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -120,7 +121,7 @@ private fun Node.hasTextContent(): Boolean = when (this) {
 /** 单个块级元素的分发渲染（标题/正文全部使用 MiuixTheme.textStyles 现成样式） */
 @Composable
 private fun RenderSingleBlock(element: Element, onUrlClick: (String) -> Unit) = when (val tag = element.tagName().lowercase()) {
-    "br" -> Spacer(modifier = Modifier.height(20.dp))
+    "br" -> Spacer(modifier = Modifier.height(16.dp))
     "img", "figure" -> HtmlImage(element)
     "blockquote" -> BlockQuote(element, onUrlClick)
     // 标题层级 → miuix 字阶：h1=title2(24sp) h2=title3(20sp) h3=title4(18sp) 其余=subtitle(14sp Bold)
@@ -212,11 +213,10 @@ private fun InlineParagraph(nodes: List<Node>, onUrlClick: (String) -> Unit) {
         nodes.forEach { appendInline(it, bold = false, italic = false, underline = false, strike = false, code = false, linkUrl = null) }
     }
 
-    // 正文用 miuix 的 paragraph 样式（17sp）；miuix 默认行高只有 1.2em，
-    // 长文阅读太挤，这里放宽到 1.6em（中文长文的舒适阅读区间约 1.5~1.7）
     Text(
         text = text,
-        style = MiuixTheme.textStyles.paragraph.copy(lineHeight = 1.6f.em),
+        // 行高需要加高
+        style = MiuixTheme.textStyles.paragraph.copy(lineHeight = 1.7f.em),
         color = textColor,
     )
 }
@@ -251,7 +251,7 @@ private fun HtmlImage(element: Element) {
                 model = model,
                 contentDescription = img.attr("alt").ifBlank { null },
                 contentScale = ContentScale.FillWidth,
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)),
+                modifier = Modifier.fillMaxWidth().squircleClip(cornerRadius = 16.dp),
             )
         }
         // 图注：footnote1 辅助色文本居中显示

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import java.time.YearMonth
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
+import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.CreatorListItem
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.blurBarColor
@@ -47,6 +48,7 @@ import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
+import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Button
@@ -67,6 +69,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -98,6 +101,7 @@ fun ThankSponsorsScreen(
     creatorAvatar: String?,
     creatorDoing: String?,
     onBack: () -> Unit = {},
+    backStack: NavBackStack,
     onShare: () -> Unit = {},
     onOpenCreator: (AfadianUser) -> Unit = {},
 ) {
@@ -140,9 +144,7 @@ fun ThankSponsorsScreen(
                     title = "",
                     color = blurBarColor(backdrop),
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(imageVector = MiuixIcons.Back, contentDescription = "返回")
-                        }
+                        BackButton(onBack = onBack, backStack = backStack)
                     },
                     actions = {
                         // 手写「图标 + 弹层」绑定：WindowListPopup 锚定到父容器（这个 Box），
