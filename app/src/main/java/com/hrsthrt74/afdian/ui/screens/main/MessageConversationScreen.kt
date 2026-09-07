@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -17,20 +18,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
@@ -44,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
@@ -55,6 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +61,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.MessageContent
@@ -69,7 +69,6 @@ import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MessageObjectContent
 import com.hrsthrt74.afdian.data.settings.ThemeSettings
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.Avatar
@@ -80,7 +79,6 @@ import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.blurBarColors
 import com.hrsthrt74.afdian.ui.components.progressiveBlurBarColors
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import kotlinx.coroutines.CancellationException
@@ -100,6 +98,7 @@ import top.yukonga.miuix.kmp.basic.SnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults.textFieldColors
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
@@ -109,7 +108,6 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.pressable
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -132,6 +130,9 @@ fun MessageConversationScreen(
     var isSending by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    // 消息列表是否可见：加载完成后先滚动到底部，再设为 true 显示，
+    // 避免 LazyColumn 先在顶部渲染再跳到底部的闪烁
+    var messagesVisible by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -160,13 +161,11 @@ fun MessageConversationScreen(
     suspend fun loadMessages() {
         isLoading = true
         errorMessage = null
+        messagesVisible = false
         try {
             val fetchedMessages = viewModel.fetchMessages(userId)
             messages.clear()
             messages.addAll(fetchedMessages)
-            if (messages.isNotEmpty()) {
-                listState.animateScrollToItem(messages.size - 1)
-            }
         } catch (e: CancellationException) {
             // 协程被正常取消（如快速切页/重组导致请求中断），不算错误，直接向上抛
             throw e
@@ -220,6 +219,14 @@ fun MessageConversationScreen(
     LaunchedEffect(Unit) {
         loadMessages()
         loadFAQs()
+    }
+
+    // 消息加载完成后滚动到底部，再显示列表（避免先在顶部渲染再跳底的闪烁）
+    LaunchedEffect(messages.size, messagesVisible) {
+        if (messages.isNotEmpty() && !messagesVisible) {
+            listState.scrollToItem(messages.size - 1)
+            messagesVisible = true
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -318,19 +325,19 @@ fun MessageConversationScreen(
                     .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
             ) {
                 LazyColumn(
-                    // 消息列表快速滑到顶部/底部边界时触发触觉反馈（本列表无 nestedScroll，直接追加即可）
                     modifier = Modifier
                         .fillMaxSize()
+                        .alpha(if (messagesVisible) 1f else 0f)
                         .scrollEndHaptic(),
                     state = listState,
                     contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
+                        start = 12.dp,
+                        end = 12.dp,
                         top = paddingValues.calculateTopPadding() + 8.dp,
                         // 动态跟随输入栏：可见内容高度 + 键盘/导航栏避让高度，键盘升起列表直接抬同等高度
                         bottom = bottomOffset + 8.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                 if (isLoading && messages.isEmpty()) {
                     item {
@@ -462,13 +469,13 @@ private fun ConversationInputBar(
                 // 只测避让后的可见内容高度（不含键盘区域），供列表/Snackbar 精确抬升
                 .onSizeChanged { onHeightChanged(it.height) }
         ) {
-        // 顶部留白：渐进模糊需要更大留白(20dp)，普通模糊给 8dp 即可
-        Spacer(modifier = Modifier.height(if (themeSettings.progressiveBlur) 20.dp else 8.dp))
+        // 渐进模糊需要更大顶部留白(
+        Spacer(modifier = Modifier.height(if (themeSettings.progressiveBlur) 20.dp else 0.dp))
 
         // FAQ
         if (faqs.isNotEmpty()) {
             LazyRow(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -493,6 +500,7 @@ private fun ConversationInputBar(
             }
         }
 
+        // 主操作区
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -502,6 +510,7 @@ private fun ConversationInputBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // 输入框
             TextField(
                 value = draft,
                 onValueChange = { newValue ->
@@ -538,6 +547,7 @@ private fun ConversationInputBar(
             label = "iconColor"
         )
 
+            // 按钮
             IconButton(
                 onClick = onSend,
                 enabled = isEnabled,
@@ -570,33 +580,19 @@ private fun MessageBubble(
         horizontalArrangement = if (isSentByMe) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Bottom
     ) {
-        // 头像
+        // 对方的头像
         if (!isSentByMe) {
-            if (avatarUrl != null) {
-                Avatar(
-                    model = avatarUrl,
-                    size = 42.dp,
-                    contentDescription = userName,
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(MiuixTheme.colorScheme.surface),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = userName.take(1),
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onPrimary
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(8.dp))
+            Avatar(
+                model = avatarUrl,
+                size = 36.dp,
+                contentDescription = userName,
+                modifier = Modifier.padding(bottom = 2.dp, end = 8.dp)
+            )
+        } else {
+            Spacer(Modifier.size(36.dp + 8.dp))
         }
 
-        // 气泡
+        // 气泡区域
         Column(
             // weight(fill=false)：气泡最多占剩余宽度，超长内容（如订单卡片）会换行/收窄，
             // 不会把两侧固定尺寸的头像水平挤扁
@@ -608,7 +604,7 @@ private fun MessageBubble(
                 Text(
                     text = formatBubbleTime(timestamp),
                     style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
                     modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 2.dp)
                 )
             }
@@ -619,31 +615,16 @@ private fun MessageBubble(
             )
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
-        
-        // 自己头像，放这是因为在气泡后面；有缓存的真实头像就用真实头像
+        // 自己头像
         if (isSentByMe) {
-            if (myAvatarUrl != null) {
-                Avatar(
-                    model = myAvatarUrl,
-                    size = 42.dp,
-                    contentDescription = "我",
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(MiuixTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "我",
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onPrimary
-                    )
-                }
-            }
+            Avatar(
+                model = myAvatarUrl,
+                size = 36.dp,
+                contentDescription = "我",
+                modifier = Modifier.padding(bottom = 2.dp, start = 8.dp)
+            )
+        } else {
+            Spacer(Modifier.size(36.dp + 8.dp))
         }
     }
 }
@@ -706,8 +687,12 @@ private fun MessageContentBubble(
                     // 文本
                     Text(
                         text = annotatedText,
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            lineHeight = 1.4.em
+                        ),
                         modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
                     )
                 }
             }

@@ -10,12 +10,15 @@ import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MyCheckData
+import com.hrsthrt74.afdian.data.settings.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
@@ -24,6 +27,7 @@ import kotlinx.coroutines.withContext
 
 class MessagesViewModel(application: Application) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
+    private val settingsStore = SettingsStore(application)
 
     private val _dialogs = MutableStateFlow<List<MessageDialog>>(emptyList())
     val dialogs = _dialogs.asStateFlow()
@@ -36,6 +40,31 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
 
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+
+    // ── 过滤状态 ──
+    private val _showUnreadOnly = MutableStateFlow(false)
+    val showUnreadOnly = _showUnreadOnly.asStateFlow()
+
+    private val _showRecentOnly = MutableStateFlow(false)
+    val showRecentOnly = _showRecentOnly.asStateFlow()
+
+    /** 发电明细开关（持久化） */
+    private val _showSponsorDetail = MutableStateFlow(false)
+    val showSponsorDetail = _showSponsorDetail.asStateFlow()
+
+    /** 根据过滤条件筛选后的对话列表 */
+    val filteredDialogs: StateFlow<List<MessageDialog>> = combine(
+        _dialogs, _showUnreadOnly, _showRecentOnly
+    ) { dialogs, unreadOnly, recentOnly ->
+        dialogs.filter { dialog ->
+            val unreadOk = !unreadOnly || dialog.unread_count > 0
+            val recentOk = !recentOnly || dialog.send_time?.let { ts ->
+                val twoWeeksAgo = (System.currentTimeMillis() / 1000.0) - 14 * 24 * 60 * 60
+                ts >= twoWeeksAgo
+            } ?: false
+            unreadOk && recentOk
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ── 未读计数：来自轻量接口 /api/my/check（含评论、点赞、私信三种） ──
     private val _checkData = MutableStateFlow(MyCheckData())
@@ -58,6 +87,10 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         refresh()
         // 首次进入立即拉取未读计数，不等 auto-refresh
         viewModelScope.launch { refreshCheck() }
+        // 从 DataStore 恢复发电明细开关状态
+        viewModelScope.launch {
+            _showSponsorDetail.value = settingsStore.msgShowSponsorDetail.first()
+        }
     }
 
     fun refresh() {
@@ -159,5 +192,19 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                 refreshCheck()
             }
         }
+    }
+
+    fun toggleUnreadFilter() {
+        _showUnreadOnly.value = !_showUnreadOnly.value
+    }
+
+    fun toggleRecentFilter() {
+        _showRecentOnly.value = !_showRecentOnly.value
+    }
+
+    fun toggleSponsorDetail() {
+        val newValue = !_showSponsorDetail.value
+        _showSponsorDetail.value = newValue
+        viewModelScope.launch { settingsStore.setMsgShowSponsorDetail(newValue) }
     }
 }

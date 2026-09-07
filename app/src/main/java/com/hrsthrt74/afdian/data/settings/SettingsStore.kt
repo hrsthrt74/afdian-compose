@@ -56,7 +56,8 @@ class SettingsStore(private val context: Context) {
         val HOME_ENABLED_MODULES = androidx.datastore.preferences.core.stringPreferencesKey("home_enabled_modules")
         val HOME_MODULE_ORDER = androidx.datastore.preferences.core.stringPreferencesKey("home_module_order")
         val MANAGEMENT_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("management_layout")
-
+        // 消息页「发电明细」开关
+        val MSG_SHOW_SPONSOR_DETAIL = booleanPreferencesKey("msg_show_sponsor_detail")
     }
 
     /** 启动页索引，未设置时默认第 0 页 */
@@ -195,6 +196,14 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setUseAfdianColor(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.USE_AFDIAN_COLOR] = enabled }
+    }
+
+    /** 消息页「发电明细」开关，默认关闭 */
+    val msgShowSponsorDetail: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.MSG_SHOW_SPONSOR_DETAIL] ?: false }
+
+    suspend fun setMsgShowSponsorDetail(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MSG_SHOW_SPONSOR_DETAIL] = enabled }
     }
 
     suspend fun acceptDisclaimer() {

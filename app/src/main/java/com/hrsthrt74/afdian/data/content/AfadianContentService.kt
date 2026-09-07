@@ -349,7 +349,27 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             status = obj["status"]?.jsonPrimitive?.content?.toIntOrNull(),
             user = user,
             desc = obj["desc"]?.jsonPrimitive?.contentOrNull,
-            send_time = obj["send_time"]?.jsonPrimitive?.content?.toDoubleOrNull()
+            send_time = obj["send_time"]?.jsonPrimitive?.content?.toDoubleOrNull(),
+            sponsor_info = runCatching {
+                obj["sponsor_info"]?.jsonObject?.let { si ->
+                    SponsorInfo(
+                        out_detail = si["out_detail"]?.jsonObject?.let { od ->
+                            SponsorAmount(
+                                all_sum_amount = od["all_sum_amount"]?.jsonPrimitive?.contentOrNull,
+                                current_amount = od["current_amount"]?.jsonPrimitive?.contentOrNull,
+                                longest_expire_time = od["longest_expire_time"]?.jsonPrimitive?.content?.toLongOrNull()
+                            )
+                        },
+                        in_detail = si["in_detail"]?.jsonObject?.let { id ->
+                            SponsorAmount(
+                                all_sum_amount = id["all_sum_amount"]?.jsonPrimitive?.contentOrNull,
+                                current_amount = id["current_amount"]?.jsonPrimitive?.contentOrNull,
+                                longest_expire_time = id["longest_expire_time"]?.jsonPrimitive?.content?.toLongOrNull()
+                            )
+                        }
+                    )
+                }
+            }.getOrNull()
         )
     }
 
@@ -959,10 +979,23 @@ data class MessageConversation(
     val status: Int? = null,
     val user: AfadianUser = AfadianUser(),
     val desc: String? = null,
-    val send_time: Double? = null
+    val send_time: Double? = null,
+    val sponsor_info: SponsorInfo? = null
 ) {
     val id: String get() = user.user_id
 }
+
+/** 发电明细：out_detail=我对他发电，in_detail=他对我发电 */
+@Serializable data class SponsorInfo(
+    val out_detail: SponsorAmount? = null,
+    val in_detail: SponsorAmount? = null
+)
+
+@Serializable data class SponsorAmount(
+    val all_sum_amount: String? = null,
+    val current_amount: String? = null,
+    val longest_expire_time: Long? = null
+)
 
 data class MessageItem(
     val type: String = "",
