@@ -32,6 +32,137 @@ private val json = Json {
     isLenient = true
 }
 
+/**
+ * 发货通知消息的固定开头：type=1 的文本消息都会走到普通文本渲染，
+ * 这里靠前缀把「已发货」系统消息识别出来，转成结构化卡片展示。
+ */
+private const val SHIPMENT_PREFIX = "你购买的商品已发货"
+
+/** type=5 的消息承载「兑换码/激活码」，content 为一段纯文本兑换码 */
+private const val TYPE_REDEEM_CODE = 5
+
+/** type=7 是 FAQ 快捷提问的自动回复消息 */
+private const val TYPE_FAQ_REPLY = 7
+
+/** type=4 是购买成功后的自动回复消息 */
+private const val TYPE_PURCHASE_REPLY = 4
+
+/**
+ * 尝试把一段纯文本识别为发货通知并解析成结构化 [ShipmentNotice]。
+ * 规则：以 [SHIPMENT_PREFIX] 开头即判定命中；随后逐行按「键：值」拆解
+ * 商品名称 / 爱发电订单号 / 快递运单号 / 快递公司，另用 URL 正则抓取
+ * 「点此查看详情」后的链接。不命中前缀返回 null，由调用方回退为普通文本。
+ */
+private fun tryParseShipmentNotice(text: String): ShipmentNotice? {
+    if (!text.startsWith(SHIPMENT_PREFIX)) return null
+
+    var productName: String? = null
+    var orderNo: String? = null
+    var trackingNo: String? = null
+    var courier: String? = null
+
+    // 详情链接单独用 URL 正则提取，兼容「点此查看详情 https://…」混排
+    val detailUrl = Regex("https?://[^\\s]+").find(text)?.value
+
+    // 按行解析键值；开头「你购买的商品已发货」一行无冒号，自然被跳过
+    for (rawLine in text.lineSequence()) {
+        val line = rawLine.trim()
+        when {
+            line.startsWith("商品名称") -> productName = extractShipmentValue(line, "商品名称")
+            line.startsWith("爱发电订单号") -> orderNo = extractShipmentValue(line, "爱发电订单号")
+            line.startsWith("快递运单号") -> trackingNo = extractShipmentValue(line, "快递运单号")
+            line.startsWith("快递公司") -> courier = extractShipmentValue(line, "快递公司")
+        }
+    }
+    return ShipmentNotice(
+        productName = productName,
+        orderNo = orderNo,
+        trackingNo = trackingNo,
+        courier = courier,
+        detailUrl = detailUrl
+    )
+}
+
+/** 剥离行首固定 label 与紧跟的全/半角冒号，取其后内容。 */
+private fun extractShipmentValue(line: String, label: String): String? {
+    var rest = line.removePrefix(label).trimStart()
+    rest = rest.removePrefix("：").removePrefix(":").trim()
+    return rest.takeIf { it.isNotEmpty() }
+}
+
+/**
+ * 统一把一段文本 content 解析成消息内容：type=5 兑换码 → [MessageContent.Code]；
+ * 命中投诉/发货前缀 → 对应卡片；否则退回 [MessageContent.Text]，
+ * 其中 type=4/7 的自动回复文本会打上 [MessageContent.Text.isAutoReply] 标记。
+ * 供两处文本分支复用，避免解析逻辑重复。
+ */
+private fun resolveTextContent(text: String, messageType: Int): MessageContent =
+    when {
+        // type=5 为兑换码，content 原始文本原样承载
+        messageType == TYPE_REDEEM_CODE -> MessageContent.Code(text)
+        // 其余普通文本：先试投诉、发货通知，未命中则按普通文本渲染
+        else -> tryParseComplaintNotice(text)?.let { MessageContent.Complaint(it) }
+            ?: tryParseShipmentNotice(text)?.let { MessageContent.Shipment(it) }
+            ?: MessageContent.Text(text, isAutoReply = messageType == TYPE_FAQ_REPLY || messageType == TYPE_PURCHASE_REPLY)
+    }
+
+/** 投诉消息的稳定触发词：固定引导句含「该笔订单会暂时冻结」 */
+private const val COMPLAINT_MARKER = "该笔订单会暂时冻结"
+
+/**
+ * 尝试把一段纯文本识别为「投诉」系统消息并解析。
+ * 触发词为 [COMPLAINT_MARKER]；平台从文本里识别「微信 / 支付宝」。
+ * 固定模板：引导句占首行，其后依次为订单号、留言、投诉时间、金额、投诉单号、（详情链接）。
+ */
+private fun tryParseComplaintNotice(text: String): ComplaintNotice? {
+    if (!text.contains(COMPLAINT_MARKER)) return null
+
+    // 平台：微信 / 支付宝（在引导句中出现者）
+    val platform = when {
+        text.contains("微信") -> "微信"
+        text.contains("支付宝") -> "支付宝"
+        else -> null
+    }
+
+    // 去掉首行引导句，余下按固定顺序解析数据行
+    val lines = text.lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .drop(1) // 首行为固定引导句
+        .toList()
+
+    return ComplaintNotice(
+        platform = platform,
+        orderNo = lines.getOrNull(0),     // 订单号
+        message = lines.getOrNull(1),     // 投诉留言
+        time = lines.getOrNull(2),        // 投诉时间
+        amount = lines.getOrNull(3),      // 金额
+        complaintNo = lines.getOrNull(4), // 投诉单号
+        detailUrl = Regex("https?://[^\\s]+").find(text)?.value // 用户主页链接
+    )
+}
+
+/**
+ * 订单 content.ext 中的补充信息：
+ * ext.redeem → 使用的兑换码；ext.address → 收货地址（存在表示该商品需要填写收货信息）。
+ */
+private data class OrderExt(
+    val redeem: String? = null,
+    val address: MessageOrderAddress? = null,
+)
+
+/**
+ * 从订单 content 的 ext 里解析兑换码与收货地址，供两处对象解析路径复用。
+ */
+private fun parseOrderExt(contentObject: JsonObject): OrderExt {
+    val ext = contentObject["ext"] as? JsonObject ?: return OrderExt()
+    val redeem = ext["redeem"]?.jsonPrimitive?.contentOrNull
+    val address = ext["address"]?.let {
+        runCatching { json.decodeFromJsonElement(MessageOrderAddress.serializer(), it) }.getOrNull()
+    }
+    return OrderExt(redeem = redeem, address = address)
+}
+
 class AfadianContentService(private val tokenStore: AuthTokenStore, private val client: OkHttpClient = OkHttpClient()) {
 
     companion object {
@@ -426,7 +557,10 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         
         val content = when {
             contentElement == null || contentElement is JsonNull -> MessageContent.Empty
-            contentElement is JsonPrimitive && contentElement.isString -> MessageContent.Text(contentElement.content)
+            contentElement is JsonPrimitive && contentElement.isString -> resolveTextContent(
+                contentElement.content,
+                messageObj["type"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+            )
             contentElement is JsonObject -> {
                 val skuDetail = skuDetailSource["sku_detail"]?.jsonArray?.mapNotNull { skuElement ->
                     runCatching {
@@ -453,6 +587,15 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                     )
                 } else null
                 
+                // 解析 ext 中的兑换码/收货地址补充信息
+                val orderExt = parseOrderExt(contentElement)
+
+                // 解析电圈邀请：content 含 group 字段时表示群邀请消息（type=6）
+                val groupElement = contentElement["group"]
+                val group = (groupElement as? JsonObject)?.let {
+                    runCatching { json.decodeFromJsonElement(MessageGroup.serializer(), it) }.getOrNull()
+                }
+
                 val objContent = MessageObjectContent(
                     out_trade_no = contentElement["out_trade_no"]?.jsonPrimitive?.contentOrNull,
                     show_amount = contentElement["show_amount"]?.jsonPrimitive?.contentOrNull,
@@ -460,6 +603,10 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                     per_month = contentElement["per_month"]?.jsonPrimitive?.contentOrNull,
                     month = contentElement["month"]?.jsonPrimitive?.content?.toIntOrNull(),
                     remark = contentElement["remark"]?.jsonPrimitive?.contentOrNull,
+                    // ext.redeem 有值 = 使用了兑换码；ext.address 有值 = 需展示收货信息
+                    redeem = orderExt.redeem,
+                    address = orderExt.address,
+                    group = group,
                     plan = plan,
                     sku_detail = skuDetail,
                     product_type = contentElement["product_type"]?.jsonPrimitive?.content?.toIntOrNull()
@@ -1027,8 +1174,11 @@ data class MessageRecord(
 )
 
 sealed class MessageContent {
-    data class Text(val text: String) : MessageContent()
+    data class Text(val text: String, val isAutoReply: Boolean = false) : MessageContent()
     data class Object(val content: MessageObjectContent) : MessageContent()
+    data class Shipment(val notice: ShipmentNotice) : MessageContent()
+    data class Complaint(val notice: ComplaintNotice) : MessageContent()
+    data class Code(val text: String) : MessageContent()
     data object Empty : MessageContent()
 }
 
@@ -1046,10 +1196,14 @@ private data class MessageRecordRaw(
 private fun MessageRecordRaw.toMessageRecord(): MessageRecord {
     val messageContent = when {
         content == null || content is JsonNull -> MessageContent.Empty
-        content is JsonPrimitive && content.isString -> MessageContent.Text(content.content)
+        content is JsonPrimitive && content.isString -> resolveTextContent(content.content, type)
         content is JsonObject -> {
             val obj = json.decodeFromJsonElement(MessageObjectContent.serializer(), content)
-            MessageContent.Object(obj)
+            // 补上 ext 补充信息：序列化模型不含嵌套 ext，需手动从原 JSON 提取
+            val orderExt = parseOrderExt(content)
+            MessageContent.Object(
+                obj.copy(redeem = orderExt.redeem, address = orderExt.address)
+            )
         }
         else -> MessageContent.Empty
     }
@@ -1071,10 +1225,51 @@ private fun MessageRecordRaw.toMessageRecord(): MessageRecord {
     val per_month: String? = null,
     val month: Int? = null,
     val remark: String? = null,
+    // ext.redeem 有值表示该发电订单使用了兑换码
+    val redeem: String? = null,
+    // 需要填写收货信息的订单，content.ext.address 会带出收货人信息
+    val address: MessageOrderAddress? = null,
     val plan: CreatorPlan? = null,
     val sku_detail: List<MessageSKU>? = null,
     val group: MessageGroup? = null,
     val product_type: Int? = null
+)
+
+/**
+ * 订单收货地址（content.ext.address）：仅当商品需要填写收货信息时才存在。
+ * address 为省市区拼接后的完整地址。
+ */
+@Serializable
+data class MessageOrderAddress(
+    val name: String? = null,    // 收货人
+    val phone: String? = null,   // 联系电话
+    val address: String? = null  // 完整收货地址
+)
+
+/**
+ * 由文本消息解析出的「已发货通知」结构化数据，供会话页渲染成卡片。
+ * 全部字段可空：个别行缺失时 UI 跳过该行即可，不额外兜底。
+ */
+data class ShipmentNotice(
+    val productName: String? = null, // 商品名称
+    val orderNo: String? = null,     // 爱发电订单号
+    val trackingNo: String? = null,  // 快递运单号
+    val courier: String? = null,     // 快递公司
+    val detailUrl: String? = null    // 点此查看详情链接
+)
+
+/**
+ * 由纯文本解析出的「投诉」通知结构化数据，供会话页渲染红色信息卡。
+ * 固定模板按行顺序对应：订单号、留言、投诉时间、金额、投诉单号、（链接）。
+ */
+data class ComplaintNotice(
+    val platform: String? = null,    // 微信 / 支付宝，识别失败为 null
+    val orderNo: String? = null,     // 订单号
+    val message: String? = null,     // 投诉留言
+    val time: String? = null,        // 投诉时间
+    val amount: String? = null,      // 金额
+    val complaintNo: String? = null, // 投诉单号
+    val detailUrl: String? = null    // 用户主页/详情链接
 )
 
 @Serializable data class MessageSKU(
@@ -1091,7 +1286,9 @@ private fun MessageRecordRaw.toMessageRecord(): MessageRecord {
     val title: String? = null,
     val cover: String? = null,
     val content: String? = null,
-    val member_count: Int? = null
+    val member_count: Int? = null,
+    // join_group_type：0=对方邀请您加入，1=您已加入
+    val join_group_type: Int? = null
 )
 
 @Serializable data class MessageFAQ(
