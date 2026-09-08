@@ -80,6 +80,7 @@ fun MessagesScreen(
     val dialogs by viewModel.filteredDialogs.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasMore by viewModel.hasMore.collectAsState()
     val error by viewModel.error.collectAsState()
     val showUnreadOnly by viewModel.showUnreadOnly.collectAsState()
     val showRecentOnly by viewModel.showRecentOnly.collectAsState()
@@ -203,6 +204,24 @@ fun MessagesScreen(
 
                     if (isLoadingMore) {
                         item { LoadingComponent() }
+                    }
+
+                    // 全部加载完成且无过滤时，显示对话总数
+                    if (!isLoading && !isLoadingMore && !hasMore && dialogs.isNotEmpty()
+                        && !showUnreadOnly && !showRecentOnly
+                    ) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "共 ${dialogs.size} 条对话",
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
+                            }
+                        }
                     }
                 }
 

@@ -42,6 +42,9 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore = _isLoadingMore.asStateFlow()
 
+    private val _hasMore = MutableStateFlow(true)
+    val hasMore = _hasMore.asStateFlow()
+
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
 
@@ -84,7 +87,7 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private var currentPage = 1
-    private var hasMore = true
+    private var _hasMoreRaw = true
     private var isLoadingInternal = false
 
     init {
@@ -109,7 +112,8 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                     service.fetchMessageDialogs(page = 1, unread = 0)
                 }
                 _dialogs.value = result.dialogs
-                hasMore = result.hasMore
+                _hasMoreRaw = result.hasMore
+                _hasMore.value = result.hasMore
                 currentPage = 1
                 AppLog.d("Messages", "refresh ok: page=1, dialogs=${result.dialogs.size}, hasMore=${result.hasMore}")
             } catch (e: Exception) {
@@ -133,7 +137,7 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun loadMore() {
-        if (isLoadingInternal || !hasMore || _isLoadingMore.value) return
+        if (isLoadingInternal || !_hasMoreRaw || _isLoadingMore.value) return
         viewModelScope.launch {
             _isLoadingMore.value = true
             // 固定本次请求的页码，避免追加过程中变量变化导致日志口径不一致
@@ -143,7 +147,8 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                     service.fetchMessageDialogs(page = nextPage, unread = 0)
                 }
                 _dialogs.value = _dialogs.value + result.dialogs
-                hasMore = result.hasMore
+                _hasMoreRaw = result.hasMore
+                _hasMore.value = result.hasMore
                 currentPage++
                 // 调试日志：翻页参数、本页条数与累计总数
                 AppLog.d(
