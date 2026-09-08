@@ -302,6 +302,10 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             ManagementScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
+        entry<Route.IncomeDetail> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            IncomeDetailScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
         entry<Route.ThankSponsors> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 顶部创作者信息直接用当前登录账号的资料（/api/my/profile）

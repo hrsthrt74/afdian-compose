@@ -12,6 +12,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -102,6 +104,8 @@ fun AppDialog(
     onDismissed: (() -> Unit)? = null,
     content: @Composable () -> Unit = {},
 ) {
+    val haptic = LocalHapticFeedback.current
+
     WindowDialog(
         show = state.show,
         title = title,
@@ -112,10 +116,13 @@ fun AppDialog(
         // 关闭动画完成后触发清理回调
         onDismissFinished = { onDismissed?.invoke() },
     ) {
+        // 内容 sort
         content()
-        // miuix 居然没这个间距，没了看起来很奇怪哎
-        Spacer(modifier = Modifier.height(8.dp))
 
+        // miuix 居然没这个间距，没了看起来很奇怪哎
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 按钮
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth()
@@ -123,7 +130,10 @@ fun AppDialog(
             // 左侧固定为取消按钮
             TextButton(
                 text = cancelText,
-                onClick = { state.dismiss() },
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    state.dismiss()
+                },
                 modifier = Modifier.weight(1f)
             )
 
@@ -136,6 +146,7 @@ fun AppDialog(
                     ),
                     enabled = confirmEnabled,
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Reject)
                         onConfirm()
                         state.dismiss()
                     },
@@ -150,6 +161,7 @@ fun AppDialog(
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     enabled = confirmEnabled,
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                         onConfirm()
                         state.dismiss()
                     },

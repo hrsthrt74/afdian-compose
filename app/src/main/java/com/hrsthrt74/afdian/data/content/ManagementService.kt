@@ -21,7 +21,6 @@ class ManagementService(
     fun load(section: ManagementSection): ManagementResult {
         val payload = when (section) {
             ManagementSection.Overview -> get("/api/my/dashboard")
-            ManagementSection.Income -> get("/api/my/stat?page=1&type=day")
             ManagementSection.Received -> get("/api/my/sponsored-bill-filter?page=1&sort_field=update_time&sort_value=desc")
             ManagementSection.Sponsors -> get("/api/my/who-sponsored-me")
         }
@@ -39,7 +38,6 @@ class ManagementService(
                 "可提现（抽成前）" to data.text("balance"),
                 "可提现（抽成后）" to data.text("balance_after_tax"),
             ))
-            ManagementSection.Income -> ManagementResult(section, data.arrayTexts("list").take(30).mapIndexed { index, value -> "第 ${index + 1} 条" to value })
             ManagementSection.Received -> ManagementResult(section, listOf(
                 "收入订单" to data.arraySize("list").toString(),
                 "发电人数" to data.text("sponsored_count"),
@@ -76,7 +74,7 @@ class ManagementService(
 }
 
 enum class ManagementSection(val title: String) {
-    Overview("整体概况"), Income("收入统计"), Received("收到发电"), Sponsors("发电者管理")
+    Overview("整体概况"), Received("收到发电"), Sponsors("发电者管理")
 }
 
 data class ManagementResult(val section: ManagementSection, val rows: List<Pair<String, String>>)
@@ -84,4 +82,3 @@ data class ManagementResult(val section: ManagementSection, val rows: List<Pair<
 private fun JsonObject.text(key: String): String = this[key]?.jsonPrimitive?.contentOrNull ?: "--"
 private fun JsonObject.objectText(parent: String, key: String): String = this[parent]?.jsonObject?.text(key) ?: "--"
 private fun JsonObject.arraySize(key: String): Int = this[key]?.jsonArray?.size ?: 0
-private fun JsonObject.arrayTexts(key: String): List<String> = this[key]?.jsonArray?.map { it.toString() } ?: emptyList()

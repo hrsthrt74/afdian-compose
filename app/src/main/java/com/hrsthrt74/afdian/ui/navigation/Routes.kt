@@ -24,6 +24,8 @@ sealed interface Route : NavKey {
     @Serializable data object Sponsoring : Route
     @Serializable data object Orders : Route
     @Serializable data object Management : Route
+    // 收入明细页（创作者后台 /api/my/stat，按日/周/月统计表格）
+    @Serializable data object IncomeDetail : Route
     // 赞助者感谢页（创作者后台 get-thank-sponsors），入口后续再接
     @Serializable data object ThankSponsors : Route
     @Serializable data object Settings : Route

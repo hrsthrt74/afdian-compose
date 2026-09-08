@@ -53,6 +53,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.All
 import top.yukonga.miuix.kmp.icon.extended.Favorites
+import top.yukonga.miuix.kmp.icon.extended.ListView
 import top.yukonga.miuix.kmp.icon.extended.MindMap
 import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.More
@@ -178,6 +179,12 @@ private fun ProfileMainScreen(
                             onClick = { onNavigate(Route.Management) },
                         )
                         ProfileQuickEntry(
+                            title = "收入明细",
+                            icon = MiuixIcons.Demibold.ListView,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.IncomeDetail) },
+                        )
+                        ProfileQuickEntry(
                             title = "感谢页",
                             icon = MiuixIcons.Months,
                             modifier = Modifier.weight(1f),
@@ -188,12 +195,6 @@ private fun ProfileMainScreen(
                             icon = MiuixIcons.Demibold.MindMap,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
-                        )
-                        ProfileQuickEntry(
-                            title = "……",
-                            icon = MiuixIcons.Demibold.More,
-                            modifier = Modifier.weight(1f),
-                            onClick = {  },
                         )
                     }
                 }
