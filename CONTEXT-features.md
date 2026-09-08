@@ -39,6 +39,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `CardModel` / `ChartModel` 数据模型。
 - `DataCardGrid` / `ChartDataCard` / `IncomeDataCards` 数据卡片组件。
 - `ManagementEditableDataGrid` 整页编辑网格。
+- 按日图表（近30天收入 / 访问人数趋势）边界处理：`/api/my/stat` 对今天/昨天返回空值，`ChartModel.trimTrailingBlankDays` 只裁掉窗口末端（今天方向）连续的空/0 天，中间为 0 的天保留；全为 0/无数据时回退完整窗口。抓取时额外回溯 `CHART_TRAILING_TRIM_BUFFER_DAYS`(7) 天，保证裁剪后仍有 `CHART_DAILY_WINDOW_DAYS`(30) 个点。
 
 ## 发现页
 

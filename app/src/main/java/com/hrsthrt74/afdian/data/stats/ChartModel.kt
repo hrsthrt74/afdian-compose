@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.data.stats
 
+import com.hrsthrt74.afdian.AppLog
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -62,11 +63,22 @@ data class ChartDataItem(
 private val dayLabel = DateTimeFormatter.ofPattern("M/d")
 private val monthLabel = DateTimeFormatter.ofPattern("yy/M")
 
+/** 按日图表默认展示的窗口点数（近 30 天）。 */
+const val CHART_DAILY_WINDOW_DAYS = 30
+
+/**
+ * 按日图表在窗口末端额外多抓的天数。
+ *
+ * 接口对今天/昨天返回空值（按天结算需服务端计算），需要把窗口末端这些空/0 天裁掉，
+ * 同时保证裁剪后仍有 [CHART_DAILY_WINDOW_DAYS] 个有效点，因此向前多取 [CHART_TRAILING_TRIM_BUFFER_DAYS] 天。
+ */
+const val CHART_TRAILING_TRIM_BUFFER_DAYS = 7
+
 /**
  * 用按日统计记录生成“近 n 天每日收入”柱状图。
  *
- * 与访问统计同源接口对今天/昨天返回空值（按天结算需服务端计算），
- * 因此同样跳过今昨，从“前天”往前取足 [days] 天；缺失天仍补零保证连续。
+ * 接口对今天/昨天返回空值，所以从窗口末端裁掉连续的空/0 天（只裁边界，中间为 0 的天保留）。
+ * 若整段都是 0/无数据，则回退为“到今天为止”的完整窗口，避免出现空序列。
  */
 fun buildDailyIncomeChart(
     dailyStats: List<DailyStatRecord>,
@@ -74,26 +86,26 @@ fun buildDailyIncomeChart(
     days: Int,
 ): ChartDataItem {
     val byDate = dailyStats.associateBy { it.date }
-    // offset 取 2..days+1：对应 now-2（前天）往前数 days 天。
-    val categories = (days + 1 downTo 2).map { offset ->
-        dayLabel.format(now.minusDays(offset.toLong()))
-    }
-    val values = (days + 1 downTo 2).map { offset ->
-        (byDate[now.minusDays(offset.toLong())]?.income ?: BigDecimal.ZERO).toDouble()
-    }
+    val trimmed = trimTrailingBlankDays(
+        values = buildRawDailyValues(days) { offset ->
+            (byDate[now.minusDays(offset.toLong())]?.income ?: BigDecimal.ZERO).toDouble()
+        },
+        days = days,
+        tag = "收入",
+    )
     return ChartDataItem(
         key = ChartType.IncomeDaily30.storageValue,
         title = ChartType.IncomeDaily30.title,
-        categories = categories,
-        series = listOf(ChartSeries("收入", values)),
+        categories = trimmed.offsets.map { offset -> dayLabel.format(now.minusDays(offset.toLong())) },
+        series = listOf(ChartSeries("收入", trimmed.values)),
     )
 }
 
 /**
  * 用按日统计记录生成“近 n 天访问人数”单折线。
  *
- * 接口对今天/昨天返回空值（访问统计需服务端按天结算），所以跳过今昨，
- * 从“前天”往前取足 [days] 天，避免曲线末端被补成 0 往下掉。
+ * 接口对今天/昨天返回空值，所以从窗口末端裁掉连续的空/0 天（只裁边界，中间为 0 的天保留），
+ * 避免曲线末端被补成 0 往下掉；整段都是 0/无数据时回退为完整窗口。
  */
 fun buildUvChart(
     dailyStats: List<DailyStatRecord>,
@@ -101,19 +113,61 @@ fun buildUvChart(
     days: Int,
 ): ChartDataItem {
     val byDate = dailyStats.associateBy { it.date }
-    // offset 取 2..days+1：对应 now-2（前天）往前数 days 天。
-    val categories = (days + 1 downTo 2).map { offset ->
-        dayLabel.format(now.minusDays(offset.toLong()))
-    }
-    val uv = (days + 1 downTo 2).map { offset ->
-        byDate[now.minusDays(offset.toLong())]?.uv?.toDouble() ?: 0.0
-    }
+    val trimmed = trimTrailingBlankDays(
+        values = buildRawDailyValues(days) { offset ->
+            byDate[now.minusDays(offset.toLong())]?.uv?.toDouble() ?: 0.0
+        },
+        days = days,
+        tag = "访问人数",
+    )
     return ChartDataItem(
         key = ChartType.UvDaily30.storageValue,
         title = ChartType.UvDaily30.title,
-        categories = categories,
-        series = listOf(ChartSeries("访问人数", uv)),
+        categories = trimmed.offsets.map { offset -> dayLabel.format(now.minusDays(offset.toLong())) },
+        series = listOf(ChartSeries("访问人数", trimmed.values)),
     )
+}
+
+/** 裁剪后的按日图表数据：offset 与数值一一对应（offset 越小越接近今天，0 表示今天）。 */
+private data class TrimmedDailyChart(
+    val offsets: List<Int>,
+    val values: List<Double>,
+)
+
+/**
+ * 生成候选窗口的原始数值，升序排列（最早 → 今天）。
+ *
+ * 窗口长度 = [days] + [CHART_TRAILING_TRIM_BUFFER_DAYS]，offset 从大到小对应时间从早到晚。
+ */
+private inline fun buildRawDailyValues(days: Int, valueAt: (Int) -> Double): List<Double> {
+    val lastOffset = days - 1 + CHART_TRAILING_TRIM_BUFFER_DAYS
+    return (lastOffset downTo 0).map(valueAt)
+}
+
+/**
+ * 裁掉窗口末端（今天方向）连续的空/0 天，保证输出 [days] 个点。
+ *
+ * 注意：只处理边界，中间为 0 的天必须保留（例如某天没有收入是正常业务状态）。
+ * - 找到最后一个非 0 值，作为有效末端；其后的 0/缺失全部裁掉。
+ * - 全为 0/无数据时回退为“到今天为止”的完整窗口，避免空序列。
+ * - 若有效数据不足以凑满 [days]，则从窗口起点截断（只显示已有的部分）。
+ */
+private fun trimTrailingBlankDays(values: List<Double>, days: Int, tag: String): TrimmedDailyChart {
+    // 最后一个非 0 值的下标；-1 表示整段都是 0/无数据。
+    val lastNonZero = values.indexOfLast { it != 0.0 }
+    // endExclusive：裁掉末端空天后要保留到的下标（不含）。
+    val endExclusive = if (lastNonZero < 0) values.size else lastNonZero + 1
+    val start = (endExclusive - days).coerceAtLeast(0)
+    val trimmedValues = values.subList(start, endExclusive)
+    // offsets 与 values 对齐：values 是「最早 → 今天」，offset 从大（最早）到小（今天）。
+    val lastOffset = values.size - 1
+    val offsets = (lastOffset - start downTo lastOffset - endExclusive + 1).toList()
+    val trimmedDays = values.size - endExclusive
+    AppLog.d(
+        "ChartModel",
+        "$tag 图表：原始 ${values.size} 天，末端裁掉 $trimmedDays 天，展示 ${trimmedValues.size} 天",
+    )
+    return TrimmedDailyChart(offsets = offsets, values = trimmedValues)
 }
 
 /** 用月度账单记录生成月度收入柱状图（按时间升序）。 */

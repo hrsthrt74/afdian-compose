@@ -75,7 +75,12 @@ class CreatorStatsRepository(
         }
         val dailyStatResultDeferred = async {
             optionalFetch("按日统计加载失败，访问卡片显示为不可用") {
-                fetchDailyStats(stopBefore = earliestStart)
+                // 图表要在末端裁掉今天/昨天等空天，还要保证裁剪后仍有 30 个点，
+                // 因此往前多取 CHART_TRAILING_TRIM_BUFFER_DAYS 天（与卡片最早起点取更早者）。
+                val chartStopBefore = today.minusDays(
+                    (CHART_DAILY_WINDOW_DAYS - 1 + CHART_TRAILING_TRIM_BUFFER_DAYS).toLong(),
+                )
+                fetchDailyStats(stopBefore = listOfNotNull(earliestStart, chartStopBefore).minOrNull())
             }
         }
         val monthlyIncomeResultDeferred = async {
@@ -162,8 +167,8 @@ class CreatorStatsRepository(
         // UI 对应展示“暂无数据”。
         val charts = mutableMapOf<String, ChartDataItem>()
         dailyStatsResult.getOrNull()?.let { dailyStats ->
-            charts[ChartType.IncomeDaily30.storageValue] = buildDailyIncomeChart(dailyStats, today, 30)
-            charts[ChartType.UvDaily30.storageValue] = buildUvChart(dailyStats, today, 30)
+            charts[ChartType.IncomeDaily30.storageValue] = buildDailyIncomeChart(dailyStats, today, CHART_DAILY_WINDOW_DAYS)
+            charts[ChartType.UvDaily30.storageValue] = buildUvChart(dailyStats, today, CHART_DAILY_WINDOW_DAYS)
         }
         monthlyIncome?.takeIf { it.isNotEmpty() }?.let {
             charts[ChartType.IncomeMonthly.storageValue] = buildMonthlyIncomeChart(it)
