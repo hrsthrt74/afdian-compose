@@ -340,6 +340,9 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 backStack = backStack,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
+                onOpenConversation = { userId, userName, avatarUrl ->
+                    backStack.pushUnique(Route.MessageConversation(userId, userName, avatarUrl))
+                },
             )
         }
     }
@@ -453,6 +456,9 @@ private fun MainTabsContent(
                             when (val target = entry.target) {
                                 is HistoryTarget.CreatorDetailTarget -> onOpenCreator(target.toAfadianUser())
                                 is HistoryTarget.PostDetailTarget -> onOpenPost(target.toRecommendedPost())
+                                // 私信会话：复用现有的会话页跳转
+                                is HistoryTarget.MessageConversationTarget ->
+                                    onOpenConversation(target.userId, target.name, target.avatarUrl)
                             }
                         },
                     )

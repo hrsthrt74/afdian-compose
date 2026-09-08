@@ -29,6 +29,15 @@ class HistoryTest {
     }
 
     @Test
+    fun conversationsUseUserIdAsKey() {
+        val entry = HistoryEntry.fromConversation("user-a", "阿花", "https://avatar")
+
+        assertEquals("message:user-a", entry.key)
+        assertEquals("阿花", entry.title)
+        assertEquals("私信对话", entry.summary)
+    }
+
+    @Test
     fun relativeTimeUsesChineseLabels() {
         val now = 10_000_000L
 

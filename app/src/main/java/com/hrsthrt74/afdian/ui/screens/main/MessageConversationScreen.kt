@@ -234,6 +234,9 @@ fun MessageConversationScreen(
     }
 
     LaunchedEffect(Unit) {
+        // 进入会话页即写入浏览历史（与创作者/动态页「进入即记录」模式一致；
+        // 开关关闭时 HistoryStore 内部忽略），不阻塞消息加载
+        viewModel.recordConversationOpened(userId, userName, avatarUrl)
         loadMessages()
         loadFAQs()
     }

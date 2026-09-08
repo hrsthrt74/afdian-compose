@@ -58,6 +58,8 @@ fun HistoryScreen(
     backStack: NavBackStack,
     onOpenCreator: (AfadianUser) -> Unit,
     onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
+    // 点击私信会话历史条目：参数与会话页路由一致
+    onOpenConversation: (userId: String, userName: String, avatarUrl: String?) -> Unit,
 ) {
     val entries by viewModel.entries.collectAsState()
     val themeSettings = LocalThemeSettings.current
@@ -123,6 +125,9 @@ fun HistoryScreen(
                                         when (val target = entry.target) {
                                             is HistoryTarget.CreatorDetailTarget -> onOpenCreator(target.toAfadianUser())
                                             is HistoryTarget.PostDetailTarget -> onOpenPost(target.toRecommendedPost())
+                                            // 私信会话：跳回对应聊天页
+                                            is HistoryTarget.MessageConversationTarget ->
+                                                onOpenConversation(target.userId, target.name, target.avatarUrl)
                                         }
                                     },
                                 )

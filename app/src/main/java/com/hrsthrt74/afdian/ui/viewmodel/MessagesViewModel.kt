@@ -11,6 +11,8 @@ import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MyCheckData
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.data.history.HistoryEntry
+import com.hrsthrt74.afdian.data.history.HistoryStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +30,8 @@ import kotlinx.coroutines.withContext
 class MessagesViewModel(application: Application) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
     private val settingsStore = SettingsStore(application)
+    // 浏览历史仓库：打开会话时写入「私信对话」记录，开关关闭时仓库内部会忽略
+    private val historyStore = HistoryStore(application)
 
     private val _dialogs = MutableStateFlow<List<MessageDialog>>(emptyList())
     val dialogs = _dialogs.asStateFlow()
@@ -174,6 +178,18 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     suspend fun sendMessage(userID: String, content: String): MessageItem {
         return withContext(Dispatchers.IO) {
             service.sendMessage(userID, content)
+        }
+    }
+
+    /**
+     * 打开私信会话时写入浏览历史（fire-and-forget，不阻塞会话加载）。
+     * 参数与会话页路由一致；记录、去重置顶、头像缓存均由 HistoryStore 处理。
+     */
+    fun recordConversationOpened(userId: String, userName: String, avatarUrl: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            historyStore.recordOpened(
+                HistoryEntry.fromConversation(userId, userName, avatarUrl).target
+            )
         }
     }
 

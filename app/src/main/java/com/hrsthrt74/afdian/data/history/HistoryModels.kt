@@ -41,6 +41,20 @@ sealed interface HistoryTarget {
         override val targetId: String get() = postId
         override val avatarUrl: String? get() = creator.avatarUrl
     }
+
+    /**
+     * 私信会话目标：只存跳回会话页需要的三个轻量字段，
+     * 与「创作者主页」区分开，避免点历史时误入创作者详情页。
+     */
+    @Serializable
+    @SerialName("message_conversation")
+    data class MessageConversationTarget(
+        val userId: String,
+        val name: String = "",
+        override val avatarUrl: String? = null,
+    ) : HistoryTarget {
+        override val targetId: String get() = userId
+    }
 }
 
 /** 动态历史记录里需要保存的最小创作者快照，避免把整篇正文写入 DataStore。 */
@@ -83,6 +97,7 @@ data class HistoryEntry(
     val key: String get() = when (target) {
         is HistoryTarget.CreatorDetailTarget -> "creator:${target.userId}"
         is HistoryTarget.PostDetailTarget -> "post:${target.postId}"
+        is HistoryTarget.MessageConversationTarget -> "message:${target.userId}"
     }
 
     val title: String
@@ -92,12 +107,14 @@ data class HistoryEntry(
                 .takeIf { it.isNotBlank() }
                 ?.let { "$it 的动态" }
                 ?: "动态详情"
+            is HistoryTarget.MessageConversationTarget -> value.name.ifBlank { "私信对话" }
         }
 
     val summary: String
         get() = when (val value = target) {
             is HistoryTarget.CreatorDetailTarget -> value.doing?.takeIf { it.isNotBlank() } ?: "创作者主页"
             is HistoryTarget.PostDetailTarget -> value.title.ifBlank { value.preview.orEmpty() }.ifBlank { "动态详情" }
+            is HistoryTarget.MessageConversationTarget -> "私信对话"
         }
 
     companion object {
@@ -119,6 +136,16 @@ data class HistoryEntry(
                 title = post.title,
                 preview = post.preview ?: post.content,
                 creator = CreatorSnapshot.from(post.user),
+            ),
+            visitedAt = 0L,
+        )
+
+        /** 打开私信会话时构造记录：参数与会话页路由一致，便于写入点直接透传。 */
+        fun fromConversation(userId: String, name: String, avatarUrl: String?) = HistoryEntry(
+            target = HistoryTarget.MessageConversationTarget(
+                userId = userId,
+                name = name,
+                avatarUrl = avatarUrl,
             ),
             visitedAt = 0L,
         )

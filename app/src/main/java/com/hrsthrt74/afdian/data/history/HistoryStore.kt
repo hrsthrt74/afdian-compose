@@ -103,6 +103,7 @@ class HistoryStore(context: Context) {
     private fun keyOf(target: HistoryTarget): String = when (target) {
         is HistoryTarget.CreatorDetailTarget -> "creator:${target.userId}"
         is HistoryTarget.PostDetailTarget -> "post:${target.postId}"
+        is HistoryTarget.MessageConversationTarget -> "message:${target.userId}"
     }
 
     private fun mergeTarget(new: HistoryTarget, old: HistoryTarget?): HistoryTarget = when {
@@ -114,6 +115,10 @@ class HistoryStore(context: Context) {
         new is HistoryTarget.PostDetailTarget && old is HistoryTarget.PostDetailTarget -> new.copy(
             title = new.title.ifBlank { old.title }, preview = new.preview ?: old.preview,
             creator = mergeCreator(new.creator, old.creator),
+        )
+        // 私信会话：只合并名字和头像，其余字段不存在
+        new is HistoryTarget.MessageConversationTarget && old is HistoryTarget.MessageConversationTarget -> new.copy(
+            name = new.name.ifBlank { old.name }, avatarUrl = new.avatarUrl ?: old.avatarUrl,
         )
         else -> new
     }
