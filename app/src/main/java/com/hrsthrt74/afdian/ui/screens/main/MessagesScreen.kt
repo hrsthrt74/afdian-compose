@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
@@ -237,25 +238,22 @@ fun MessagesScreen(
 
                 // 空状态覆盖层
                 if (!isLoading && dialogs.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            if (showUnreadOnly || showRecentOnly) {
-                                Icon(MiuixIcons.Light.Filter, null, Modifier.size(96.dp), MiuixTheme.colorScheme.primaryContainer)
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text("无匹配对话", style = MiuixTheme.textStyles.title2)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text("点击已选中的筛选项可取消过滤", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                            } else {
-                                Icon(MiuixIcons.Light.Reply, null, Modifier.size(96.dp), MiuixTheme.colorScheme.primaryContainer)
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text("暂无对话", style = MiuixTheme.textStyles.title2)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text("私信和发电相关通知会显示在这里", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                            }
-                        }
+                    if (showUnreadOnly || showRecentOnly) {
+                        // 筛选后无匹配：引导取消过滤
+                        EmptyStateView(
+                            title = "无匹配对话",
+                            icon = MiuixIcons.Light.Filter,
+                            summary = "点击已选中的筛选项可取消过滤",
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        // 真正没有任何对话
+                        EmptyStateView(
+                            title = "暂无对话",
+                            icon = MiuixIcons.Light.Reply,
+                            summary = "私信和发电相关通知会显示在这里",
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
                 }
 

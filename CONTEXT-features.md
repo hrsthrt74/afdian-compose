@@ -68,6 +68,27 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 - 消息列表页（含未读数 Badge）和会话详情页（聊天记录、FAQ、发送消息）。
 
+### 会话页 FAQ 快捷回复（MessageConversationScreen）
+
+- FAQ 不常驻：输入框尾部 `trailingIcon` 放 `MiuixIcons.Help` 按钮，点击切换 FAQ 横排的显示。
+- FAQ 横排动画：0→1 进度值同时驱动「高度裁切（layout 修饰符）+ 淡入淡出（graphicsLayer）」，收起时内容保持组合一起淡出，避免闪消。
+- 有草稿文本时 Help 图标隐藏（淡出 + 缩小 + 模糊，模糊走 `renderEffect = BlurEffect`，受模糊开关控制）；布局尺寸不变，避免输入框宽度抖动。
+- 输入框一有字自动收起 FAQ（只收起不自动展开）。
+- FAQ 横排首项是「常见问题」说明标签，条目垂直居中（LazyRow `verticalAlignment`）。
+- 没有 FAQ 数据时不渲染 Help 按钮。
+
+### 会话页赞助详情 Sheet
+
+- 顶栏 `actions` 的 `MiuixIcons.Info` 按钮打开；数据来自 `GET /api/user/sponsor-info?user_id=...`（ifdian.net + Cookie），首次打开拉取并缓存。
+- `WindowBottomSheet` 撑满高度：内容 `fillMaxHeight`（Sheet 外层是 wrapContentHeight）。
+- 两个分区「我发电了 TA」（out_detail，主色）与「TA 发电了我」（in_detail，官方橙 `0xFFFCB239`）：某方向无记录时整个分区隐藏；两区都空显示 `EmptyStateView` 空态。
+- 每区：三张 `DataCard`（当前发电 元/月 / 总共发电 元 / 到期时间）+ Card 包裹的逐笔明细（条目间 `HorizontalDivider`，左侧方案名+留言、右侧大金额小字 ￥ 与 /月）。
+- 模型：`SponsorAmount.list: List<SponsorRecord>`；服务层 `fetchSponsorInfo`；ViewModel 同名方法失败返回 null。
+
+### 错误态统一
+
+- 七个页面（发现/我发电的/收藏/管理面板/收入明细/感谢页/订单）的加载失败统一为 `EmptyStateView` + 底部 fillMaxWidth 重试按钮（各页保留原重试回调）。
+
 ## 收藏页（FavoritesScreen）
 
 - TabRow 三个分区：创作者 / 动态 / 众筹。
@@ -105,6 +126,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 可在设置中开关。
 - `HistoryAvatarCache` 本地缓存头像。
 - `HistoryStore` DataStore 持久化。
+- 空状态用 `EmptyStateView`（`fillParentMaxSize` 撑满视口居中）。
 
 ## 赞助者感谢页（ThankSponsorsScreen）
 
@@ -130,6 +152,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 通用组件
 
 组件用法见 `DESIGN.md` 的「通用组件」一节。
+
+- `EmptyStateView`（`ui/components/EmptyStateView.kt`）：通用空状态/错误态视图，96dp 图标（默认 `Light.Info`）+ title2 标题 + body2 引导语 + 可选 action 槽位（重试按钮），组合时自带 0.8→1 缩放淡入动画（`animated = false` 可关）。
 
 ## 关键文件
 

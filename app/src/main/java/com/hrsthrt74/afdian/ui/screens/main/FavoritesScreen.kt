@@ -28,6 +28,7 @@ import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.CreatorListItem
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.PostCard
@@ -138,14 +139,18 @@ fun FavoritesScreen(
                         }
                     }
                 } else if (error != null) {
+                    // 加载失败：空状态视图 + 重试按钮
                     item {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        ) {
-                            Text(error!!)
-                            Button(onClick = viewModel::load) { Text("重试") }
-                        }
+                        EmptyStateView(
+                            title = "加载失败",
+                            summary = error!!,
+                            modifier = Modifier.fillParentMaxSize(),
+                            action = {
+                                Button(onClick = viewModel::load, modifier = Modifier.fillMaxWidth()) {
+                                    Text("重试")
+                                }
+                            },
+                        )
                     }
                 } else if (kind == 1) {
                     // 动态 tab：复用发现页全站精选的 PostCard 渲染完整动态卡片

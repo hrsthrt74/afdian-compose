@@ -20,6 +20,7 @@ import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.BackButton
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.HistoryEntryOption
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
@@ -40,6 +41,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Recent
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -102,12 +104,12 @@ fun HistoryScreen(
             ) {
                 if (groups.isEmpty()) {
                     item(key = "empty") {
-                        Text(
-                            text = "还没有浏览记录",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        // 空状态：撑满整屏居中展示
+                        EmptyStateView(
+                            title = "还没有浏览记录",
+                            icon = MiuixIcons.Light.Recent,
+                            summary = "在这里可以看到你最近浏览的创作者和动态",
+                            modifier = Modifier.fillParentMaxSize(),
                         )
                     }
                 }

@@ -10,6 +10,7 @@ import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MyCheckData
+import com.hrsthrt74.afdian.data.content.SponsorInfo
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.history.HistoryStore
@@ -177,6 +178,15 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                 // FAQ 属于锦上添花的数据，失败时按设计回退为空列表，仅 W 级记录便于排查
                 .onFailure { AppLog.w("Messages", "fetchFAQs failed, fallback to empty: userId=$userID", it) }
                 .getOrDefault(emptyList())
+        }
+    }
+
+    /** 拉取我与目标用户的赞助详情（我发电TA / TA发电我），失败返回 null 交由上层展示空态 */
+    suspend fun fetchSponsorInfo(userID: String): SponsorInfo? {
+        return withContext(Dispatchers.IO) {
+            runCatching { service.fetchSponsorInfo(userID) }
+                .onFailure { AppLog.w("Messages", "fetchSponsorInfo failed: userId=$userID", it) }
+                .getOrNull()
         }
     }
 

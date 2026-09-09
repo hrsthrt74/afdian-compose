@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.PostCard
@@ -90,16 +92,18 @@ fun DiscoverScreen(
                 }
 
                 if (error != null) {
+                    // 加载失败：空状态视图 + 重试按钮
                     item {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        ) {
-                            Text(error!!)
-                            Button(onClick = viewModel::refresh) {
-                                Text("重试")
-                            }
-                        }
+                        EmptyStateView(
+                            title = "加载失败",
+                            summary = error!!,
+                            modifier = Modifier.fillParentMaxSize(),
+                            action = {
+                                Button(onClick = viewModel::refresh, modifier = Modifier.fillMaxWidth()) {
+                                    Text("重试")
+                                }
+                            },
+                        )
                     }
                 } else if (posts.isEmpty()) {
                     item {

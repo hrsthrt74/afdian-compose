@@ -43,6 +43,7 @@ import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.CreatorListItem
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
@@ -361,23 +362,18 @@ fun ThankSponsorsScreen(
                         )
                     }
                 } else if (error != null && sponsors.isEmpty()) {
+                    // 加载失败：空状态视图 + 重试按钮
                     item(key = "error") {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Text(
-                                error!!,
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                textAlign = TextAlign.Center
-                            )
-                            Button(onClick = viewModel::load, modifier = Modifier.padding(top = 12.dp)) {
-                                Text("重试")
-                            }
-                        }
+                        EmptyStateView(
+                            title = "加载失败",
+                            summary = error!!,
+                            modifier = Modifier.fillParentMaxSize(),
+                            action = {
+                                Button(onClick = viewModel::load, modifier = Modifier.fillMaxWidth()) {
+                                    Text("重试")
+                                }
+                            },
+                        )
                     }
                 } else if (sponsors.isEmpty()) {
                     item(key = "empty") {

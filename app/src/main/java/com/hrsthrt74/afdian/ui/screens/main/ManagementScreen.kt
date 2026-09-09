@@ -32,6 +32,7 @@ import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
@@ -204,17 +205,18 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                     when {
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                         error != null -> {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxSize().padding(16.dp, 48.dp)
-                            ) {
-                                Text(error!!)
-                                Button(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    onClick = { viewModel.load(section) })
-                                { Text("重试") }
-                            }
+                            // 加载失败：空状态视图 + 重试按钮
+                            EmptyStateView(
+                                title = "加载失败",
+                                summary = error!!,
+                                modifier = Modifier.fillParentMaxSize(),
+                                action = {
+                                    Button(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onClick = { viewModel.load(section) })
+                                    { Text("重试") }
+                                },
+                            )
                         }
                         result == null -> Text("暂无数据")
                     }

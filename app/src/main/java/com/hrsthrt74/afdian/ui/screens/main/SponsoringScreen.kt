@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.CreatorListItem
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Button
@@ -92,14 +93,18 @@ fun SponsoringScreen(
                 if (loading && sponsoring.isEmpty()) {
                     item { LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp)) }
                 } else if (error != null) {
+                    // 加载失败：空状态视图 + 重试按钮
                     item {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        ) {
-                            Text(error!!)
-                            Button(onClick = viewModel::refresh) { Text("重试") }
-                        }
+                        EmptyStateView(
+                            title = "加载失败",
+                            summary = error!!,
+                            modifier = Modifier.fillParentMaxSize(),
+                            action = {
+                                Button(onClick = viewModel::refresh, modifier = Modifier.fillMaxWidth()) {
+                                    Text("重试")
+                                }
+                            },
+                        )
                     }
                 } else if (sponsoring.isEmpty()) {
                     item {

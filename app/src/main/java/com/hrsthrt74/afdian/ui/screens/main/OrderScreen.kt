@@ -36,6 +36,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.hrsthrt74.afdian.ui.viewmodel.OrderViewModel
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
@@ -122,13 +123,17 @@ fun OrderScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewModel: 
                     when {
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                         error != null -> {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(horizontal = 12.dp)
-                            ) {
-                                Text(error!!)
-                                Button(onClick = { vm.load(status) }) { Text("重试") }
-                            }
+                            // 加载失败：空状态视图 + 重试按钮
+                            EmptyStateView(
+                                title = "加载失败",
+                                summary = error!!,
+                                modifier = Modifier.fillParentMaxSize(),
+                                action = {
+                                    Button(onClick = { vm.load(status) }, modifier = Modifier.fillMaxWidth()) {
+                                        Text("重试")
+                                    }
+                                },
+                            )
                         }
                         orders.isEmpty() -> Text("暂无订单", modifier = Modifier.padding(horizontal = 12.dp))
                     }

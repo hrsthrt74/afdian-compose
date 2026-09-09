@@ -35,9 +35,21 @@ dialogState.show()
 
 图片加载前/失败的占位背景色统一用 `MiuixTheme.colorScheme.disabledSecondary`。
 
-### 空状态
+### 空状态 / 错误态
 
-空状态提示文本统一样式：
+整页/整区的空状态与加载失败统一用 `EmptyStateView`（自带 Info 图标 + 从中心放大淡入动画）：
+
+```kotlin
+EmptyStateView(
+    title = "加载失败",
+    summary = error,                       // 可选引导语
+    icon = MiuixIcons.Light.Recent,        // 可选图标，默认 Info
+    modifier = Modifier.fillParentMaxSize(), // LazyColumn item 内撑满视口；普通容器用 fillMaxSize
+    action = { Button(onClick = retry, modifier = Modifier.fillMaxWidth()) { Text("重试") } }, // 可选操作区
+)
+```
+
+列表内的小占位（一行「暂无订单」之类的非整页空态）仍用统一样式：
 
 ```kotlin
 Text(
@@ -54,6 +66,7 @@ Text(
 需要以下能力时直接用封装好的组件，不要自己重写：
 
 - 加载中 → `LoadingComponent`
+- 空状态 / 错误态 → `EmptyStateView`（见「空状态 / 错误态」一节）
 - 动态卡片 → `PostCard`
 - 创作者卡（长条形） → `CreatorListItem`
 - 创作者卡（矩形） → `CreatorLargeCard` / `CreatorSmallCard`

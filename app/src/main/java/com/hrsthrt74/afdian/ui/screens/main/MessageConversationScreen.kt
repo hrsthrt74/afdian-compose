@@ -1,10 +1,15 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -47,20 +53,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
@@ -69,20 +82,25 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import coil3.compose.AsyncImage
+import com.hrsthrt74.afdian.data.content.ComplaintNotice
 import com.hrsthrt74.afdian.data.content.MessageContent
 import com.hrsthrt74.afdian.data.content.MessageFAQ
-import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MessageGroup
-import com.hrsthrt74.afdian.data.content.ComplaintNotice
+import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MessageObjectContent
 import com.hrsthrt74.afdian.data.content.ShipmentNotice
+import com.hrsthrt74.afdian.data.content.SponsorAmount
+import com.hrsthrt74.afdian.data.content.SponsorInfo
 import com.hrsthrt74.afdian.data.settings.ThemeSettings
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.DataCard
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.blurBarColors
@@ -95,10 +113,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHost
@@ -117,18 +137,19 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Copy
+import top.yukonga.miuix.kmp.icon.extended.Favorites
+import top.yukonga.miuix.kmp.icon.extended.Help
+import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.pressable
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
-import top.yukonga.miuix.kmp.icon.extended.Notes
+import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -154,6 +175,15 @@ fun MessageConversationScreen(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
+    // 焦点管理器：点击输入框以外区域时用 clearFocus() 收起键盘
+    val focusManager = LocalFocusManager.current
+    // 触觉反馈：顶栏操作按钮点击时给轻量震动
+    val haptic = LocalHapticFeedback.current
+
+    // 赞助详情 Sheet 状态：数据首次打开时拉取并缓存，之后复用
+    var showSponsorSheet by remember { mutableStateOf(false) }
+    var sponsorInfo by remember { mutableStateOf<SponsorInfo?>(null) }
+    var sponsorLoading by remember { mutableStateOf(false) }
 
     val themeSettings = LocalThemeSettings.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -164,16 +194,16 @@ fun MessageConversationScreen(
     val imeBottomPadding = with(density) {
         WindowInsets.ime.getBottom(this).toDp()
     }
-    val isImeVisible = imeBottomPadding > 0.dp
     // 输入栏高度换算成 dp，供 Snackbar 抬高使用
     val inputBarHeight = with(density) { inputBarHeightPx.toDp() }
-    val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
-    val progressiveStartFraction = if (isImeVisible && windowHeight > 0.dp) {
-        // 键盘越高，模糊渐变的强模糊起点越靠下，避免输入区域被大面积重模糊。
-        (0.5f + (imeBottomPadding / windowHeight)).coerceIn(0.5f, 0.6f)
-    } else {
-        0.5f
-    }
+    // 键盘历史最大高度：不同设备/输入法键盘高度不同，用作归一化基准。
+    // 只增不减，收起时仍能以完整键盘高度为分母计算比例
+    var maxImeHeight by remember { mutableStateOf(0.dp) }
+    if (imeBottomPadding > maxImeHeight) maxImeHeight = imeBottomPadding
+    // 强模糊起点连续跟随键盘高度：收起(0)→0.3，完全展开(1)→0.9，
+    // 展开与收起两个方向都和键盘运动同步，不存在离散切换带来的突变
+    val imeRatio = if (maxImeHeight > 0.dp) (imeBottomPadding / maxImeHeight).coerceIn(0f, 1f) else 0f
+    val progressiveStartFraction = lerp(0.3f, 0.9f, imeRatio)
 
     suspend fun loadMessages() {
         isLoading = true
@@ -320,11 +350,33 @@ fun MessageConversationScreen(
         },
         topBar = {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
-            SmallTopAppBar(
+                SmallTopAppBar(
                 title = userName,
                 color = blurBarColor(backdrop),
                 navigationIcon = {
                     BackButton(onBack = onBack, backStack = backStack)
+                },
+                actions = {
+                    // 赞助详情入口：点击拉取 /api/user/sponsor-info 并弹出 Sheet
+                    IconButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                        showSponsorSheet = true
+                        // 数据只拉一次：已加载或正在加载则不重复请求
+                        if (sponsorInfo == null && !sponsorLoading) {
+                            sponsorLoading = true
+                            coroutineScope.launch {
+                                sponsorInfo = viewModel.fetchSponsorInfo(userId)
+                                sponsorLoading = false
+                            }
+                        }
+                    }) {
+                        // 「赞助详情」入口图标
+                        Icon(
+                            imageVector = MiuixIcons.Info,
+                            contentDescription = "赞助详情",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
             )
             }
@@ -348,7 +400,12 @@ fun MessageConversationScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .alpha(if (messagesVisible) 1f else 0f)
-                        .scrollEndHaptic(),
+                        .scrollEndHaptic()
+                        // 点击消息列表空白处取消输入框焦点；
+                        // 子元素（链接、气泡点击）优先消费事件，不会被子节点拦截影响
+                        .pointerInput(Unit) {
+                            detectTapGestures { focusManager.clearFocus() }
+                        },
                     state = listState,
                     contentPadding = PaddingValues(
                         start = 12.dp,
@@ -415,7 +472,238 @@ fun MessageConversationScreen(
             )
         }
 }
+
+// 赞助详情 Sheet：展示「我发电了 TA」与「TA 发电了我」两组数据
+SponsorDetailSheet(
+    show = showSponsorSheet,
+    userName = userName,
+    sponsorInfo = sponsorInfo,
+    isLoading = sponsorLoading,
+    onDismiss = { showSponsorSheet = false },
+)
 }
+
+/**
+ * 赞助详情底部弹层：布局参考爱发电官方「xx 的赞助详情」弹窗。
+ * 顶部三张 DataCard（当前发电/总共发电/到期时间）+ 下方逐笔赞助明细，
+ * 「我发电了 TA」与「TA 发电了我」两组数据上下分区展示。
+ */
+@Composable
+private fun SponsorDetailSheet(
+    show: Boolean,
+    userName: String,
+    sponsorInfo: SponsorInfo?,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+) {
+    WindowBottomSheet(show = show, title = "${userName} 的赞助详情", onDismissRequest = onDismiss) {
+        when {
+            // 首次拉取中：显示加载指示
+            isLoading -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadingComponent()
+            }
+
+            // 加载失败（数据为 null）：提示用户
+            sponsorInfo == null -> Text(
+                text = "赞助详情加载失败，请稍后重试",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.fillMaxSize(),
+                textAlign = TextAlign.Center,
+            )
+
+            // 正常展示：out=我发电了 TA，in=TA 发电了我；
+            // 某个方向没有记录时整个分区（含标题/卡片）都不显示
+            else -> {
+                // 两个方向都没有任何记录：显示空态插画
+                val hasOut = !sponsorInfo.out_detail?.list.isNullOrEmpty()
+                val hasIn = !sponsorInfo.in_detail?.list.isNullOrEmpty()
+                if (!hasOut && !hasIn) {
+                    // 空态：通用空状态视图，撑满 Sheet 居中
+                    EmptyStateView(
+                        title = "暂无发电记录",
+                        summary = "喜欢 TA 的话，去 TA 的主页发电支持一下吧～",
+                        icon = MiuixIcons.Light.Favorites,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(),
+                    )
+                } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // 撑满 Sheet 可用高度：Sheet 外层是 wrapContentHeight，
+                        // 内容不自撑满时整个弹层就只有内容那么高
+                        .fillMaxHeight(),
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                ) {
+                    // 「我发电了 TA」分区：out_detail 有记录才显示
+                    if (hasOut) {
+                        item {
+                            SponsorSection(
+                                title = "我发电了 TA",
+                                amount = sponsorInfo.out_detail,
+                                // 与官方一致：我发电用主色（purple）
+                                amountColor = MiuixTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+
+                    // 两个分区都有内容时才画中间的分割线
+                    if (hasOut && hasIn) {
+                        item {
+                            HorizontalDivider(Modifier.padding(horizontal = 4.dp).padding(top = 16.dp))
+                        }
+                    }
+
+                    // 「TA 发电了我」分区：in_detail 有记录才显示
+                    if (hasIn) {
+                        item {
+                            SponsorSection(
+                                title = "TA 发电了我",
+                                amount = sponsorInfo.in_detail,
+                                // 与官方一致：TA 发电我用橙色
+                                amountColor = Color(0xFFFCB239),
+                            )
+                        }
+                    }
+                }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 赞助详情单个分区：三张 DataCard 概览 + 逐笔明细列表。
+ * @param amountColor 金额文字颜色，区分发电方向
+ */
+@Composable
+private fun SponsorSection(
+    title: String,
+    amount: SponsorAmount?,
+    amountColor: Color,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // 分区标题
+        SmallTitle(text = title, insideMargin = PaddingValues(16.dp, 12.dp, 8.dp, 8.dp))
+        // 顶部三栏概览：当前发电（元/月）、总共发电（元）、到期时间，布局对齐 DataCard 网格
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // 当前发电：月度总额
+            DataCard(
+                title = "当前发电",
+                value = "${amount?.current_amount ?: "0.00"} 元/月",
+                maxFontSize = 24.sp,
+                modifier = Modifier.weight(1f),
+                colors = CardColors(
+                    color = MiuixTheme.colorScheme.surface,
+                    contentColor = MiuixTheme.colorScheme.onSurfaceContainerHighest,
+                )
+            )
+            // 总共发电：累计总额
+            DataCard(
+                title = "总共发电",
+                value = "${amount?.all_sum_amount ?: "0.00"} 元",
+                maxFontSize = 24.sp,
+                modifier = Modifier.weight(1f),
+                colors = CardColors(
+                    color = MiuixTheme.colorScheme.surface,
+                    contentColor = MiuixTheme.colorScheme.onSurfaceContainerHighest,
+                )
+            )
+            // 到期时间：最长到期日
+//            DataCard(
+//                title = "到期时间",
+//                value = formatExpireTime(amount?.longest_expire_time),
+//                modifier = Modifier.weight(1f),
+//                colors = CardColors(
+//                    color = MiuixTheme.colorScheme.surface,
+//                    contentColor = MiuixTheme.colorScheme.onSurfaceContainerHighest,
+//                )
+//            )
+        }
+
+        // 逐笔明细：整体用 Card 包裹，条目之间以分割线分隔。
+        // （空列表时整个分区已在 Sheet 层隐藏，不会走到这里）
+        if (amount?.list.isNullOrEmpty()) return
+        Card(
+                colors = CardColors(
+                    color = MiuixTheme.colorScheme.surface,
+                    contentColor = MiuixTheme.colorScheme.onSurfaceContainerHighest,
+                ),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Column {
+                    amount.list.forEachIndexed { index, record ->
+                        // 条目之间加分割线，首条上方不画
+                        if (index > 0) {
+                            HorizontalDivider(Modifier.padding(horizontal = 12.dp))
+                        }
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            // 左列：方案名 + 留言；右侧：大金额（￥ 与 /月 用小字）
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                // 左列：发电方案名（加 weight 占据剩余宽度），第二行是留言
+                                Column(modifier = Modifier.weight(1f)) {
+                                    // 发电方案名
+                                    Text(
+                                        text = record.plan?.displayName ?: "发电方案",
+                                        style = MiuixTheme.textStyles.body2,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    // 留言（有内容才显示）
+                                    if (!record.remark.isNullOrBlank()) {
+                                        Text(
+                                            text = "留言：${record.remark}",
+                                            style = MiuixTheme.textStyles.footnote1,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                            modifier = Modifier.padding(top = 4.dp),
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                // 右侧金额
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        text = "¥",
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = amountColor,
+                                        modifier = Modifier.padding(end = 2.dp, bottom = 2.dp),
+                                    )
+                                    Text(
+                                        text = record.show_amount ?: record.monthly_amount ?: "--",
+                                        style = MiuixTheme.textStyles.title2,
+                                        color = amountColor,
+                                    )
+                                    Text(
+                                        text = "/月",
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        modifier = Modifier.padding(start = 2.dp, bottom = 2.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+    }
+}
+
+/** 秒级时间戳 → yyyy-MM-dd；空值显示占位符 */
+private fun formatExpireTime(timestamp: Long?): String =
+    timestamp?.let {
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it * 1000))
+    } ?: "--"
 
 /**
  * 会话页底部输入栏：包含模糊背景、FAQ 快捷回复和输入框/发送按钮。
@@ -436,6 +724,13 @@ private fun ConversationInputBar(
     onSend: () -> Unit,
     onFaqClick: (MessageFAQ) -> Unit,
 ) {
+    // FAQ 快捷回复是否展开：默认收起，由输入框尾部的 Help 图标点击切换
+    var showFaqs by remember { mutableStateOf(false) }
+    // 输入框一旦有字就自动收起 FAQ（只收起，不自动展开）
+    LaunchedEffect(draft) {
+        if (draft.isNotBlank()) showFaqs = false
+    }
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -444,7 +739,7 @@ private fun ConversationInputBar(
                 if (backdrop != null && !themeSettings.progressiveBlur) {
                     Modifier.textureBlur(
                         backdrop = backdrop,
-                        shape = androidx.compose.ui.graphics.RectangleShape,
+                        shape = RectangleShape,
                         blurRadius = AppBlurRadius,
                         colors = blurBarColors(),
                     )
@@ -466,13 +761,13 @@ private fun ConversationInputBar(
                         .matchParentSize()
                         .progressiveTextureBlur(
                             backdrop = backdrop,
-                            shape = androidx.compose.ui.graphics.RectangleShape,
+                            shape = RectangleShape,
                             blurRadius = AppProgressiveBlurRadius,
                             gradient = ProgressiveBlur(
                                 angle = 270f,
                                 startFraction = progressiveStartFraction,
                                 endFraction = 1f,
-                                curve = 0.8f,
+                                curve = 1f,
                             ),
                             colors = progressiveBlurBarColors(),
                             noiseCoefficient = 0.1f,
@@ -486,37 +781,69 @@ private fun ConversationInputBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
+                // 注意：不要在整个 Column 上加 animateContentSize，
+                // 否则键盘避让的尺寸变化也会被动画化，输入栏会跟着键盘拖影
                 // 只测避让后的可见内容高度（不含键盘区域），供列表/Snackbar 精确抬升
                 .onSizeChanged { onHeightChanged(it.height) }
         ) {
-        // 渐进模糊需要更大顶部留白(
+        // 渐进模糊需要更大顶部留白
         Spacer(modifier = Modifier.height(if (themeSettings.progressiveBlur) 20.dp else 0.dp))
 
-        // FAQ
-        if (faqs.isNotEmpty()) {
+        // FAQ：不再常驻，点击输入框尾部的 Help 图标后出现/消失。
+        // 用 0→1 的进度值同时驱动「高度裁切 + 淡入淡出」：
+        // 收起时内容保持组合并随高度一起淡出，避免内容先闪消、背景再缩的割裂感
+        val faqProgress by animateFloatAsState(
+            targetValue = if (showFaqs && faqs.isNotEmpty()) 1f else 0f,
+            animationSpec = tween(250),
+            label = "faqProgress",
+        )
+        if (faqs.isNotEmpty() && faqProgress > 0f) {
+
             LazyRow(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .layout { measurable, constraints ->
+                        // 先按完整尺寸测量内容，再按进度裁掉底部高度（内容贴顶放置）
+                        val placeable = measurable.measure(constraints)
+                        val animatedHeight = (placeable.height * faqProgress).roundToInt()
+                        layout(placeable.width, animatedHeight) {
+                            placeable.placeRelative(0, 0)
+                        }
+                    }
+                    .graphicsLayer {
+                        // 同步淡入淡出 + 按布局尺寸裁切，防止超出部分画到输入栏外
+                        alpha = faqProgress
+                        clip = true
+                        shape = RectangleShape
+                    },
+                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // 「常见问题」标签
+                item {
+                    Text(
+                        text = "常见问题",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
                 items(faqs.take(6)) { faq ->
                     Card {
-                        // 点击绑定到内部 Box，让点击特效在卡片内容上正常显示，
-                        // 避免直接绑在 Card 上导致的裁切问题
-                        Box(
-                            modifier = Modifier.clickable { onFaqClick(faq) }
-                        ) {
-                            Text(
-                                text = faq.title,
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(
+                            text = faq.title,
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier
+                                // 先 clickable 后 padding
+                                .clickable(enabled = showFaqs) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onFaqClick(faq)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -546,6 +873,54 @@ private fun ConversationInputBar(
                 insideMargin = DpSize(16.dp, 12.dp),
                 cornerRadius = 20.dp,
                 colors = textFieldColors(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)),
+
+                // 尾部 Help 图标：点击展开/收起 FAQ 快捷回复；
+                // 没有 FAQ 数据时不渲染，避免出现点了没反应的空按钮
+                trailingIcon = if (faqs.isNotEmpty()) { {
+                    // 常驻 12dp 左侧留白：图标隐藏时输入框右缘也不至于贴死
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // 有文本时按钮隐藏：淡出 + 缩小 + 模糊；清空后恢复。
+                    // 布局尺寸保持不变（仅视觉缩放），避免输入框宽度随输入抖动
+                    val iconProgress by animateFloatAsState(
+                        targetValue = if (draft.isBlank()) 1f else 0f,
+                        animationSpec = tween(200),
+                        label = "helpIconProgress",
+                    )
+                    if (iconProgress > 0f) {
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                showFaqs = !showFaqs
+                           },
+                            modifier = Modifier.graphicsLayer {
+                                // 同步淡入淡出
+                                alpha = iconProgress
+                                // 消失时变小、出现时变大（以自身中心为基准缩放）
+                                scaleX = iconProgress
+                                scaleY = iconProgress
+                                // 模糊开关开启时附加模糊过渡：消失清晰→8dp，出现模糊→清晰
+                                if (themeSettings.enableBlur) {
+                                    val radius = 8.dp.toPx() * (1f - iconProgress)
+                                    renderEffect = if (radius > 0.5f)
+                                        BlurEffect(radius, radius, TileMode.Decal)
+                                    else
+                                        null
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Help,
+                                // 图标颜色与占位文字保持一致，展开时切主色提示当前状态
+                                tint = if (showFaqs)
+                                    MiuixTheme.colorScheme.primary
+                                else
+                                    MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                contentDescription = "FAQ 快捷回复",
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                } } else null,
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(focusRequester)
@@ -1037,7 +1412,6 @@ private fun RedeemCodeCard(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    // 点击复制时给出轻震动反馈（项目统一用 LongPress 触觉）
     val haptic = LocalHapticFeedback.current
 
     Card(modifier = modifier) {

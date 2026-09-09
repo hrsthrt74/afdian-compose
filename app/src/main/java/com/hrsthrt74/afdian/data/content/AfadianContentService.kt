@@ -627,6 +627,21 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         return MessageItem(type = type, message = record)
     }
 
+    /**
+     * 查询我与指定用户之间的赞助关系明细：out_detail=我发电了 TA，in_detail=TA 发电了我。
+     * GET /api/user/sponsor-info?user_id=...（ifdian.net 域，Cookie 认证）
+     */
+    suspend fun fetchSponsorInfo(userID: String): SponsorInfo {
+        val response = get(
+            "/api/user/sponsor-info?user_id=$userID",
+            SponsorInfoResponse.serializer(),
+            host = IFDIAN_HOST,
+        )
+        if (response.ec != 200) error(response.message ?: "赞助详情加载失败")
+        // 理论上不会缺失；兜底为空对象让上层直接展示空态
+        return response.data?.sponsor_info ?: SponsorInfo()
+    }
+
     suspend fun fetchFAQs(userID: String): List<MessageFAQ> {
         val response = get("/api/faq/list-faq?user_id=$userID", MessageFAQResponse.serializer())
         if (response.ec != 200) error(response.message ?: "快捷回复加载失败")
@@ -1141,7 +1156,20 @@ data class MessageConversation(
 @Serializable data class SponsorAmount(
     val all_sum_amount: String? = null,
     val current_amount: String? = null,
-    val longest_expire_time: Long? = null
+    val longest_expire_time: Long? = null,
+    // 赞助明细列表（/api/user/sponsor-info 才返回；私信 dialog 里没有，默认空）
+    val list: List<SponsorRecord> = emptyList()
+)
+
+/** 赞助明细单条：一笔赞助对应的方案、金额与留言 */
+@Serializable data class SponsorRecord(
+    val plan: CreatorPlan? = null,
+    val remark: String? = null,
+    // 月度金额（原价）；show_amount 是实付展示金额（含 SKU 补差），优先展示
+    val monthly_amount: String? = null,
+    val show_amount: String? = null,
+    // 本笔赞助的到期时间（秒级时间戳）
+    val expire_time: Long? = null
 )
 
 data class MessageItem(
@@ -1327,6 +1355,10 @@ data class ComplaintNotice(
 @Serializable private data class MessageSendResponse(val ec: Int? = null, val message: String? = null, val data: MessageItemRaw? = null) {
     fun toMessageItem() = data?.toMessageItem()
 }
+
+/** /api/user/sponsor-info 响应：data.sponsor_info 即通用 SponsorInfo（out=我发电TA，in=TA发电我） */
+@Serializable private data class SponsorInfoResponse(val ec: Int? = null, val message: String? = null, val data: SponsorInfoData? = null)
+@Serializable private data class SponsorInfoData(val sponsor_info: SponsorInfo? = null)
 
 /** /api/my/check 响应：轻量级未读计数，包含评论、点赞、私信三类 */
 data class MyCheckData(

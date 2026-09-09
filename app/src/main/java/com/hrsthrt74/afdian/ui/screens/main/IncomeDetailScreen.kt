@@ -47,6 +47,7 @@ import com.hrsthrt74.afdian.data.stats.IncomeStatType
 import com.hrsthrt74.afdian.ui.components.AppDialog
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
@@ -210,19 +211,19 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
                     loading -> item {
                         LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                     }
-                    // 加载失败：错误文案 + 重试按钮
+                    // 加载失败：空状态视图 + 重试按钮
                     error != null -> item {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxSize().padding(16.dp, 48.dp),
-                        ) {
-                            Text(error!!)
-                            Button(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { viewModel.retry() },
-                            ) { Text("重试") }
-                        }
+                        EmptyStateView(
+                            title = "加载失败",
+                            summary = error!!,
+                            modifier = Modifier.fillParentMaxSize(),
+                            action = {
+                                Button(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = { viewModel.retry() },
+                                ) { Text("重试") }
+                            },
+                        )
                     }
                     // 空数据
                     items.isEmpty() -> item {
