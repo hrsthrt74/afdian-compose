@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -59,7 +60,7 @@ fun EmptyStateView(
             // 淡入：透明度跟随进度
             alpha = progress.value
             // 从中心放大：0.8 倍 → 1 倍（默认 transformOrigin 即自身中心）
-            val scale = 0.8f + 0.2f * progress.value
+            val scale = 0.9f + 0.2f * progress.value
             scaleX = scale
             scaleY = scale
         },
@@ -74,15 +75,16 @@ fun EmptyStateView(
             // 引导语（有内容才显示）
             if (summary != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(summary, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(summary, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, textAlign = TextAlign.Center)
             }
             // 操作区（如重试按钮），占满宽度、两侧留白
             if (action != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp)) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     action()
                 }
             }
+            Spacer(Modifier.height(36.dp)) // 视觉补偿
         }
     }
 }
