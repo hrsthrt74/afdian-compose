@@ -60,7 +60,7 @@ fun EmptyStateView(
             // 淡入：透明度跟随进度
             alpha = progress.value
             // 从中心放大：0.8 倍 → 1 倍（默认 transformOrigin 即自身中心）
-            val scale = 0.9f + 0.2f * progress.value
+            val scale = 0.9f + 0.1f * progress.value
             scaleX = scale
             scaleY = scale
         },
