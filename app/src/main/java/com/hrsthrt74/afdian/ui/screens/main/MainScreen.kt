@@ -50,6 +50,7 @@ import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.NavigationBar
@@ -305,6 +306,18 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         entry<Route.IncomeDetail> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             IncomeDetailScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
+        entry<Route.ReceivedSponsors> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            val app = LocalContext.current.applicationContext as Application
+            val vm: ReceivedSponsorsViewModel = viewModel(
+                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app),
+            )
+            ReceivedSponsorsScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                providedViewModel = vm,
+            )
         }
         entry<Route.ThankSponsors> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }

@@ -58,6 +58,7 @@ import top.yukonga.miuix.kmp.icon.extended.MindMap
 import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Notes
+import top.yukonga.miuix.kmp.icon.extended.Store
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -165,7 +166,7 @@ private fun ProfileMainScreen(
 
                 item { Spacer(Modifier.height(24.dp)) }
 
-                item { SmallTitle(text = "创作者", modifier = Modifier.padding(start = 4.dp)) }
+                item { SmallTitle(text = "创作者", modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) }
 
                 item {
                     Row(
@@ -185,16 +186,47 @@ private fun ProfileMainScreen(
                             onClick = { onNavigate(Route.IncomeDetail) },
                         )
                         ProfileQuickEntry(
+                            title = "收到发电",
+                            icon = MiuixIcons.Demibold.Store,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.ReceivedSponsors) },
+                        )
+                        ProfileQuickEntry(
                             title = "感谢页",
                             icon = MiuixIcons.Months,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.ThankSponsors) },
                         )
+                    }
+                }
+
+                item { Spacer(Modifier.height(16.dp)) }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
                         ProfileQuickEntry(
                             title = "创作者指南",
                             icon = MiuixIcons.Demibold.MindMap,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
+                        )
+                        ProfileQuickEntry(
+                            title = "",
+                            modifier = Modifier.weight(1f),
+                            onClick = {  },
+                        )
+                        ProfileQuickEntry(
+                            title = "",
+                            modifier = Modifier.weight(1f),
+                            onClick = {  },
+                        )
+                        ProfileQuickEntry(
+                            title = "",
+                            modifier = Modifier.weight(1f),
+                            onClick = {  },
                         )
                     }
                 }
@@ -216,16 +248,16 @@ private fun ProfileMainScreen(
 }
 
 /**
- * 「我的」页的圆形快捷入口：上面是圆形底 + 图标，下面一行标题文字。
+ * 「我的」页的圆形快捷入口：上面是圆形底 + 图标（或等大占位），下面一行标题文字。
  * 底色 / 图标色都留了可传参数（默认 surfaceContainer 底 + primary 图标），
- * 方便以后加新入口时按需换色。
+ * 方便以后加新入口时按需换色。图标可选，未传时显示同尺寸 Spacer 占位。
  */
 @Composable
 private fun ProfileQuickEntry(
     title: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    onClick: () -> Unit,
     // 圆形底的背景色
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainer,
     // 图标的着色，默认主色
@@ -249,12 +281,16 @@ private fun ProfileQuickEntry(
                 }),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = iconTint,
-                modifier = Modifier.size(32.dp),
-            )
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = iconTint,
+                    modifier = Modifier.size(32.dp),
+                )
+            } else {
+                Spacer(modifier = Modifier.size(32.dp))
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(

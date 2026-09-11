@@ -8,6 +8,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -24,6 +25,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.time.LocalDate
+import java.time.ZoneId
 import okhttp3.RequestBody.Companion.toRequestBody
 
 private val json = Json { 
@@ -179,6 +182,61 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         ?: error("个人信息加载失败")
 
     suspend fun fetchSponsoring(): List<SponsoringItem> = get("/api/my/sponsoring?need_sponsor_info=1", SponsoringResponse.serializer()).data?.sponsoring.orEmpty()
+
+    /**
+     * 拉取创作者收到的发电账单。
+     *
+     * sponsored-bill-filter 的 sku_detail 在网页接口中是 JSON 字符串，
+     * 因此这里统一解析为模型字段，避免 UI 层感知接口的两种返回形态。
+     */
+    suspend fun fetchReceivedSponsors(
+        page: Int = 1,
+        lastOrderId: String? = null,
+        redeemOnly: Boolean = false,
+        remarkOnly: Boolean = false,
+        shipmentStatus: ReceivedShipmentFilter = ReceivedShipmentFilter.All,
+        sort: ReceivedSponsorsSort = ReceivedSponsorsSort.Newest,
+        beginTime: Long? = null,
+        endTime: Long? = null,
+    ): ReceivedSponsorsPage {
+        val builder = (AFDIAN_HOST + "/api/my/sponsored-bill-filter").toHttpUrl().newBuilder()
+            .addQueryParameter("page", page.toString())
+            .addQueryParameter("sort_field", sort.field)
+            .addQueryParameter("sort_value", sort.direction)
+        if (redeemOnly) builder.addQueryParameter("is_redeem", "1")
+        if (remarkOnly) builder.addQueryParameter("has_remark", "1")
+        shipmentStatus.statusCode?.let { builder.addQueryParameter("status", it) }
+        // 时间边界允许单独留空，仍显式发送参数以匹配网页端请求格式。
+        builder.addQueryParameter("begin_time", beginTime?.toString().orEmpty())
+        builder.addQueryParameter("end_time", endTime?.toString().orEmpty())
+        lastOrderId?.takeIf { it.isNotBlank() }?.let {
+            builder.addQueryParameter("last_order_id", it)
+        }
+        val path = "/api/my/sponsored-bill-filter?page=$page"
+        val start = System.currentTimeMillis()
+        return client.newCall(
+            Request.Builder()
+                .url(builder.addQueryParameter("auth_token", tokenStore.token).build())
+                .get()
+                .header("Cookie", "auth_token=${tokenStore.token}")
+                .build()
+        ).execute().use { response ->
+            if (!response.isSuccessful) {
+                AppLog.e(TAG, "$path -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("收到发电加载失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            val data = root["data"]?.jsonObject ?: error("收到发电返回结构异常")
+            val orders = data["list"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toReceivedSponsor() }
+            ReceivedSponsorsPage(
+                orders = orders,
+                hasMore = data.long("has_more") == 1L,
+                lastOrderId = data.string("last_order_id"),
+            ).also {
+                AppLog.d(TAG, "$path -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${it.orders.size} 条，has_more=${it.hasMore}")
+            }
+        }
+    }
 
     /**
      * 赞助者感谢页（创作者后台 get-thank-sponsors）：按年月分页拉取「该感谢谁」的用户资料。
@@ -882,7 +940,72 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         }
     }
 
-    private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
+    // 账单接口的嵌套字段在不同筛选条件下可能返回对象、数组或空值；
+    // 读取文本时只接受 JsonPrimitive，避免把数组强行当作 JsonObject/Primitive 导致整页失败。
+    private fun JsonObject.string(key: String): String? =
+        (this[key] as? JsonPrimitive)?.contentOrNull
+
+    private fun JsonObject.long(key: String): Long? =
+        string(key)?.toLongOrNull() ?: string(key)?.toDoubleOrNull()?.toLong()
+
+    private fun JsonObject.toReceivedSponsor(): ReceivedSponsor? {
+        if (long("status") != 2L) return null
+        val orderNo = string("out_trade_no")?.takeIf { it.isNotBlank() } ?: return null
+        val user = this["user"] as? JsonObject
+        val plan = this["plan"] as? JsonObject
+        val timeRange = this["time_range"] as? JsonObject
+        val createTime = long("create_time") ?: long("update_time") ?: return null
+        val skuName = skuName()
+        val ext = this["ext"] as? JsonObject
+        val bundleCount = ext?.string("bundle_count")?.toIntOrNull() ?: 0
+        val bundlePriceDiff = ext?.string("bundle_price_diff")
+            ?.takeIf { bundleCount > 0 && it.toBigDecimalOrNull()?.signum() == 1 }
+        val redeemCode = (this["ext"] as? JsonObject)
+            ?.string("redeem")
+            ?.takeIf { it.isNotBlank() }
+        return ReceivedSponsor(
+            orderNo = orderNo,
+            userId = string("user_id") ?: user?.string("user_id").orEmpty(),
+            userName = user?.string("name")?.ifBlank { null } ?: "匿名用户",
+            avatarUrl = user?.string("avatar"),
+            paidAtSeconds = createTime,
+            planName = plan?.string("name")?.ifBlank { null }
+                ?: string("title")?.ifBlank { null }
+                ?: "发电方案",
+            modelName = skuName ?: plan?.string("name")?.ifBlank { null } ?: "常规方案",
+            amount = string("show_amount")?.ifBlank { null }
+                ?: string("total_amount").orEmpty(),
+            remark = string("remark")?.takeIf { it.isNotBlank() },
+            monthCount = long("month")?.toInt() ?: 0,
+            totalAmountWithShipping = string("total_amount_g")
+                ?: string("total_amount").orEmpty(),
+            freight = string("freight") ?: string("shipping_fee") ?: "0.00",
+            validFromSeconds = timeRange?.long("begin_time"),
+            validUntilSeconds = timeRange?.long("end_time"),
+            bundlePriceDiff = bundlePriceDiff,
+            receiverInfo = listOfNotNull(
+                string("address_person")?.takeIf { it.isNotBlank() },
+                string("address_phone")?.takeIf { it.isNotBlank() },
+                string("address_address")?.takeIf { it.isNotBlank() },
+            ).takeIf { it.isNotEmpty() }?.joinToString(" "),
+            expressNo = string("express_no")?.takeIf { it.isNotBlank() },
+            orderRemark = string("order_remark")?.takeIf { it.isNotBlank() },
+            redeemCode = redeemCode,
+        )
+    }
+
+    /** 兼容商品订单的数组 sku_detail 与网页接口返回的 JSON 字符串。 */
+    private fun JsonObject.skuName(): String? {
+        val value = this["sku_detail"] ?: return null
+        val array = when (value) {
+            is JsonArray -> value
+            is JsonPrimitive -> value.contentOrNull?.let {
+                runCatching { json.parseToJsonElement(it) as? JsonArray }.getOrNull()
+            }
+            else -> null
+        } ?: return null
+        return (array.firstOrNull() as? JsonObject)?.string("name")?.takeIf { it.isNotBlank() }
+    }
 
     // ── /api/my/check：轻量未读检查（无参数，返回全部未读分类计数）──
     suspend fun fetchMyCheck(): MyCheckData {
@@ -1041,6 +1164,68 @@ data class ThankSponsorsPage(
     val hasMore: Boolean,
     val totalLabel: String,
 )
+
+/** 收到发电卡片所需的最小订单模型，UI 不直接依赖接口 JSON。 */
+data class ReceivedSponsor(
+    val orderNo: String,
+    val userId: String,
+    val userName: String,
+    val avatarUrl: String?,
+    val paidAtSeconds: Long,
+    val planName: String,
+    val modelName: String,
+    val amount: String,
+    val remark: String?,
+    val monthCount: Int,
+    val totalAmountWithShipping: String,
+    val freight: String,
+    val validFromSeconds: Long?,
+    val validUntilSeconds: Long?,
+    /** 捆绑包相较于 SKU 原价的优惠金额；非捆绑包或无优惠时为空。 */
+    val bundlePriceDiff: String?,
+    val receiverInfo: String?,
+    val expressNo: String?,
+    val orderRemark: String?,
+    /** ext.redeem 有值时表示该订单使用了兑换码。 */
+    val redeemCode: String?,
+)
+
+data class ReceivedSponsorsPage(
+    val orders: List<ReceivedSponsor>,
+    val hasMore: Boolean,
+    val lastOrderId: String?,
+)
+
+enum class ReceivedSponsorsSort(val field: String, val direction: String, val title: String) {
+    Newest("update_time", "desc", "新订单在前"),
+    Oldest("update_time", "asc", "新订单在后"),
+    AmountHigh("total_amount", "desc", "金额从高到低"),
+    AmountLow("total_amount", "asc", "金额从低到高"),
+}
+
+enum class ReceivedShipmentFilter(val title: String, val statusCode: String?) {
+    All("不筛选发货", null),
+    WithReceiver("含收件信息", "10"),
+    Shipped("已发货", "9"),
+    Pending("待发货", "8"),
+}
+
+/** 收到发电列表的日期范围；null 表示对应边界不限制。 */
+data class ReceivedTimeRange(
+    val beginDate: LocalDate? = null,
+    val endDate: LocalDate? = null,
+) {
+    private val zoneId: ZoneId
+        get() = ZoneId.systemDefault()
+
+    /** 将起始日期转换为当天 00:00:00 的 Unix 秒时间戳。 */
+    val beginTime: Long?
+        get() = beginDate?.atStartOfDay(zoneId)?.toEpochSecond()
+
+    /** 将结束日期转换为次日 00:00:00，接口使用半开区间避免漏掉结束日。 */
+    val endTime: Long?
+        get() = endDate?.plusDays(1)?.atStartOfDay(zoneId)?.toEpochSecond()
+}
 
 /** get-thank-word / edit-thank-word 的响应：data 里是感谢语内容与配图（配图暂未使用） */
 @Serializable private data class ThankWordResponse(

@@ -113,9 +113,17 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 管理页（ManagementScreen）
 
 - TabRow 固定头部模式（保留 `minWidth = 110.dp`）。
-- 四个分区：整体概况、收入统计、收到发电、赞助者管理。
+- 管理分区：整体概况、赞助者管理；收到发电已独立为单独页面。
 - 数据卡片系统：`DataCardItem` + `DataCardGrid` + `ChartDataCard`（Vico 图表库）+ `IncomeDataCards`。
 - 可自定义布局：`ManagementAddCardSheet` 添加卡片，支持拖拽排序。
+
+## 收到发电（ReceivedSponsorsScreen）
+
+- 独立分页订单列表，支持下拉刷新、滚动加载、错误重试和本地订单搜索。
+- 筛选：兑换码、有留言、发货状态（不筛选 / 含收件信息 / 已发货 / 待发货）、起止日期；排序支持时间和金额。
+- 发货状态请求参数：含收件信息 `status=10`、已发货 `status=9`、待发货 `status=8`；不筛选时省略 `status`。
+- 时间请求参数使用 `begin_time` / `end_time` Unix 秒，任一边界可为空；日期选择范围为 2018 年至当前年份。
+- 卡片上半部分进入私信，下半部分打开订单详情 Sheet；支持展示捆绑包优惠和兑换码提示。
 
 ## 浏览历史（HistoryScreen）
 

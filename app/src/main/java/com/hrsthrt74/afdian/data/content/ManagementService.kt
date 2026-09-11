@@ -21,7 +21,6 @@ class ManagementService(
     fun load(section: ManagementSection): ManagementResult {
         val payload = when (section) {
             ManagementSection.Overview -> get("/api/my/dashboard")
-            ManagementSection.Received -> get("/api/my/sponsored-bill-filter?page=1&sort_field=update_time&sort_value=desc")
             ManagementSection.Sponsors -> get("/api/my/who-sponsored-me")
         }
         val data = payload["data"]?.jsonObject ?: JsonObject(emptyMap())
@@ -37,11 +36,6 @@ class ManagementService(
                 "主页访问次数" to data.objectText("summary", "pv"),
                 "可提现（抽成前）" to data.text("balance"),
                 "可提现（抽成后）" to data.text("balance_after_tax"),
-            ))
-            ManagementSection.Received -> ManagementResult(section, listOf(
-                "收入订单" to data.arraySize("list").toString(),
-                "发电人数" to data.text("sponsored_count"),
-                "支付笔数" to data.text("payment_count"),
             ))
             ManagementSection.Sponsors -> ManagementResult(section, listOf(
                 "发电者总数" to data.text("total_count"),
@@ -74,7 +68,7 @@ class ManagementService(
 }
 
 enum class ManagementSection(val title: String) {
-    Overview("整体概况"), Received("收到发电"), Sponsors("发电者管理")
+    Overview("整体概况"), Sponsors("发电者管理")
 }
 
 data class ManagementResult(val section: ManagementSection, val rows: List<Pair<String, String>>)
