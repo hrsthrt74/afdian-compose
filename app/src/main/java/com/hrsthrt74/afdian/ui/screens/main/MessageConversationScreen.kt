@@ -1557,7 +1557,7 @@ private fun ShipmentNoticeCard(
  * 发货卡片中的「标签：值」行，标签固定宽左侧灰色，值为正文可换行。
  */
 @Composable
-private fun ShipmentFieldRow(label: String, value: String) {
+private fun ShipmentFieldRow(label: String, value: String, valueColor: Color? = null) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             text = label,
@@ -1568,6 +1568,7 @@ private fun ShipmentFieldRow(label: String, value: String) {
         Text(
             text = value,
             style = MiuixTheme.textStyles.footnote1,
+            color = valueColor ?: MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
     }
@@ -1583,10 +1584,16 @@ private fun ComplaintCard(
     modifier: Modifier = Modifier,
 ) {
     // 平台识别失败时回退为「投诉」
-    val title = complaint.platform?.let { "${it}投诉" } ?: "投诉"
+    val complaintSuffix = if (complaint.isUpgradeComplaint) "升级投诉" else "投诉"
+    val title = complaint.platform?.let { "${it}${complaintSuffix}" } ?: complaintSuffix
     val amount = complaint.amount?.takeIf { it.isNotBlank() }
     val uriHandler = LocalUriHandler.current
     val haptic = LocalHapticFeedback.current
+    val upgradeTextColor = if (complaint.isUpgradeComplaint) {
+        MiuixTheme.colorScheme.error
+    } else {
+        null
+    }
 
     Card(modifier = modifier) {
         Column {
@@ -1632,6 +1639,12 @@ private fun ComplaintCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 complaint.message?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("留言", it) }
+                complaint.reason?.takeIf { it.isNotBlank() }?.let {
+                    ShipmentFieldRow("升级投诉原因", it, upgradeTextColor)
+                }
+                complaint.description?.takeIf { it.isNotBlank() }?.let {
+                    ShipmentFieldRow("升级投诉描述", it, upgradeTextColor)
+                }
                 complaint.time?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("投诉时间", it) }
                 complaint.orderNo?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("订单号", it) }
                 complaint.complaintNo?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("投诉单号", it) }

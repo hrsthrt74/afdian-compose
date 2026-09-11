@@ -115,7 +115,8 @@ private const val COMPLAINT_MARKER = "该笔订单会暂时冻结"
 /**
  * 尝试把一段纯文本识别为「投诉」系统消息并解析。
  * 触发词为 [COMPLAINT_MARKER]；平台从文本里识别「微信 / 支付宝」。
- * 固定模板：引导句占首行，其后依次为订单号、留言、投诉时间、金额、投诉单号、（详情链接）。
+ * 普通投诉在引导句后依次为订单号、留言、投诉时间、金额、投诉单号、（详情链接）；
+ * 升级投诉会额外包含「升级投诉原因」和「升级投诉描述」两行。
  */
 private fun tryParseComplaintNotice(text: String): ComplaintNotice? {
     if (!text.contains(COMPLAINT_MARKER)) return null
@@ -127,21 +128,43 @@ private fun tryParseComplaintNotice(text: String): ComplaintNotice? {
         else -> null
     }
 
-    // 去掉首行引导句，余下按固定顺序解析数据行
+    val isUpgradeComplaint = text.contains("升级投诉")
+
+    // 去掉首行引导句，余下按投诉类型解析数据行
     val lines = text.lineSequence()
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .drop(1) // 首行为固定引导句
         .toList()
 
+    // 普通投诉：订单号、留言、时间、金额、投诉单号。
+    // 升级投诉：订单号、升级原因、升级描述、时间、金额、投诉单号。
+    val timeIndex = if (isUpgradeComplaint) 3 else 2
+    val amountIndex = if (isUpgradeComplaint) 4 else 3
+    val complaintNoIndex = if (isUpgradeComplaint) 5 else 4
+    val upgradeReason = lines.getOrNull(1)
+        ?.removePrefix("用户升级投诉原因：")
+        ?.removePrefix("用户升级投诉原因:")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+    val upgradeDescription = lines.getOrNull(2)
+        ?.removePrefix("用户升级投诉描述：")
+        ?.removePrefix("用户升级投诉描述:")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+
     return ComplaintNotice(
         platform = platform,
-        orderNo = lines.getOrNull(0),     // 订单号
-        message = lines.getOrNull(1),     // 投诉留言
-        time = lines.getOrNull(2),        // 投诉时间
-        amount = lines.getOrNull(3),      // 金额
-        complaintNo = lines.getOrNull(4), // 投诉单号
-        detailUrl = Regex("https?://[^\\s]+").find(text)?.value // 用户主页链接
+        isUpgradeComplaint = isUpgradeComplaint,
+        orderNo = lines.getOrNull(0),
+        message = lines.getOrNull(1).takeUnless { isUpgradeComplaint },
+        reason = upgradeReason.takeIf { isUpgradeComplaint },
+        description = upgradeDescription.takeIf { isUpgradeComplaint },
+        time = lines.getOrNull(timeIndex),
+        amount = lines.getOrNull(amountIndex),
+        complaintNo = lines.getOrNull(complaintNoIndex),
+        // 兼容 Markdown 链接，避免把末尾的右括号一起提取进去。
+        detailUrl = Regex("https?://[^\\s\\])]+").find(text)?.value // 用户主页链接
     )
 }
 
@@ -1477,8 +1500,11 @@ data class ShipmentNotice(
  */
 data class ComplaintNotice(
     val platform: String? = null,    // 微信 / 支付宝，识别失败为 null
+    val isUpgradeComplaint: Boolean = false, // 是否为升级投诉
     val orderNo: String? = null,     // 订单号
     val message: String? = null,     // 投诉留言
+    val reason: String? = null,      // 升级投诉原因
+    val description: String? = null, // 升级投诉描述
     val time: String? = null,        // 投诉时间
     val amount: String? = null,      // 金额
     val complaintNo: String? = null, // 投诉单号
