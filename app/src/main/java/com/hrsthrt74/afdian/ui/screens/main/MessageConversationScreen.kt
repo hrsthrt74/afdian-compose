@@ -268,6 +268,8 @@ fun MessageConversationScreen(
         // 开关关闭时 HistoryStore 内部忽略），不阻塞消息加载
         viewModel.recordConversationOpened(userId, userName, avatarUrl)
         loadMessages()
+        // 拉取会话后服务端会更新已读状态，返回消息页前同步底部导航栏的全局未读数。
+        viewModel.refreshUnreadCount()
         loadFAQs()
     }
 

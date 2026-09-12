@@ -94,7 +94,7 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     init {
         refresh()
         // 首次进入立即拉取未读计数，不等 auto-refresh
-        viewModelScope.launch { refreshCheck() }
+        viewModelScope.launch { refreshUnreadCount() }
         // 从 DataStore 恢复发电明细开关状态
         viewModelScope.launch {
             _showSponsorDetail.value = settingsStore.msgShowSponsorDetail.first()
@@ -117,6 +117,8 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                 _hasMore.value = result.hasMore
                 currentPage = 1
                 AppLog.d("Messages", "refresh ok: page=1, dialogs=${result.dialogs.size}, hasMore=${result.hasMore}")
+                // 下拉刷新同时同步底部导航栏的全局未读数；列表接口不会返回评论/点赞未读数。
+                refreshUnreadCount()
             } catch (e: Exception) {
                 AppLog.e("Messages", "refresh failed: page=1", e)
                 _error.value = e.message ?: "消息列表加载失败"
@@ -127,13 +129,13 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** 轻量未读检查：调用 /api/my/check 更新 _checkData */
-    private suspend fun refreshCheck() {
+    /** 轻量未读检查：调用 /api/my/check 更新底部导航栏使用的全局未读数。 */
+    suspend fun refreshUnreadCount() {
         try {
             val data = withContext(Dispatchers.IO) { service.fetchMyCheck() }
             _checkData.value = data
         } catch (e: Exception) {
-            AppLog.e("Messages", "refreshCheck failed", e)
+            AppLog.e("Messages", "refresh unread count failed", e)
         }
     }
 
@@ -163,6 +165,28 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
             } finally {
                 _isLoadingMore.value = false
             }
+        }
+    }
+
+    /**
+     * 打开会话时先清除列表中的本地未读 badge。
+     *
+     * 消息页位于常驻的 HorizontalPager 中，进入会话再返回时不会重新组合列表，
+     * 因此不能只依赖服务端下次返回的数据；这里先更新本地状态，随后由会话页同步服务端未读总数。
+     */
+    fun markConversationRead(userId: String) {
+        if (userId.isBlank()) return
+        var clearedCount = 0
+        _dialogs.value = _dialogs.value.map { dialog ->
+            if (dialog.user.user_id == userId && dialog.unread_count > 0) {
+                clearedCount += dialog.unread_count
+                dialog.copy(unread_count = 0)
+            } else {
+                dialog
+            }
+        }
+        if (clearedCount > 0) {
+            AppLog.d("Messages", "conversation marked read locally: unread=$clearedCount")
         }
     }
 
@@ -220,7 +244,7 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
             while (isActive) {
                 delay(30000)
                 // 轮询 /api/my/check 更新未读计数（轻量请求，不影响对话列表加载）
-                refreshCheck()
+                refreshUnreadCount()
             }
         }
     }

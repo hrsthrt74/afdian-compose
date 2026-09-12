@@ -67,6 +67,7 @@ import top.yukonga.miuix.kmp.icon.extended.Undo
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -195,6 +196,8 @@ fun MessagesScreen(
                             dialog = dialog,
                             showSponsorDetail = showSponsorDetail,
                             onClick = {
+                                // 消息页在 Pager 中常驻，进入会话后返回不会重新组合；先同步清除卡片 badge。
+                                viewModel.markConversationRead(dialog.user.user_id)
                                 onNavigate(Route.MessageConversation(dialog.user.user_id, dialog.user.name, dialog.user.avatar))
                             }
                         )
@@ -447,12 +450,17 @@ private fun MessageDialogRow(
     }
 }
 
+// 对话时间
 private fun formatMessageTime(timestamp: Double): String {
     val date = Date((timestamp * 1000).toLong())
     val now = Date()
     val diff = now.time - date.time
+    // 跨年后补充年份，避免仅显示「07/08」时无法判断消息所属年份。
+    val messageYear = Calendar.getInstance().apply { time = date }.get(Calendar.YEAR)
+    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
 
     return when {
+        messageYear != currentYear -> SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(date)
         diff < 60 * 1000 -> "刚刚"
         diff < 60 * 60 * 1000 -> "${diff / (60 * 1000)} 分钟前"
         diff < 24 * 60 * 60 * 1000 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
