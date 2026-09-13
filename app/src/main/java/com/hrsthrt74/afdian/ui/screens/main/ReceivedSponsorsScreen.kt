@@ -987,9 +987,14 @@ private fun ReceivedSponsorDetailSheet(
                             current.affiliateReduction?.let {
                                 SponsorDetailField("已优惠", "￥$it")
                             }
-                            current.affiliateCode?.let { SponsorDetailField("优惠码", it) }
-                            SponsorDetailField("运费", "¥${current.freight}")
-                            current.remark?.let { SponsorDetailField("留言", it) }
+                            current.affiliateCode?.let { SponsorDetailCopyField("优惠码", it) }
+                            // 使用兑换码的订单：展示兑换来源
+                            current.redeemCode?.let { SponsorDetailCopyField("兑换自", it) }
+                            // 运费为 0、0.00 或无数据时不展示该行
+                            if (current.freight.toBigDecimalOrNull()?.signum() == 1) {
+                                SponsorDetailField("运费", "¥${current.freight}")
+                            }
+                            current.remark?.let { SponsorDetailCopyField("留言", it) }
                             SponsorDetailOrderNoField(current.orderNo)
                             formatValidity(current.validFromSeconds, current.validUntilSeconds)
                                 ?.let { SponsorDetailField("有效期", it) }
@@ -1005,8 +1010,11 @@ private fun ReceivedSponsorDetailSheet(
 }
 
 @Composable
-private fun SponsorDetailField(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+private fun SponsorDetailField(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
         Text(
             text = label,
             style = MiuixTheme.textStyles.footnote1,
@@ -1016,35 +1024,44 @@ private fun SponsorDetailField(label: String, value: String) {
     }
 }
 
-/** 单号详情行：复制按钮只复制订单号，不改变 Sheet 的关闭状态。 */
+/**
+ * 带复制按钮的详情行：点击复制按钮把该行内容写入剪贴板，
+ * 不改变 Sheet 的关闭状态。留言等长文本占满剩余宽度并换行。
+ */
 @Composable
-private fun SponsorDetailOrderNoField(orderNo: String) {
+private fun SponsorDetailCopyField(label: String, value: String) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SponsorDetailField("单号", orderNo)
+        // weight(1f)：长内容（如留言）在按钮左侧换行，不会把按钮挤出屏幕
+        SponsorDetailField(label, value, modifier = Modifier.weight(1f))
 
         IconButton(
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("订单号", orderNo))
-                AppLog.d("ReceivedSponsors", "订单号已复制")
-                Toast.makeText(context, "订单号已复制", Toast.LENGTH_SHORT).show()
+                clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+                AppLog.d("ReceivedSponsors", "$label 已复制")
+                Toast.makeText(context, "${label}已复制", Toast.LENGTH_SHORT).show()
             },
         ) {
             Icon(
                 imageVector = MiuixIcons.Demibold.Copy,
-                contentDescription = "复制订单号",
+                contentDescription = "复制$label",
             )
         }
     }
+}
+
+/** 单号详情行：复用通用复制行，复制按钮只复制订单号，不改变 Sheet 的关闭状态。 */
+@Composable
+private fun SponsorDetailOrderNoField(orderNo: String) {
+    SponsorDetailCopyField("单号", orderNo)
 }
 
 private fun formatValidity(fromSeconds: Long?, untilSeconds: Long?): String? {
