@@ -1250,8 +1250,14 @@ private fun OrderCard(
     Card(modifier = modifier) {
         Column{
 
-            // 优先 show_amount → total_amount → per_month
-            val amount = content.show_amount ?: content.total_amount ?: content.per_month
+            // 优先 show_amount → total_amount → per_month；
+            // 使用优惠码时 show_amount 是优惠前原价，改用实付金额 total_amount
+            val usedAffiliate = content.affiliateReduction != null
+            val amount = if (usedAffiliate) {
+                content.total_amount ?: content.show_amount ?: content.per_month
+            } else {
+                content.show_amount ?: content.total_amount ?: content.per_month
+            }
             val month = content.month
             // ext.redeem 有值表示该发电订单使用了兑换码
             val usedRedeem = !content.redeem.isNullOrBlank()
@@ -1263,7 +1269,7 @@ private fun OrderCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(MiuixTheme.colorScheme.primary)
-                        .padding(16.dp, 12.dp),
+                        .padding(16.dp, 8.dp),
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
@@ -1297,12 +1303,21 @@ private fun OrderCard(
                         )
                     }
 
-                    // 「使用兑换码」标注
+                    // 「使用兑换码」/「优惠了￥X」标注：两者一般不会同时出现，兑换码优先
                     if (usedRedeem) {
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
                             text = "使用兑换码",
-                            style = MiuixTheme.textStyles.body2,
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                        )
+                    } else if (usedAffiliate) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            // 优惠码减免金额小字说明（大金额已展示为实付价格）
+                            text = "优惠了￥${content.affiliateReduction}",
+                            style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onPrimary,
                             modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
                         )
@@ -1339,14 +1354,29 @@ private fun OrderCard(
                     )
                 }
 
+                // 优惠码：使用优惠码的订单补充展示优惠码本身
+                content.affiliateCode?.let { code ->
+                    if (code.isNotBlank()) {
+                        Text(
+                            text = "优惠码 $code",
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            maxLines = 1,
+                            letterSpacing = 0.5.sp,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
                 // 留言
                 content.remark?.let { remark ->
                     if (remark.isNotBlank()) {
                         HorizontalDivider()
                         Text(
                             text = "留言：$remark",
-                            style = MiuixTheme.textStyles.body2,
+                            style = MiuixTheme.textStyles.footnote2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            letterSpacing = 0.5.sp,
                             maxLines = 4,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1363,7 +1393,7 @@ private fun OrderCard(
                         if (recipient.isNotBlank()) {
                             Text(
                                 text = recipient,
-                                style = MiuixTheme.textStyles.footnote1,
+                                style = MiuixTheme.textStyles.footnote2,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1372,7 +1402,7 @@ private fun OrderCard(
                         // 完整收货地址
                         Text(
                             text = addressInfo.address,
-                            style = MiuixTheme.textStyles.footnote1,
+                            style = MiuixTheme.textStyles.footnote2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis

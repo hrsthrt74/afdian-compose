@@ -821,6 +821,14 @@ private fun ReceivedSponsorCard(
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
                     }
+                    // 使用优惠码时大金额已是实付价格，这里补一行减免金额说明
+                    order.affiliateReduction?.let { reduction ->
+                        Text(
+                            text = "优惠了￥$reduction",
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
                     if (order.redeemCode != null) {
                         Text(
                             text = "使用兑换码",
@@ -849,6 +857,8 @@ private fun ReceivedSponsorCard(
                 ) {
                     SponsorField("方案", order.planName)
                     SponsorField("型号", order.modelName)
+                    // 使用优惠码的订单展示优惠码本身
+                    order.affiliateCode?.let { SponsorField("优惠码", it) }
                     order.redeemCode?.let { SponsorField("兑换自", it) }
                     order.remark?.let { SponsorField("留言", it) }
 //                    SponsorField("单号", order.orderNo)
@@ -973,6 +983,11 @@ private fun ReceivedSponsorDetailSheet(
                         ) {
                             SponsorDetailField("方案", current.planName)
                             SponsorDetailField("型号", current.modelName)
+                            // 使用优惠码的订单：减免金额与优惠码本身
+                            current.affiliateReduction?.let {
+                                SponsorDetailField("已优惠", "￥$it")
+                            }
+                            current.affiliateCode?.let { SponsorDetailField("优惠码", it) }
                             SponsorDetailField("运费", "¥${current.freight}")
                             current.remark?.let { SponsorDetailField("留言", it) }
                             SponsorDetailOrderNoField(current.orderNo)

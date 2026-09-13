@@ -175,10 +175,13 @@ private fun tryParseComplaintNotice(text: String): ComplaintNotice? {
 private data class OrderExt(
     val redeem: String? = null,
     val address: MessageOrderAddress? = null,
+    // 优惠码：affiliate_reduction 为减免金额，affiliate_code 为优惠码本身
+    val affiliateReduction: String? = null,
+    val affiliateCode: String? = null,
 )
 
 /**
- * 从订单 content 的 ext 里解析兑换码与收货地址，供两处对象解析路径复用。
+ * 从订单 content 的 ext 里解析兑换码、收货地址与优惠码信息，供两处对象解析路径复用。
  */
 private fun parseOrderExt(contentObject: JsonObject): OrderExt {
     val ext = contentObject["ext"] as? JsonObject ?: return OrderExt()
@@ -186,7 +189,17 @@ private fun parseOrderExt(contentObject: JsonObject): OrderExt {
     val address = ext["address"]?.let {
         runCatching { json.decodeFromJsonElement(MessageOrderAddress.serializer(), it) }.getOrNull()
     }
-    return OrderExt(redeem = redeem, address = address)
+    // 优惠码本身（有值即表示使用了优惠码，即使减免金额为 0 也展示「优惠码」一行）
+    val affiliateCode = ext["affiliate_code"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+    // 减免金额：仅取大于 0 的值，避免「0.00」在 UI 上显示无意义的「优惠了￥0.00」
+    val affiliateReduction = ext["affiliate_reduction"]?.jsonPrimitive?.contentOrNull
+        ?.takeIf { it.toBigDecimalOrNull()?.signum() == 1 }
+    return OrderExt(
+        redeem = redeem,
+        address = address,
+        affiliateReduction = affiliateReduction,
+        affiliateCode = affiliateCode,
+    )
 }
 
 class AfadianContentService(private val tokenStore: AuthTokenStore, private val client: OkHttpClient = OkHttpClient()) {
@@ -687,6 +700,9 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                     // ext.redeem 有值 = 使用了兑换码；ext.address 有值 = 需展示收货信息
                     redeem = orderExt.redeem,
                     address = orderExt.address,
+                    // 优惠码减免金额与优惠码本身（ext.affiliate_reduction / ext.affiliate_code）
+                    affiliateReduction = orderExt.affiliateReduction,
+                    affiliateCode = orderExt.affiliateCode,
                     group = group,
                     plan = plan,
                     sku_detail = skuDetail,
@@ -986,6 +1002,10 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
         val redeemCode = (this["ext"] as? JsonObject)
             ?.string("redeem")
             ?.takeIf { it.isNotBlank() }
+        // 优惠码信息：code 有值即视为使用了优惠码；减免金额仅取大于 0 的值
+        val affiliateCode = ext?.string("affiliate_code")?.takeIf { it.isNotBlank() }
+        val affiliateReduction = ext?.string("affiliate_reduction")
+            ?.takeIf { it.toBigDecimalOrNull()?.signum() == 1 }
         return ReceivedSponsor(
             orderNo = orderNo,
             userId = string("user_id") ?: user?.string("user_id").orEmpty(),
@@ -996,8 +1016,13 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
                 ?: string("title")?.ifBlank { null }
                 ?: "发电方案",
             modelName = skuName ?: plan?.string("name")?.ifBlank { null } ?: "常规方案",
-            amount = string("show_amount")?.ifBlank { null }
-                ?: string("total_amount").orEmpty(),
+            // 使用优惠码时 show_amount 是优惠前的原价，大金额改用实付金额 total_amount
+            amount = if (affiliateReduction != null) {
+                string("total_amount").orEmpty()
+            } else {
+                string("show_amount")?.ifBlank { null }
+                    ?: string("total_amount").orEmpty()
+            },
             remark = string("remark")?.takeIf { it.isNotBlank() },
             monthCount = long("month")?.toInt() ?: 0,
             totalAmountWithShipping = string("total_amount_g")
@@ -1014,6 +1039,8 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
             expressNo = string("express_no")?.takeIf { it.isNotBlank() },
             orderRemark = string("order_remark")?.takeIf { it.isNotBlank() },
             redeemCode = redeemCode,
+            affiliateReduction = affiliateReduction,
+            affiliateCode = affiliateCode,
         )
     }
 
@@ -1211,6 +1238,10 @@ data class ReceivedSponsor(
     val orderRemark: String?,
     /** ext.redeem 有值时表示该订单使用了兑换码。 */
     val redeemCode: String?,
+    /** 优惠码减免金额（ext.affiliate_reduction，仅保留大于 0 的值）；未使用优惠码时为空。 */
+    val affiliateReduction: String?,
+    /** 使用的优惠码（ext.affiliate_code）。 */
+    val affiliateCode: String?,
 )
 
 data class ReceivedSponsorsPage(
@@ -1438,7 +1469,12 @@ private fun MessageRecordRaw.toMessageRecord(): MessageRecord {
             // 补上 ext 补充信息：序列化模型不含嵌套 ext，需手动从原 JSON 提取
             val orderExt = parseOrderExt(content)
             MessageContent.Object(
-                obj.copy(redeem = orderExt.redeem, address = orderExt.address)
+                obj.copy(
+                    redeem = orderExt.redeem,
+                    address = orderExt.address,
+                    affiliateReduction = orderExt.affiliateReduction,
+                    affiliateCode = orderExt.affiliateCode,
+                )
             )
         }
         else -> MessageContent.Empty
@@ -1465,6 +1501,10 @@ private fun MessageRecordRaw.toMessageRecord(): MessageRecord {
     val redeem: String? = null,
     // 需要填写收货信息的订单，content.ext.address 会带出收货人信息
     val address: MessageOrderAddress? = null,
+    // 优惠码减免金额（ext.affiliate_reduction，仅保留大于 0 的值）；无优惠时为 null
+    val affiliateReduction: String? = null,
+    // 优惠码本身（ext.affiliate_code）
+    val affiliateCode: String? = null,
     val plan: CreatorPlan? = null,
     val sku_detail: List<MessageSKU>? = null,
     val group: MessageGroup? = null,
