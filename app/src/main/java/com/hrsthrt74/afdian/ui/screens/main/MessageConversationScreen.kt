@@ -3,6 +3,13 @@ package com.hrsthrt74.afdian.ui.screens.main
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
+import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -68,21 +75,19 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withLink
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.graphics.toArgb
+import kotlin.math.roundToInt
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.ComplaintNotice
 import com.hrsthrt74.afdian.data.content.MessageContent
@@ -1035,48 +1040,16 @@ private fun MessageContentBubble(
     isSentByMe: Boolean,
     userName: String,
 ) {
-    val backgroundColor = if (isSentByMe) {
-        MiuixTheme.colorScheme.primary
-    } else {
-        MiuixTheme.colorScheme.surfaceVariant
-    }
+    // TextView 颜色
+    val textColor = MiuixTheme.colorScheme.onSurface                        // 消息正文
+    val linkColor = MiuixTheme.colorScheme.primary                          // 链接
+    val selectionColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.35f) // 高亮
+    val selectionHandleColor = MiuixTheme.colorScheme.primary               // 手柄
 
-    val textColor = if (isSentByMe) {
-        Color.White
-    } else {
-        MiuixTheme.colorScheme.onSurface
-    }
-
-    val linkColor = MiuixTheme.colorScheme.primary
+    val uriHandler = LocalUriHandler.current
 
     when (content) {
         is MessageContent.Text -> {
-            val annotatedText = buildAnnotatedString {
-                val urlPattern = Regex("https?://[^\\s]+")
-                var lastIndex = 0
-                val text = content.text
-
-                for (match in urlPattern.findAll(text)) {
-                    // 添加链接前的普通文本
-                    append(text.substring(lastIndex, match.range.first))
-
-                    // 添加链接
-                    val url = match.value
-                    withLink(LinkAnnotation.Url(url)) {
-                        withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
-                            append(url)
-                        }
-                    }
-
-                    lastIndex = match.range.last + 1
-                }
-
-                // 添加剩余的普通文本
-                if (lastIndex < text.length) {
-                    append(text.substring(lastIndex))
-                }
-            }
-
             // 气泡
             Card(modifier = Modifier
                 .widthIn(max = 270.dp)
@@ -1085,18 +1058,40 @@ private fun MessageContentBubble(
                 )
             ) {
                 Column {
-                    SelectionContainer {
-                        // 文本
-                        Text(
-                            text = annotatedText,
-                            style = TextStyle(
-                                fontSize = 16.sp,
-                                lineHeight = 1.4.em
-                            ),
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
-                        )
-                    }
+                    AndroidView(
+                        factory = { context ->
+                            TextView(context).apply {
+                                setTextIsSelectable(true)
+                                movementMethod = LinkMovementMethod.getInstance()
+                                // TextView 默认包含字体上下留白；关闭后再用较小倍率控制行间距，
+                                // 使视觉效果更接近原先 Compose 文本的紧凑排版。
+                                includeFontPadding = false
+                                val paddingHorizontal = (12 * context.resources.displayMetrics.density).roundToInt()
+                                val paddingVertical = (10 * context.resources.displayMetrics.density).roundToInt()
+                                setPadding(
+                                    paddingHorizontal,
+                                    paddingVertical,
+                                    paddingHorizontal,
+                                    paddingVertical
+                                )
+                            }
+                        },
+                        update = { textView ->
+                            textView.setTextColor(textColor.toArgb())
+                            textView.textSize = 16f
+                            textView.setLineSpacing(0f, 1.1f)
+                            // Android TextView 的选择高亮颜色独立于文字颜色设置，
+                            // 每次重组都更新，确保切换深浅主题后立即生效。
+                            textView.highlightColor = selectionColor.toArgb()
+                            tintTextSelectionHandles(textView, selectionHandleColor.toArgb())
+                            textView.setText(buildSelectableMessageText(
+                                text = content.text,
+                                linkColor = linkColor.toArgb(),
+                                onLinkClick = uriHandler::openUri,
+                            ), TextView.BufferType.SPANNABLE)
+                        },
+                        modifier = Modifier.widthIn(max = 270.dp)
+                    )
                     // type4(购买成功自动回复)/type7(FAQ 自动回复) 在正文下方加一条说明；
                     // 自己发出去的 type7 不算自动回复，不显示该标注
                     if (content.isAutoReply && !isSentByMe) {
@@ -1402,6 +1397,54 @@ private fun OrderCard(
             }
         }
     }
+}
+
+/** 给 TextView 的三个原生选择手柄同步应用当前主题色。 */
+private fun tintTextSelectionHandles(textView: TextView, color: Int) {
+    textView.textSelectHandle?.mutate()?.apply {
+        setTint(color)
+        textView.setTextSelectHandle(this)
+    }
+    textView.textSelectHandleLeft?.mutate()?.apply {
+        setTint(color)
+        textView.setTextSelectHandleLeft(this)
+    }
+    textView.textSelectHandleRight?.mutate()?.apply {
+        setTint(color)
+        textView.setTextSelectHandleRight(this)
+    }
+}
+
+/**
+ * 把消息中的 URL 转成 TextView 可点击的 Spannable，同时保留普通文本的原生选择能力。
+ * TextView 的长按菜单由 Android 系统负责，便于与设备当前的文本选择体验保持一致。
+ */
+private fun buildSelectableMessageText(
+    text: String,
+    linkColor: Int,
+    onLinkClick: (String) -> Unit,
+): SpannableString {
+    val spannable = SpannableString(text)
+    val urlPattern = Regex("https?://[^\\s]+")
+    for (match in urlPattern.findAll(text)) {
+        val url = match.value
+        spannable.setSpan(
+            object : ClickableSpan() {
+                override fun onClick(widget: View) {
+                    onLinkClick(url)
+                }
+
+                override fun updateDrawState(ds: TextPaint) {
+                    ds.color = linkColor
+                    ds.isUnderlineText = true
+                }
+            },
+            match.range.first,
+            match.range.last + 1,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+    }
+    return spannable
 }
 
 /**
