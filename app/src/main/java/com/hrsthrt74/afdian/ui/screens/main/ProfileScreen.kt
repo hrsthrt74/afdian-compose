@@ -56,8 +56,8 @@ import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.ListView
 import top.yukonga.miuix.kmp.icon.extended.MindMap
 import top.yukonga.miuix.kmp.icon.extended.Months
-import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Notes
+import top.yukonga.miuix.kmp.icon.extended.Rename
 import top.yukonga.miuix.kmp.icon.extended.Store
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -208,15 +208,16 @@ private fun ProfileMainScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         ProfileQuickEntry(
+                            title = "优惠码",
+                            icon = MiuixIcons.Demibold.Rename,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.Affiliates) },
+                        )
+                        ProfileQuickEntry(
                             title = "创作者指南",
                             icon = MiuixIcons.Demibold.MindMap,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
-                        )
-                        ProfileQuickEntry(
-                            title = "",
-                            modifier = Modifier.weight(1f),
-                            onClick = {  },
                         )
                         ProfileQuickEntry(
                             title = "",

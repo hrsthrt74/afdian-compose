@@ -320,6 +320,278 @@ class AfadianContentService(private val tokenStore: AuthTokenStore, private val 
     }
 
     /**
+     * 优惠码列表（创作者后台 /api/creator/list-affiliate）。
+     *
+     * 一次返回全部优惠码，接口无分页；请求需 ifdian 域 + Cookie auth_token。
+     * data.list 每项含折扣、适用范围、有效期与启用状态等。
+     */
+    suspend fun fetchAffiliates(): List<Affiliate> {
+        val url = (IFDIAN_HOST + "/api/creator/list-affiliate").toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", IFDIAN_HOST + "/setting/aff")
+            .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "list-affiliate -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("优惠码加载失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            // 业务错误码（如 Cookie 失效）走 W 级日志并抛错，让上层显示错误态
+            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+            if (ec != 200) {
+                val em = root["em"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                AppLog.w(TAG, "list-affiliate -> ec=$ec em=$em")
+                error(em.ifBlank { "优惠码加载失败" })
+            }
+            // 单项解析失败只跳过该条，不让整页失败
+            val list = root["data"]?.jsonObject?.get("list")?.jsonArray.orEmpty().mapNotNull { element ->
+                runCatching { json.decodeFromString(Affiliate.serializer(), element.toString()) }.getOrNull()
+            }
+            list.also {
+                AppLog.d(TAG, "list-affiliate -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${it.size} 条")
+            }
+        }
+    }
+
+    /**
+     * 切换优惠码启用状态（creator/affiliate-switch）。
+     *
+     * POST JSON {affiliate_code, switch}，switch=1 启用、0 禁用；ec=200 表示设置成功。
+     */
+    suspend fun setAffiliateSwitch(affiliateCode: String, enable: Boolean) {
+        val url = (IFDIAN_HOST + "/api/creator/affiliate-switch").toHttpUrl()
+        val body = json.encodeToString(
+            JsonObject.serializer(),
+            buildJsonObject {
+                put("affiliate_code", affiliateCode)
+                put("switch", if (enable) 1 else 0)
+            }
+        ).toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(url).post(body)
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", IFDIAN_HOST + "/setting/aff")
+            .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "affiliate-switch code=$affiliateCode -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("设置失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            // 业务错误码（如 Cookie 失效）走 W 级日志并抛错，让上层回滚开关状态
+            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+            if (ec != 200) {
+                val em = root["em"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                AppLog.w(TAG, "affiliate-switch code=$affiliateCode -> ec=$ec em=$em")
+                error(em.ifBlank { "设置失败" })
+            }
+            AppLog.d(TAG, "affiliate-switch code=$affiliateCode switch=${if (enable) 1 else 0} -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），${root["em"]?.jsonPrimitive?.contentOrNull.orEmpty()}")
+        }
+    }
+
+    /**
+     * 随机生成优惠码（creator/generate-affiliate-code），返回 data.code。
+     */
+    suspend fun generateAffiliateCode(): String {
+        val url = (IFDIAN_HOST + "/api/creator/generate-affiliate-code").toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", IFDIAN_HOST + "/edit/aff")
+            .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "generate-affiliate-code -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("生成优惠码失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            // 业务错误码走 W 级日志并抛错，让上层提示
+            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+            if (ec != 200) {
+                val em = root["em"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                AppLog.w(TAG, "generate-affiliate-code -> ec=$ec em=$em")
+                error(em.ifBlank { "生成优惠码失败" })
+            }
+            val code = root["data"]?.jsonObject?.get("code")?.jsonPrimitive?.contentOrNull.orEmpty()
+            AppLog.d(TAG, "generate-affiliate-code -> $code（${System.currentTimeMillis() - start}ms）")
+            code
+        }
+    }
+
+    /**
+     * 可选的赞助方案与商品（creator/simple-plan-list）。
+     *
+     * 响应里 list 是赞助方案、sale_list 是商品，这里合并成一个列表供「适用方案」多选。
+     */
+    suspend fun fetchAffiliateSelectablePlans(): List<AffiliateSelectablePlan> {
+        val url = (IFDIAN_HOST + "/api/creator/simple-plan-list").toHttpUrl().newBuilder()
+            .addQueryParameter("guild_id", "")
+            .addQueryParameter("platform", "")
+            .addQueryParameter("show_hide", "0")
+            .addQueryParameter("auth_token", tokenStore.token)
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", IFDIAN_HOST + "/edit/aff")
+            .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "simple-plan-list -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("方案列表加载失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            // 业务错误码走 W 级日志并抛错
+            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+            if (ec != 200) {
+                val em = root["em"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                AppLog.w(TAG, "simple-plan-list -> ec=$ec em=$em")
+                error(em.ifBlank { "方案列表加载失败" })
+            }
+            val data = root["data"]?.jsonObject
+            // 赞助方案（list）+ 商品（sale_list）合并；单项解析失败只跳过该条
+            val raw = data?.get("list")?.jsonArray.orEmpty() + data?.get("sale_list")?.jsonArray.orEmpty()
+            val plans = raw.mapNotNull { element ->
+                runCatching { json.decodeFromString(AffiliateSelectablePlan.serializer(), element.toString()) }.getOrNull()
+            }
+            plans.also {
+                AppLog.d(TAG, "simple-plan-list -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${it.size} 条")
+            }
+        }
+    }
+
+    /**
+     * 创建 / 编辑优惠码（creator/edit-affiliate）：id 为空串表示创建。
+     * 成功时 ec=200、em=「编辑优惠码成功」；失败（如未选适用范围）抛 em 供上层提示。
+     */
+    suspend fun editAffiliate(form: AffiliateForm) {
+        val url = (IFDIAN_HOST + "/api/creator/edit-affiliate").toHttpUrl()
+        val body = json.encodeToString(
+            JsonObject.serializer(),
+            buildJsonObject {
+                // 编辑时 id 为数字，创建时为空串，与网页端请求保持一致
+                form.id.toLongOrNull()?.let { put("id", it) } ?: put("id", form.id)
+                put("affiliate_code", form.affiliateCode)
+                // discount 以数字提交（0.9 表示 9 折），与网页端请求一致
+                put("discount", form.discount)
+                put("has_time_limit", if (form.hasTimeLimit) 1 else 0)
+                put("begin_time", form.beginTime)
+                put("end_time", form.endTime)
+                put("has_count_limit", if (form.hasCountLimit) 1 else 0)
+                put("count_limit", form.countLimit)
+                put("plan_range", form.planRange)
+                put("plan_ids", form.planIds)
+                put("use_limit_count", form.useLimitCount)
+            }
+        ).toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(url).post(body)
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", IFDIAN_HOST + "/edit/aff")
+            .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "edit-affiliate code=${form.affiliateCode} -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("保存失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+            val em = root["em"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            // ec != 200 属于业务失败，直接把服务端 em 抛给上层
+            if (ec != 200) {
+                AppLog.w(TAG, "edit-affiliate code=${form.affiliateCode} -> ec=$ec em=$em")
+                error(em.ifBlank { "保存失败" })
+            }
+            AppLog.d(TAG, "edit-affiliate code=${form.affiliateCode} -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），$em")
+        }
+    }
+
+    /**
+     * 优惠码详情（creator/affiliate-detail）：编辑面板用于读取最新的限制配置。
+     * 详情不返回 plans，调用方需自行从列表数据补上。
+     */
+    suspend fun fetchAffiliateDetail(affiliateCode: String): Affiliate {
+        val url = (IFDIAN_HOST + "/api/creator/affiliate-detail").toHttpUrl().newBuilder()
+            .addQueryParameter("affiliate_code", affiliateCode)
+            .addQueryParameter("auth_token", tokenStore.token)
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", IFDIAN_HOST + "/edit/aff?affiliate_code=$affiliateCode")
+            .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "affiliate-detail code=$affiliateCode -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("优惠码详情加载失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            // 业务错误码走 W 级日志并抛错
+            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+            if (ec != 200) {
+                val em = root["em"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                AppLog.w(TAG, "affiliate-detail code=$affiliateCode -> ec=$ec em=$em")
+                error(em.ifBlank { "优惠码详情加载失败" })
+            }
+            val data = root["data"]?.jsonObject ?: error("优惠码详情返回结构异常")
+            json.decodeFromString(Affiliate.serializer(), data.toString()).also {
+                AppLog.d(TAG, "affiliate-detail code=$affiliateCode -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+            }
+        }
+    }
+
+    /**
+     * 删除优惠码（creator/delete-affiliate）：POST JSON {id}，ec=200 表示成功。
+     */
+    suspend fun deleteAffiliate(id: Long) {
+        val url = (IFDIAN_HOST + "/api/creator/delete-affiliate").toHttpUrl()
+        val body = json.encodeToString(
+            JsonObject.serializer(),
+            buildJsonObject { put("id", id) }
+        ).toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(url).post(body)
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", IFDIAN_HOST + "/edit/aff")
+            .build()
+        // 埋点：请求前记录起始时间，用于统计接口耗时
+        val start = System.currentTimeMillis()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                // 非 2xx 属于异常路径，E 级日志始终输出
+                AppLog.e(TAG, "delete-affiliate id=$id -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("删除失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+            val em = root["em"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            // ec != 200 属于业务失败，直接把服务端 em 抛给上层
+            if (ec != 200) {
+                AppLog.w(TAG, "delete-affiliate id=$id -> ec=$ec em=$em")
+                error(em.ifBlank { "删除失败" })
+            }
+            AppLog.d(TAG, "delete-affiliate id=$id -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），$em")
+        }
+    }
+
+    /**
      * 读取感谢语（感谢页顶部创作者自定义文案，与年月无关，接口带年月参数但内容全局一份）
      */
     suspend fun fetchThankWord(userId: String, year: Int, month: Int): String =
@@ -1213,6 +1485,79 @@ data class ThankSponsorsPage(
     val list: List<ThankSponsor>,
     val hasMore: Boolean,
     val totalLabel: String,
+)
+
+/**
+ * 优惠码（creator/list-affiliate）：接口字段较多，UI 只消费这里声明的部分。
+ * 折扣/直减、时间与数量限制分别由 has_time_limit / has_count_limit / discount_type 决定展示方式。
+ */
+@Serializable data class Affiliate(
+    val id: Long = 0,
+    val affiliate_code: String = "",
+    // 折扣比例，如 "0.5" 表示 5 折
+    val discount: String = "0",
+    val has_time_limit: Int = 0,
+    val begin_time: Long = 0,
+    val end_time: Long = 0,
+    val has_count_limit: Int = 0,
+    val count_limit: Int = 0,
+    val status: Int = 0,
+    // 适用范围：plans 表示指定方案，其余视为全部方案
+    val plan_range: String = "",
+    // 是否启用：1 启用
+    val switch: Int = 1,
+    // 是否在有效期内：1 生效中
+    val in_valid_period: Int = 0,
+    // 折扣类型：1 折扣，2 直减金额
+    val discount_type: Int = 0,
+    val amount_off: String = "0.00",
+    val used_count: Int = 0,
+    // 每个用户可使用次数；0 表示不限
+    val use_limit_count: Int = 0,
+    // 剩余可用次数（列表 / 详情接口均会返回）
+    val count_available: Int = 0,
+    val plans: List<AffiliatePlan> = emptyList(),
+)
+
+/** 优惠码适用方案的精简信息 */
+@Serializable data class AffiliatePlan(
+    val plan_id: String = "",
+    val name: String = "",
+    val pic: String? = null,
+    val price: String = "0",
+)
+
+/**
+ * 创建 / 编辑优惠码的提交表单（字段与 creator/edit-affiliate 请求体一一对应）。
+ * id 为空串表示创建，非空表示编辑。
+ */
+data class AffiliateForm(
+    val id: String = "",
+    val affiliateCode: String,
+    /** 折扣比例：0.5 表示 5 折，1.0 表示不打折 */
+    val discount: Double,
+    val hasTimeLimit: Boolean,
+    /** Unix 秒；hasTimeLimit=false 时传 0 */
+    val beginTime: Long,
+    val endTime: Long,
+    val hasCountLimit: Boolean,
+    val countLimit: String,
+    /** 每个用户可使用次数；0 或空表示不限 */
+    val useLimitCount: String,
+    /** subscribe（所有赞助方案）/ product（所有商品）/ all（全部）/ plans（指定） */
+    val planRange: String,
+    /** plan_range=plans 时选中的 plan_id，逗号分隔 */
+    val planIds: String,
+)
+
+/** simple-plan-list 返回的可选赞助方案 / 商品（合并 list 与 sale_list） */
+@Serializable data class AffiliateSelectablePlan(
+    val plan_id: String = "",
+    val name: String = "",
+    val pic: String? = null,
+    val price: String = "0",
+    /** 0 赞助方案；1/2 商品 */
+    val product_type: Int = 0,
 )
 
 /** 收到发电卡片所需的最小订单模型，UI 不直接依赖接口 JSON。 */
