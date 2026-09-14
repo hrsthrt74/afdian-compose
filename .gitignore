@@ -8,6 +8,10 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 /.idea/deploymentTargetSelector.xml
+.idea/deploymentTargetSelector.xml
+/.idea/markdown.xml
+/.idea/deviceManager.xml
+/.kotlin/
 .DS_Store
 /build
 /captures
@@ -20,12 +24,8 @@ adb
 
 # vsc
 .vscode
-
 .agents
-.idea/deploymentTargetSelector.xml
-/.idea/markdown.xml
-/.idea/deviceManager.xml
-/.kotlin/
+.workbuddy
 
 # 签名文件
 *.jks
