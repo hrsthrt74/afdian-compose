@@ -30,5 +30,7 @@ sealed interface Route : NavKey {
     @Serializable data object ReceivedSponsors : Route
     // 赞助者感谢页（创作者后台 get-thank-sponsors），入口后续再接
     @Serializable data object ThankSponsors : Route
+    // 优惠码页（创作者后台 creator/list-affiliate），入口后续再接
+    @Serializable data object Affiliates : Route
     @Serializable data object Settings : Route
 }

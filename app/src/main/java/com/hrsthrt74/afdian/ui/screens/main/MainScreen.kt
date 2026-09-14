@@ -345,6 +345,14 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }
             )
         }
+        entry<Route.Affiliates> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 优惠码列表（创作者后台 creator/list-affiliate）；编辑 / 创建页后续再接
+            AffiliateScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+            )
+        }
         entry<Route.Settings> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SettingsScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack, onLogout = handleLogout)
