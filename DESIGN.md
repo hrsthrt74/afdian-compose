@@ -96,6 +96,61 @@ Modifier.scrollEndHaptic()
 
 scrollEndHaptic 不需要传参。
 
+### 滚动条
+
+所有有纵向滚动内容的页面都应添加 miuix 的 `VerticalScrollBar`，提供滚动条。
+
+#### 导入与 OptIn
+
+```kotlin
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
+```
+
+函数（或内层 Composable）需加 `@OptIn(ExperimentalScrollBarApi::class)`。
+
+#### Box 结构（LazyColumn 直接 fillMaxSize）
+
+在 `LazyColumn` 所在的 `Box` 内，将滚动条叠放在右侧：
+
+```kotlin
+Box {
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()...) { ... }
+    VerticalScrollBar(
+        adapter = rememberScrollBarAdapter(listState),
+        modifier = Modifier
+            .align(Alignment.CenterEnd)
+            .fillMaxHeight(),
+        trackPadding = PaddingValues(
+            top = paddingValues.calculateTopPadding(),
+        ),
+    )
+}
+```
+
+#### Column 结构（TabRow 固定在上方，LazyColumn 用 weight(1f)）
+
+把 `LazyColumn(weight(1f))` 包进 `Box(weight(1f).fillMaxSize())`，在 Box 内叠加滚动条：
+
+```kotlin
+Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize().nestedScroll(...)....scrollEndHaptic(),
+    ) { ... }
+    VerticalScrollBar(
+        adapter = rememberScrollBarAdapter(listState),
+        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+    )
+}
+```
+
+#### 注意事项
+
+- 没有 `listState` 的页面先补 `val listState = rememberLazyListState()`，并给 `LazyColumn` 传 `state = listState`。
+- `VerticalScrollBar` 的 `trackPadding` 用于让出顶栏高度，值为 `paddingValues.calculateTopPadding()`。
+
 ### 模糊效果
 
 - `rememberBlurBackdrop(enabled)` 返回 `LayerBackdrop?`，`null` 表示模糊关闭或设备不支持。
