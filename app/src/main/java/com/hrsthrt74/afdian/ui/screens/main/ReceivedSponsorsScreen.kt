@@ -5,14 +5,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +38,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -53,7 +46,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.AppLog
@@ -65,6 +57,7 @@ import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.DataCard
+import com.hrsthrt74.afdian.ui.components.DateTimeField
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.FilterChip
 import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
@@ -84,7 +77,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
@@ -120,7 +112,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.time.LocalDate
-import java.time.YearMonth
+import java.time.ZoneId
 
 /**
  * 独立的收到发电订单列表。
@@ -507,13 +499,21 @@ private fun ReceivedSponsorFilterSheet(
     timeRange: ReceivedTimeRange,
     onShipmentFilterChanged: (ReceivedShipmentFilter) -> Unit,
     onSortChanged: (ReceivedSponsorsSort) -> Unit,
-    onTimeRangeChanged: (LocalDate?, LocalDate?) -> Unit,
+    onTimeRangeChanged: (Long?, Long?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var editingBoundary by remember(show) { mutableStateOf<TimeBoundary?>(null) }
-    var draftBeginDate by remember(show, timeRange.beginDate) { mutableStateOf(timeRange.beginDate) }
-    var draftEndDate by remember(show, timeRange.endDate) { mutableStateOf(timeRange.endDate) }
-    val hasTimeFilter = draftBeginDate != null || draftEndDate != null
+    // 时间草稿（毫秒）：null 表示该边界不限制。
+    // DateTimeField 本身没有「未设置」状态，因此未设置时用「今天」作为展示值，
+    // 只有用户真正拨动滚轮才会写入草稿，未动过的边界仍然保持「不限」。
+    var draftBeginMillis by remember(show, timeRange.beginMillis) { mutableStateOf(timeRange.beginMillis) }
+    var draftEndMillis by remember(show, timeRange.endMillis) { mutableStateOf(timeRange.endMillis) }
+    val zone = remember { ZoneId.systemDefault() }
+    // 未设置边界时的展示值：起始取今天 00:00，结束取今天 23:59
+    val fallbackBeginMillis = remember { LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli() }
+    val fallbackEndMillis = remember {
+        LocalDate.now().atTime(23, 59).atZone(zone).toInstant().toEpochMilli()
+    }
+    val hasTimeFilter = draftBeginMillis != null || draftEndMillis != null
 
     WindowBottomSheet(
         show = show,
@@ -571,52 +571,22 @@ private fun ReceivedSponsorFilterSheet(
             SmallTitle(text = "时间", insideMargin = PaddingValues(16.dp, 12.dp, 8.dp, 0.dp))
             Card(
                 colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Column{
-                    TimeBoundaryRow(
-                        title = "起始时间",
-                        date = draftBeginDate,
-                        expanded = editingBoundary == TimeBoundary.Begin,
-                        onClick = {
-                            editingBoundary = if (editingBoundary == TimeBoundary.Begin) {
-                                null
-                            } else {
-                                TimeBoundary.Begin
-                            }
-                        },
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // 起始时间：日期 / 时间双滚轮
+                    DateTimeField(
+                        label = "起始时间",
+                        millis = draftBeginMillis ?: fallbackBeginMillis,
+                        onChanged = { draftBeginMillis = it },
                     )
-                    AnimatedVisibility(
-                        visible = editingBoundary == TimeBoundary.Begin,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut(),
-                    ) {
-                        ReceivedDatePicker(
-                            date = draftBeginDate ?: LocalDate.now(),
-                            onDateChanged = { draftBeginDate = it },
-                        )
-                    }
-                    TimeBoundaryRow(
-                        title = "结束时间",
-                        date = draftEndDate,
-                        expanded = editingBoundary == TimeBoundary.End,
-                        onClick = {
-                            editingBoundary = if (editingBoundary == TimeBoundary.End) {
-                                null
-                            } else {
-                                TimeBoundary.End
-                            }
-                        },
+                    Spacer(Modifier.height(12.dp))
+                    // 结束时间：日期 / 时间双滚轮
+                    DateTimeField(
+                        label = "结束时间",
+                        millis = draftEndMillis ?: fallbackEndMillis,
+                        onChanged = { draftEndMillis = it },
                     )
-                    AnimatedVisibility(
-                        visible = editingBoundary == TimeBoundary.End,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut(),
-                    ) {
-                        ReceivedDatePicker(
-                            date = draftEndDate ?: LocalDate.now(),
-                            onDateChanged = { draftEndDate = it },
-                        )
-                    }
                 }
             }
             Row(
@@ -628,8 +598,8 @@ private fun ReceivedSponsorFilterSheet(
                         text = "清除",
                         selected = false,
                         onClick = {
-                            draftBeginDate = null
-                            draftEndDate = null
+                            draftBeginMillis = null
+                            draftEndMillis = null
                             onTimeRangeChanged(null, null)
                             onDismiss()
                         },
@@ -640,7 +610,7 @@ private fun ReceivedSponsorFilterSheet(
                     text = "应用",
                     selected = false,
                     onClick = {
-                        onTimeRangeChanged(draftBeginDate, draftEndDate)
+                        onTimeRangeChanged(draftBeginMillis, draftEndMillis)
                         onDismiss()
                     },
                     modifier = Modifier.weight(1f),
@@ -649,100 +619,6 @@ private fun ReceivedSponsorFilterSheet(
         }
     }
 
-}
-
-/** 当前正在编辑的时间边界。 */
-private enum class TimeBoundary {
-    Begin,
-    End,
-}
-
-@Composable
-private fun TimeBoundaryRow(
-    title: String,
-    date: LocalDate?,
-    expanded: Boolean,
-    onClick: () -> Unit,
-) {
-    val chipBackground = if (expanded) {
-        MiuixTheme.colorScheme.primaryContainer
-    } else {
-        MiuixTheme.colorScheme.secondary
-    }
-    val chipContent = if (expanded) {
-        MiuixTheme.colorScheme.onPrimaryContainer
-    } else {
-        MiuixTheme.colorScheme.onSecondaryVariant
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = title, modifier = Modifier.weight(1f), style = MiuixTheme.textStyles.body1)
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(48.dp))
-                .background(chipBackground)
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = date?.toString() ?: "不限",
-                style = MiuixTheme.textStyles.body2,
-                color = chipContent,
-            )
-        }
-    }
-}
-
-/**
- * 日期选择器由年、月、日三个滚轮组成；月份变化时会把日期限制在目标月份的有效天数内。
- */
-@Composable
-private fun ReceivedDatePicker(
-    date: LocalDate,
-    onDateChanged: (LocalDate) -> Unit,
-) {
-    val dayRange = 1..YearMonth.of(date.year, date.monthValue).lengthOfMonth()
-    val currentYear = LocalDate.now().year
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        NumberPicker(
-            value = date.year,
-            onValueChange = { year ->
-                val day = minOf(date.dayOfMonth, YearMonth.of(year, date.monthValue).lengthOfMonth())
-                onDateChanged(LocalDate.of(year, date.monthValue, day))
-            },
-            range = 2018..currentYear,
-            modifier = Modifier.weight(1.5f),
-        )
-        Text("年")
-        NumberPicker(
-            value = date.monthValue,
-            onValueChange = { month ->
-                val day = minOf(date.dayOfMonth, YearMonth.of(date.year, month).lengthOfMonth())
-                onDateChanged(LocalDate.of(date.year, month, day))
-            },
-            range = 1..12,
-            modifier = Modifier.weight(1f),
-        )
-        Text("月")
-        NumberPicker(
-            value = date.dayOfMonth,
-            onValueChange = { day ->
-                onDateChanged(LocalDate.of(date.year, date.monthValue, day))
-            },
-            range = dayRange,
-            modifier = Modifier.weight(1f),
-        )
-        Text("日")
-    }
 }
 
 @Composable

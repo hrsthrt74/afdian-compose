@@ -25,8 +25,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.time.LocalDate
-import java.time.ZoneId
 import okhttp3.RequestBody.Companion.toRequestBody
 
 private val json = Json { 
@@ -1609,21 +1607,22 @@ enum class ReceivedShipmentFilter(val title: String, val statusCode: String?) {
     Pending("待发货", "8"),
 }
 
-/** 收到发电列表的日期范围；null 表示对应边界不限制。 */
+/** 收到发电列表的时间范围（毫秒级、精确到分钟）；null 表示对应边界不限制。 */
 data class ReceivedTimeRange(
-    val beginDate: LocalDate? = null,
-    val endDate: LocalDate? = null,
+    val beginMillis: Long? = null,
+    val endMillis: Long? = null,
 ) {
-    private val zoneId: ZoneId
-        get() = ZoneId.systemDefault()
-
-    /** 将起始日期转换为当天 00:00:00 的 Unix 秒时间戳。 */
+    /** 起始时间：直接换算为接口使用的 Unix 秒。 */
     val beginTime: Long?
-        get() = beginDate?.atStartOfDay(zoneId)?.toEpochSecond()
+        get() = beginMillis?.div(1000)
 
-    /** 将结束日期转换为次日 00:00:00，接口使用半开区间避免漏掉结束日。 */
+    /**
+     * 结束时间：取选中分钟的第 59 秒。
+     * 选择器精确到分钟（秒恒为 0），而接口按半开区间处理上界，
+     * 因此补齐整分钟，避免把结束分钟内的订单漏掉。
+     */
     val endTime: Long?
-        get() = endDate?.plusDays(1)?.atStartOfDay(zoneId)?.toEpochSecond()
+        get() = endMillis?.div(1000)?.plus(59)
 }
 
 /** get-thank-word / edit-thank-word 的响应：data 里是感谢语内容与配图（配图暂未使用） */

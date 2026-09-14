@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
 
 /** 独立「收到发电」页的状态与 sponsored-bill-filter 分页。 */
 class ReceivedSponsorsViewModel(application: Application) : AndroidViewModel(application) {
@@ -152,9 +151,9 @@ class ReceivedSponsorsViewModel(application: Application) : AndroidViewModel(app
         reloadForFilter()
     }
 
-    /** 设置日期范围；任一端为 null 都表示该端不限制。 */
-    fun setTimeRange(beginDate: LocalDate?, endDate: LocalDate?) {
-        val range = ReceivedTimeRange(beginDate, endDate)
+    /** 设置时间范围（毫秒级）；任一端为 null 都表示该端不限制。 */
+    fun setTimeRange(beginMillis: Long?, endMillis: Long?) {
+        val range = ReceivedTimeRange(beginMillis, endMillis)
         if (_timeRange.value == range) return
         _timeRange.value = range
         reloadForFilter()
