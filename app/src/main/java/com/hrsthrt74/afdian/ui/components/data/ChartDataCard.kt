@@ -85,12 +85,12 @@ private val ChartLabelKey = ExtraStore.Key<List<String>>()
  * 底轴最多显示的标签数量（可自行调整）。
  * 实际会随数据点数量缩放：点少时全显示，点多时按此上限均匀取点并强制包含首尾。
  */
-private val BottomAxisLabelCount = 6
+private const val BottomAxisLabelCount = 6
 
 /**
  * 把图表横轴标签文本放进 model 供底轴 formatter 读取。
  */
-private fun com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer.Transaction.storeLabels(
+private fun CartesianChartModelProducer.Transaction.storeLabels(
     categories: List<String>,
 ) {
     extras { it[ChartLabelKey] = categories }
@@ -409,7 +409,7 @@ private fun ChartCanvas(
                         marker = chartMarker,
                         // 左右各留固定空白，让首尾标签能居中对齐且不被裁切。
                         layerPadding = {
-                            CartesianLayerPadding(unscalableStart = 12.dp, unscalableEnd = 12.dp)
+                            CartesianLayerPadding(unscalableStart = 16.dp, unscalableEnd = 16.dp)
                         },
                     ),
                     modelProducer = modelProducer,
