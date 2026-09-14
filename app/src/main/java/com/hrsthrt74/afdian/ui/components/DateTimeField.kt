@@ -178,7 +178,14 @@ private fun PickerBadge(text: String, selected: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = text, style = MiuixTheme.textStyles.body2, color = contentColor)
+        Text(
+            text = text,
+            style = TextStyle(
+                fontSize = 14.sp,
+                fontFeatureSettings = "tnum"
+            ),
+            color = contentColor
+        )
     }
 }
 
