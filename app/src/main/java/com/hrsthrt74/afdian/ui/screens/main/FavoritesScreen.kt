@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,7 +51,11 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 
+@OptIn(ExperimentalScrollBarApi::class)
 @Composable
 fun FavoritesScreen(
     viewModel: FavoritesViewModel,
@@ -116,17 +121,22 @@ fun FavoritesScreen(
                 )
             }
 
-            LazyColumn(
-                state = listState,
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .nestedScroll(scrollBehavior.nestedScrollConnection)
-                    // 放在 nestedScroll 之后（最贴近列表），fling 到边界的剩余速度最先被它捕获
-                    .scrollEndHaptic(),
-                contentPadding = PaddingValues(
-                    bottom = contentBottomPadding()
-                )
+                    .fillMaxSize()
             ) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(scrollBehavior.nestedScrollConnection)
+                        // 放在 nestedScroll 之后（最贴近列表），fling 到边界的剩余速度最先被它捕获
+                        .scrollEndHaptic(),
+                    contentPadding = PaddingValues(
+                        bottom = contentBottomPadding()
+                    )
+                ) {
                 if (loading) {
                     item {
                         Box(
@@ -246,6 +256,14 @@ fun FavoritesScreen(
                     }
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
+            }
+            // 右侧滚动条
+            VerticalScrollBar(
+                adapter = rememberScrollBarAdapter(listState),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight(),
+            )
             }
 
             // 滚动到底部附近自动加载下一页（动态 tab 专属，放在 LazyColumn 外的 Composable 上下文）

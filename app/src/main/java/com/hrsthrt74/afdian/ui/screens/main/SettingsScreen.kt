@@ -5,6 +5,7 @@ import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -41,11 +43,16 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
+import androidx.compose.foundation.lazy.rememberLazyListState
 
 private val startupPageNames = listOf("首页", "发现", "消息", "我的")
 // 配色模式选项，索引与 SettingsStore 的 0/1/2 约定一致
 private val colorModeNames = listOf("跟随系统", "浅色模式", "深色模式")
 
+@OptIn(ExperimentalScrollBarApi::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -68,6 +75,7 @@ fun SettingsScreen(
     val historyEnabled by viewModel.historyEnabled.collectAsState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
+    val listState = rememberLazyListState()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -89,6 +97,7 @@ fun SettingsScreen(
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
@@ -197,6 +206,14 @@ fun SettingsScreen(
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
+            // 右侧滚动条
+            VerticalScrollBar(
+                adapter = rememberScrollBarAdapter(listState),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight(),
+                trackPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
+            )
         }
     }
 }

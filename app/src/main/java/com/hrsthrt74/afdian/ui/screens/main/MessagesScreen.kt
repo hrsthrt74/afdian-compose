@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -66,11 +67,15 @@ import top.yukonga.miuix.kmp.icon.extended.Reply
 import top.yukonga.miuix.kmp.icon.extended.Undo
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalScrollBarApi::class)
 @Composable
 fun MessagesScreen(
     viewModel: MessagesViewModel,
@@ -225,6 +230,15 @@ fun MessagesScreen(
                         }
                     }
                 }
+
+                // 右侧滚动条
+                VerticalScrollBar(
+                    adapter = rememberScrollBarAdapter(listState),
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight(),
+                    trackPadding = PaddingValues(top = paddingValues.calculateTopPadding(), bottom = 108.dp),
+                )
 
                 // 加载中覆盖层
                 if (isLoading && dialogs.isEmpty()) {

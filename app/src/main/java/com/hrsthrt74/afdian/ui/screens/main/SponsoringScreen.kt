@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
@@ -43,7 +45,12 @@ import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 // Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
+import androidx.compose.foundation.lazy.rememberLazyListState
 
+@OptIn(ExperimentalScrollBarApi::class)
 @Composable
 fun SponsoringScreen(
     viewModel: MainViewModel,
@@ -59,6 +66,7 @@ fun SponsoringScreen(
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
+    val listState = rememberLazyListState()
 
     Scaffold(
         topBar = {
@@ -77,6 +85,7 @@ fun SponsoringScreen(
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
@@ -149,6 +158,14 @@ fun SponsoringScreen(
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
+            // 右侧滚动条
+            VerticalScrollBar(
+                adapter = rememberScrollBarAdapter(listState),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight(),
+                trackPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
+            )
         }
     }
 }

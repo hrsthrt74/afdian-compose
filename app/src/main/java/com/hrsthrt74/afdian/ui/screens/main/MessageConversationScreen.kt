@@ -150,13 +150,16 @@ import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.pressable
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalScrollBarApi::class)
 @Composable
 fun MessageConversationScreen(
     userId: String,
@@ -445,7 +448,14 @@ fun MessageConversationScreen(
                     )
                 }
             }
-
+            // 右侧滚动条
+            VerticalScrollBar(
+                adapter = rememberScrollBarAdapter(listState),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight(),
+                trackPadding = PaddingValues(top = paddingValues.calculateTopPadding(), bottom = 108.dp)
+            )
             }
 
             // 输入区域也使用与底部导航栏相同的普通模糊，消息内容可以透过输入栏显示。
