@@ -2,6 +2,9 @@ package com.hrsthrt74.afdian.data.content
 
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
+import com.hrsthrt74.afdian.data.network.AfdianHttpClient
+import com.hrsthrt74.afdian.data.network.requireAfdianSuccess
+import com.hrsthrt74.afdian.data.network.sharedAfdianHttpClient
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -12,8 +15,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-class OrderService(private val tokenStore: AuthTokenStore, private val client: OkHttpClient = OkHttpClient()) {
+class OrderService(private val tokenStore: AuthTokenStore, private val client: OkHttpClient = sharedAfdianHttpClient) {
     private val json = Json { ignoreUnknownKeys = true }
+    private val http = AfdianHttpClient(client)
 
     fun load(status: String, page: Int = 1): OrderPage {
         // 请求前记录本次查询参数（status/page 不含凭据，可安全输出）
@@ -29,9 +33,10 @@ class OrderService(private val tokenStore: AuthTokenStore, private val client: O
         val request = Request.Builder().url(url).header("Cookie", "auth_token=${tokenStore.token}").build()
         // 记录起始时间，拿到响应后计算差值得到耗时
         val start = System.currentTimeMillis()
-        return client.newCall(request).execute().use { response ->
+        return http.execute(request).use { response ->
             if (!response.isSuccessful) error("订单加载失败 (${response.code})")
             val root = json.parseToJsonElement(response.body.string()).jsonObject
+            root.requireAfdianSuccess("OrderService", "/api/my/sponsored-bill-out-filter", "订单加载失败", requireEc = true)
             val data = root["data"]?.jsonObject ?: JsonObject(emptyMap())
             val result = OrderPage(
                 orders = data["list"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toOrder() },

@@ -2,6 +2,9 @@ package com.hrsthrt74.afdian.data.stats
 
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
+import com.hrsthrt74.afdian.data.network.AfdianHttpClient
+import com.hrsthrt74.afdian.data.network.requireAfdianSuccess
+import com.hrsthrt74.afdian.data.network.sharedAfdianHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -59,9 +62,10 @@ data class IncomeStatPage(val list: List<IncomeStatRecord>, val hasMore: Boolean
  */
 class IncomeStatRepository(
     private val tokenStore: AuthTokenStore,
-    private val client: OkHttpClient = OkHttpClient(),
+    private val client: OkHttpClient = sharedAfdianHttpClient,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
+    private val http = AfdianHttpClient(client)
 
     /**
      * 拉取指定类型与页码的统计数据。
@@ -82,17 +86,13 @@ class IncomeStatRepository(
         // 日志只记路径与参数，绝不输出 auth_token
         AppLog.d(TAG, "请求收入明细 page=$page type=${type.apiValue}")
         val start = System.currentTimeMillis()
-        client.newCall(request).execute().use { response ->
+        http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "/api/my/stat -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("收入明细加载失败 (${response.code})")
             }
             val root = json.parseToJsonElement(response.body.string()).jsonObject
-            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
-            if (ec != null && ec != 200) {
-                AppLog.w(TAG, "/api/my/stat 业务失败 ec=$ec em=${root["em"]?.jsonPrimitive?.contentOrNull}")
-                error("收入明细加载失败 (ec=$ec)")
-            }
+            root.requireAfdianSuccess(TAG, "/api/my/stat", "收入明细加载失败", requireEc = true)
             AppLog.d(TAG, "/api/my/stat -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
             val data = root["data"]?.jsonObject ?: error("收入明细返回结构异常")
             val list = data["list"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toRecord() }

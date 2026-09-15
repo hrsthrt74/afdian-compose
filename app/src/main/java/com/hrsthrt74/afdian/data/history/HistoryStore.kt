@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -40,7 +41,7 @@ class HistoryStore(context: Context) {
     /** 新增或置顶记录；同一创作者/动态不会产生重复条目。 */
     suspend fun recordOpened(target: HistoryTarget) {
         if (target.targetId.isBlank() || !settingsStore.historyEnabled.first()) return
-        runCatching {
+        runHistoryOperation("写入浏览历史失败: ${keyOf(target)}") {
             withContext(Dispatchers.IO) {
                 mutex.withLock {
                     val old = readEntries()
@@ -55,13 +56,13 @@ class HistoryStore(context: Context) {
             }
             // 缓存下载与记录写入分开，头像服务异常不会阻塞历史记录本身。
             withContext(Dispatchers.IO) { avatarCache.ensureCached(target.avatarUrl) }
-        }.onFailure { AppLog.w("HistoryStore", "写入浏览历史失败: ${keyOf(target)}", it) }
+        }
     }
 
     /** 用详情接口返回的数据补全标题和头像，但不改变原始访问时间。 */
     suspend fun updateSnapshot(target: HistoryTarget) {
         if (target.targetId.isBlank() || !settingsStore.historyEnabled.first()) return
-        runCatching {
+        runHistoryOperation("更新浏览历史失败: ${keyOf(target)}") {
             withContext(Dispatchers.IO) {
                 mutex.withLock {
                     val old = readEntries()
@@ -73,7 +74,7 @@ class HistoryStore(context: Context) {
                 }
             }
             withContext(Dispatchers.IO) { avatarCache.ensureCached(target.avatarUrl) }
-        }.onFailure { AppLog.w("HistoryStore", "更新浏览历史失败: ${keyOf(target)}", it) }
+        }
     }
 
     /** 只删除历史记录头像，不删除历史条目和其他应用缓存。 */
@@ -98,6 +99,20 @@ class HistoryStore(context: Context) {
 
     private suspend fun writeEntries(entries: List<HistoryEntry>) {
         context.historyDataStore.edit { it[entriesKey] = json.encodeToString(ListSerializer(HistoryEntry.serializer()), entries) }
+    }
+
+    /** 本地写入失败时保留错误态，但页面取消必须继续向上传播。 */
+    private suspend inline fun runHistoryOperation(
+        message: String,
+        crossinline block: suspend () -> Unit,
+    ) {
+        try {
+            block()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            AppLog.w("HistoryStore", message, error)
+        }
     }
 
     private fun keyOf(target: HistoryTarget): String = when (target) {

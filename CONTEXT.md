@@ -33,5 +33,6 @@
 ## 每次提交前的验证
 
 ```text
+./gradlew.bat :app:testInternalDebugUnitTest
 ./gradlew.bat :app:assembleInternalDebug
 ```

@@ -173,7 +173,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `ui/components/`：通用组件；`ui/components/data/`：数据卡片组件；`ui/components/home/`：首页模块组件。
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
 - `data/auth/`：认证状态、Token 存储、登录请求和加密载荷。
-- `data/content/`：内容接口（AfadianContentService、OrderService、ManagementService）和缓存（ProfileCache、HomeCache）。
+- `data/content/`：领域接口服务（AccountService、MessageService、AffiliateService、FeedService、CreatorService、ReceivedSponsorService、ThankSponsorsService、OrderService、ManagementService），`AfadianContentService` 为兼容门面；消息解析集中在 `MessageParser`，模型见 `ContentModels` / `MessageModels`；缓存 `ProfileCache` / `HomeCache`。
+- `data/network/`：`AfdianHttpClient`（域名优先与回退）、`requireAfdianSuccess`（业务码校验）、`sharedAfdianHttpClient`（全应用共享客户端）。
 - `data/history/`：浏览历史（HistoryStore、HistoryModels、HistoryAvatarCache）。
 - `data/stats/`：数据卡片和图表模型（CardModel、ChartModel、CreatorStatsRepository、WithdrawalSchedule）。
 - `data/settings/SettingsStore.kt`：DataStore 设置存储。

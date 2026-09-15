@@ -6,8 +6,9 @@
 app/src/main/java/com/hrsthrt74/afdian/
 ├── data/
 │   ├── auth/          # 认证（Token 存储、登录加密）
-│   ├── content/       # 内容接口（动态、创作者、收藏、订单、管理、感谢页）
+│   ├── content/       # 内容接口（账号、消息、动态、创作者、收藏、优惠码、订单、管理、感谢页）
 │   ├── history/       # 浏览历史（本地存储、头像缓存）
+│   ├── network/       # 统一 HTTP 入口（域名回退、业务码校验、共享 OkHttpClient）
 │   ├── settings/      # DataStore 设置（首页模块、管理布局、主题等）
 │   └── stats/         # 数据卡片模型、图表模型、提现日程
 ├── ui/
@@ -23,6 +24,29 @@ app/src/main/java/com/hrsthrt74/afdian/
 │   └── viewmodel/     # 各页面 ViewModel
 └── AppLog.kt          # 全局日志门面
 ```
+
+## 数据层结构（data/content 按领域拆分）
+
+`AfadianContentService` 已从两千行大文件拆成兼容门面（纯转发，保留历史方法签名），ViewModel 无需迁移。新代码可直接依赖对应领域 Service：
+
+| 领域 | 文件 | 说明 |
+|---|---|---|
+| 兼容门面 | `AfadianContentService.kt` | 只做转发；新接口不要加到这里 |
+| 账号 | `AccountService.kt` | 账号信息、个人资料、我支持的创作者、轻量未读检查 |
+| 消息 | `MessageService.kt` + `MessageParser.kt` | 请求编排与 JSON 解析分离 |
+| 优惠码 | `AffiliateService.kt` | 优惠码增删改查、可用方案 |
+| 动态/收藏/互动 | `FeedService.kt` | 推荐动态、收藏动态、点赞、收藏创作者 |
+| 创作者 | `CreatorService.kt` | 创作者详情聚合（复用 FeedService 的收藏查询） |
+| 收到发电 | `ReceivedSponsorService.kt` | 筛选、游标分页、订单字段解析 |
+| 感谢页 | `ThankSponsorsService.kt` | 感谢者分页、感谢语读写 |
+| 订单/管理 | `OrderService.kt` / `ManagementService.kt` | 早期拆分出的独立服务 |
+
+数据层约定：
+
+- 新增接口放进对应领域 Service；跨领域聚合新开 Service 组合，不要塞回门面。
+- 所有请求走 `AfdianHttpClient.execute()`：GET 优先 ifdian.net、失败回退 afdian.com；写请求不自动重试。响应统一用 `requireAfdianSuccess` 校验业务 `ec`。
+- 不要直接构造 `OkHttpClient`，复用 `data/network/sharedAfdianHttpClient` 或由服务注入。
+- 可单测的解析逻辑优先做成顶层 `internal` 函数（参考 `MessageParser.kt`），模型放 `ContentModels.kt` / `MessageModels.kt`。
 
 ## 路由结构
 

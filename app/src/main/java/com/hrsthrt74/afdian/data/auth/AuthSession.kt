@@ -89,40 +89,38 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
 
 /** 基于 DataStore 的加密 token 存取，替代旧的 SharedPreferences("auth")。 */
 class AuthTokenStore(private val application: Application) {
-    // 内存镜像：token 只在登录/登出时变化，业务层同步读时直接走缓存，
-    // 避免把大量同步调用点改成挂起函数。
-    @Volatile private var cachedToken: String? = null
-
-    @Volatile private var loaded = false
-
     /** 同步读取（内部可能阻塞一次磁盘 IO，请勿在主线程首次调用） */
     val token: String?
         get() {
-            if (!loaded) load()
-            return cachedToken
+            if (!sharedLoaded) load()
+            return sharedCachedToken
         }
 
     private fun load() {
-        synchronized(this) {
-            if (loaded) return
-            cachedToken = runBlocking {
+        synchronized(cacheLock) {
+            if (sharedLoaded) return
+            sharedCachedToken = runBlocking {
                 application.authDataStore.data.first()[TOKEN_KEY]?.let(::decrypt)
             }
-            loaded = true
+            sharedLoaded = true
         }
     }
 
     suspend fun writeToken(value: String) {
         val encrypted = encrypt(value)
         application.authDataStore.edit { it[TOKEN_KEY] = encrypted }
-        cachedToken = value
-        loaded = true
+        synchronized(cacheLock) {
+            sharedCachedToken = value
+            sharedLoaded = true
+        }
     }
 
     suspend fun clear() {
         application.authDataStore.edit { it.remove(TOKEN_KEY) }
-        cachedToken = null
-        loaded = true
+        synchronized(cacheLock) {
+            sharedCachedToken = null
+            sharedLoaded = true
+        }
     }
 
     // 与旧 SP 中的键名一致
@@ -159,7 +157,14 @@ class AuthTokenStore(private val application: Application) {
         AppLog.w("AuthSession", "本地凭证解密失败，将按未登录处理: ${it.message}")
     }.getOrNull()
 
-    private companion object { const val KEY_ALIAS = "afdian_auth_token" }
+    private companion object {
+        const val KEY_ALIAS = "afdian_auth_token"
+
+        // 同一进程内所有 AuthTokenStore 实例共享镜像，避免不同 ViewModel 看到过期登录态。
+        private val cacheLock = Any()
+        @Volatile private var sharedCachedToken: String? = null
+        @Volatile private var sharedLoaded = false
+    }
 }
 
 /** 进程级单例的认证 DataStore */

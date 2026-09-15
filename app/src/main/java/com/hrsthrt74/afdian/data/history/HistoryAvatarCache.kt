@@ -1,6 +1,8 @@
 package com.hrsthrt74.afdian.data.history
 
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.network.sharedAfdianHttpClient
+import kotlinx.coroutines.CancellationException
 import java.io.File
 import java.security.MessageDigest
 import okhttp3.OkHttpClient
@@ -14,7 +16,7 @@ import okhttp3.Request
  */
 class HistoryAvatarCache(
     private val root: File,
-    private val client: OkHttpClient = OkHttpClient(),
+    private val client: OkHttpClient = sharedAfdianHttpClient,
 ) {
     private val avatarDirectory = File(root, "avatars")
 
@@ -32,7 +34,7 @@ class HistoryAvatarCache(
         if (target.isFile && target.length() > 0L) return target
 
         val temporary = File(avatarDirectory, "${target.name}.tmp")
-        return runCatching {
+        return try {
             val request = Request.Builder().url(url).get().build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) error("HTTP ${response.code}")
@@ -46,10 +48,14 @@ class HistoryAvatarCache(
             }
             AppLog.d("HistoryAvatarCache", "历史记录头像缓存成功: ${target.name}")
             target
-        }.onFailure {
+        } catch (error: CancellationException) {
             temporary.delete()
-            AppLog.w("HistoryAvatarCache", "历史记录头像缓存失败: ${it.message}", it)
-        }.getOrNull()
+            throw error
+        } catch (error: Exception) {
+            temporary.delete()
+            AppLog.w("HistoryAvatarCache", "历史记录头像缓存失败: ${error.message}", error)
+            null
+        }
     }
 
     fun clear() {

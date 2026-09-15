@@ -2,6 +2,9 @@ package com.hrsthrt74.afdian.data.stats
 
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
+import com.hrsthrt74.afdian.data.network.AfdianHttpClient
+import com.hrsthrt74.afdian.data.network.requireAfdianSuccess
+import com.hrsthrt74.afdian.data.network.sharedAfdianHttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -29,13 +32,14 @@ import java.time.format.DateTimeFormatter
  */
 class CreatorStatsRepository(
     private val tokenStore: AuthTokenStore,
-    private val client: OkHttpClient = OkHttpClient(),
+    private val client: OkHttpClient = sharedAfdianHttpClient,
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
         isLenient = true
     }
+    private val http = AfdianHttpClient(client)
 
     /**
      * 加载管理页和首页共用的创作者数字卡与图表卡。
@@ -274,17 +278,13 @@ class CreatorStatsRepository(
             .build()
         val pathForLog = url.encodedPath
         val start = System.currentTimeMillis()
-        return client.newCall(request).execute().use { response ->
+        return http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "$pathForLog -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("创作者数据加载失败 (${response.code})")
             }
             val root = json.parseToJsonElement(response.body.string()).jsonObject
-            val ec = root["ec"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
-            if (ec != null && ec != 200) {
-                AppLog.w(TAG, "$pathForLog 业务失败 ec=$ec")
-                error("创作者数据加载失败 (ec=$ec)")
-            }
+            root.requireAfdianSuccess(TAG, pathForLog, "创作者数据加载失败", requireEc = true)
             AppLog.d(TAG, "$pathForLog -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
             root["data"]?.jsonObject ?: error("创作者数据返回结构异常")
         }

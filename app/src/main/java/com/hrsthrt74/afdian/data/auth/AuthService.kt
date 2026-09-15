@@ -1,5 +1,7 @@
 package com.hrsthrt74.afdian.data.auth
 
+import com.hrsthrt74.afdian.data.network.AfdianHttpClient
+import com.hrsthrt74.afdian.data.network.sharedAfdianHttpClient
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import com.hrsthrt74.afdian.AppLog
@@ -15,8 +17,9 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-class AuthService(private val client: OkHttpClient = OkHttpClient()) {
+class AuthService(private val client: OkHttpClient = sharedAfdianHttpClient) {
     private val json = Json { ignoreUnknownKeys = true }
+    private val http = AfdianHttpClient(client)
 
     suspend fun passwordLogin(account: String, password: String): String? {
         val aesKey = ByteArray(16).also { SecureRandom().nextBytes(it) }
@@ -33,7 +36,7 @@ class AuthService(private val client: OkHttpClient = OkHttpClient()) {
         // 登录接口流程打点：开始 → HTTP 结果 → 业务码，方便定位「登录失败」卡在哪一环
         AppLog.d(TAG, "POST /api/passport/login 开始")
         val start = System.currentTimeMillis()
-        return client.newCall(request).execute().use { response ->
+        return http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 // HTTP 层就挂了（4xx/5xx），直接按失败返回
                 AppLog.w(TAG, "登录请求 HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
