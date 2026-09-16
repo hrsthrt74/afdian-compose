@@ -35,9 +35,18 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 首页底部有「自定义」按钮触发配置抽屉。
 
 创作者数据系统：
-- `CreatorStatsRepository` 拉取 dashboard + stat 接口。
+- `CreatorStatsRepository` 拉取 4 个接口：`/api/my/dashboard`（总量摘要 + 可提现）、
+  `/api/my/sponsored-bill-filter`（时间段内的已支付订单，聚合收入/发电人数/发电次数）、
+  `/api/my/stat`（按日 UV、图表）、`/api/my/income`（月度账单，抽成后收入）。
+  前三者之外的可选接口失败只让对应卡片显示「--」，dashboard 失败则整体抛出。
+- 收入卡口径：「收入」= 订单 `total_amount` 实时聚合（含当月）；「收入（抽成后）」上月/历史用月度账单
+  的真实 `creator_amount`，**本月**因账单要次月初才出账、接口里根本没有当月条目，改为
+  「本月收入 × `CREATOR_SHARE_RATIO`(0.94)」估算（平台抽成 6%），折算结果**向下取整到分**
+  （`setScale(2, RoundingMode.FLOOR)`，3.1490 → 3.14，宁可少算不多算）；
+  若账单里意外带了当月则以官方值覆盖。
+  连带影响：月末提现提醒里的「到手」也走这条估算值，不再是 `---`。
 - `CardModel` / `ChartModel` 数据模型。
-- `DataCardGrid` / `ChartDataCard` / `IncomeDataCards` 数据卡片组件。
+- `DataCardGrid` / `ChartDataCard` 数据卡片组件。
 - `DataCard` 公共数据卡：数值右侧支持后导单位 `unit`（`unitStyle` 默认 footnote1、`unitColor` 默认次级灰，与数值基线对齐）。
 - 数据卡单位由 `CardMetric.unitText(showIncomeUnit, showCountUnit)` 决定：收入/可提现→「元」、
   发电人数/访问人数→「人」、发电次数/访问次数→「次」、距离下次提现→「天」（始终显示）。

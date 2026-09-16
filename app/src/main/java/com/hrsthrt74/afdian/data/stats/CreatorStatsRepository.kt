@@ -19,6 +19,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -116,6 +117,19 @@ class CreatorStatsRepository(
                 set(CardMetric.Income, period, CardValue.Money(aggregate.amount))
                 set(CardMetric.SponsorCount, period, CardValue.Count(aggregate.sponsorCount))
                 set(CardMetric.SponsorOrderCount, period, CardValue.Count(aggregate.orderCount))
+                // 当月「抽成后」取不到官方值：月度账单要等次月初才出账（见 fetchMonthlyIncome），
+                // 因此退化为用平台到手比例折算当月的「抽成前」收入。
+                // 折算结果向下取整到分（3.1490 → 3.14）：宁可少算一分，也不把到手钱算多。
+                // 若某天官方账单里真的带上了当月，下面的月度账单分支会用真实 creator_amount 覆盖这个估算值。
+                if (period == CardPeriod.ThisMonth) {
+                    set(
+                        CardMetric.IncomeAfterFee,
+                        period,
+                        CardValue.Money(
+                            (aggregate.amount * CREATOR_SHARE_RATIO).setScale(MONEY_SCALE, RoundingMode.FLOOR),
+                        ),
+                    )
+                }
             }
         }
 
@@ -129,6 +143,8 @@ class CreatorStatsRepository(
             }
         }
 
+        // 月度账单提供官方口径的「抽成后」金额，优先级高于上面的 94% 估算。
+        // 注意账单按「次月初」生成，当月条目通常不存在，所以这张卡当月实际走的都是估算分支。
         val monthlyIncome = monthlyIncomeResult.getOrNull()
         if (monthlyIncome != null) {
             val currentMonth = today.withDayOfMonth(1)
@@ -337,5 +353,18 @@ class CreatorStatsRepository(
         const val TAG = "CreatorStatsRepository"
         const val AFDIAN_HOST = "https://afdian.com"
         const val MAX_PAGE_COUNT = 100
+
+        /**
+         * 创作者到手比例：爱发电平台抽成 6%。
+         *
+         * 当月月度账单尚未出账，取不到官方的 creator_amount，因此用这个比例把
+         * 「本月收入」（抽成前）折算成「本月收入（抽成后）」。
+         * 平台调整抽成比例时只需改这里；若哪天改成按上月账单实测费率推算，
+         * 也应替换本常量而不是在别处再写一个系数。
+         */
+        private val CREATOR_SHARE_RATIO = BigDecimal("0.94")
+
+        /** 金额保留到分；估算值按 [RoundingMode.FLOOR] 向下取整，与卡片展示的小数位保持一致。 */
+        const val MONEY_SCALE = 2
     }
 }

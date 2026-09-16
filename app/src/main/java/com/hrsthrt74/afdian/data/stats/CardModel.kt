@@ -146,7 +146,8 @@ object DataCardCatalog {
 
     /**
      * 第一版只注册有明确数据口径的组合：
-     * - 抽成后收入使用月度账单的 creator_amount，因此只提供月度和历史；
+     * - 抽成后收入：上月/历史用月度账单的 creator_amount（官方口径），本月因账单未出账，
+     *   由「本月收入」乘 94%（平台抽成 6%）估算，见 `CreatorStatsRepository.CREATOR_SHARE_RATIO`；
      * - 发电次数没有可信的全历史摘要，因此不伪造“历史”卡片；UV 历史总量使用 dashboard 摘要。
      */
     val all: List<DataCardDefinition> = buildList {
