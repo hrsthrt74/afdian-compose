@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,12 +22,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,6 +42,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
@@ -75,13 +76,13 @@ import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.InputField
-import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -92,12 +93,11 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
+import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Create
-import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.icon.extended.Filter
-import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
@@ -109,10 +109,11 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.window.WindowListPopup
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Date
+import java.util.Locale
 
 /**
  * 独立的收到发电订单列表。
@@ -166,6 +167,17 @@ fun ReceivedSponsorsScreen(
                 ).any { value -> value?.contains(keyword, ignoreCase = true) == true }
             }
         }
+    }
+    // 只有「新订单在前 + 没有任何筛选与搜索」时列表才是完整时间线，
+    // 此时才插入「今天 / 昨天 / 更早」标题；一旦筛选过，标题会误导阅读。
+    val showDateSections = sort == ReceivedSponsorsSort.Newest &&
+        !redeemOnly &&
+        !remarkOnly &&
+        shipmentFilter == ReceivedShipmentFilter.All &&
+        timeRange == ReceivedTimeRange() &&
+        searchQuery.isBlank()
+    val sections = remember(visibleOrders, showDateSections) {
+        receivedSponsorSections(visibleOrders, showDateSections)
     }
     val listState = rememberLazyListState()
     val pullToRefreshState = rememberPullToRefreshState()
@@ -384,23 +396,37 @@ fun ReceivedSponsorsScreen(
 
                     // 发电记录卡片
                     if (!isLoading && error == null) {
-                        items(visibleOrders, key = { it.orderNo }) { order ->
-                            ReceivedSponsorCard(
-                                order,
-                                onOpenConversation = {
-                                    backStack.add(
-                                        Route.MessageConversation(
-                                            userId = order.userId,
-                                            userName = order.userName,
-                                            avatarUrl = order.avatarUrl,
-                                        )
+                        sections.forEach { section ->
+                            // 标题为 null 表示当前不按日期分组，整段直接平铺。
+                            section.title?.let { title ->
+                                item(key = "section-$title") {
+                                    Text(
+                                        text = title,
+                                        style = MiuixTheme.textStyles.subtitle,
+                                        color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                                     )
-                                },
-                                onOpenDetails = {
-                                    selectedOrder = order
-                                    onOrderClick(order)
-                                },
-                            )
+                                }
+                            }
+                            items(section.orders, key = { it.orderNo }) { order ->
+                                ReceivedSponsorCard(
+                                    order,
+                                    onOpenConversation = {
+                                        backStack.add(
+                                            Route.MessageConversation(
+                                                userId = order.userId,
+                                                userName = order.userName,
+                                                avatarUrl = order.avatarUrl,
+                                            )
+                                        )
+                                    },
+                                    onOpenDetails = {
+                                        selectedOrder = order
+                                        onOrderClick(order)
+                                    },
+                                )
+                            }
                         }
                     }
 
@@ -941,6 +967,46 @@ private fun SponsorDetailCopyField(label: String, value: String) {
 @Composable
 private fun SponsorDetailOrderNoField(orderNo: String) {
     SponsorDetailCopyField("单号", orderNo)
+}
+
+/** 收到发电列表的一段：[title] 为 null 表示该段不显示标题（即不按日期分组）。 */
+private data class ReceivedSponsorSection(
+    val title: String?,
+    val orders: List<ReceivedSponsor>,
+)
+
+/**
+ * 按支付时间把订单分到「今天」「昨天」「更早」。
+ *
+ * - 只在 [groupByDate] 为 true 时分组，否则返回单段无标题列表；
+ * - 空分组不产出，因此「今天没有订单」时不会显示「今天」标题，「昨天」同理。
+ */
+private fun receivedSponsorSections(
+    orders: List<ReceivedSponsor>,
+    groupByDate: Boolean,
+    zone: ZoneId = ZoneId.systemDefault(),
+): List<ReceivedSponsorSection> {
+    if (orders.isEmpty()) return emptyList()
+    if (!groupByDate) return listOf(ReceivedSponsorSection(null, orders))
+
+    val today = LocalDate.now(zone)
+    val yesterday = today.minusDays(1)
+    val todayOrders = ArrayList<ReceivedSponsor>()
+    val yesterdayOrders = ArrayList<ReceivedSponsor>()
+    val earlierOrders = ArrayList<ReceivedSponsor>()
+    orders.forEach { order ->
+        val paidDate = Instant.ofEpochSecond(order.paidAtSeconds).atZone(zone).toLocalDate()
+        when (paidDate) {
+            today -> todayOrders.add(order)
+            yesterday -> yesterdayOrders.add(order)
+            else -> earlierOrders.add(order)
+        }
+    }
+    return buildList {
+        if (todayOrders.isNotEmpty()) add(ReceivedSponsorSection("今天", todayOrders))
+        if (yesterdayOrders.isNotEmpty()) add(ReceivedSponsorSection("昨天", yesterdayOrders))
+        if (earlierOrders.isNotEmpty()) add(ReceivedSponsorSection("更早", earlierOrders))
+    }
 }
 
 private fun formatValidity(fromSeconds: Long?, untilSeconds: Long?): String? {
