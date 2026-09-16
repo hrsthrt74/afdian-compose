@@ -157,6 +157,11 @@ Box(modifier = Modifier.weight(1f).fillMaxSize()) {
 - `rememberBlurBackdrop(enabled)` 返回 `LayerBackdrop?`，`null` 表示模糊关闭或设备不支持。
 - `blurBarColor(backdrop)`：模糊开启时顶栏必须透明，否则遮住模糊层。
 - 采样层 `layerBackdrop(backdrop)` 只包滚动内容，不包带 `textureBlur` 的栏，否则会原生层崩溃。
+- 顶栏的渐变色蒙层用 `barTintBrush()`（`BlurredBar` 内部已接好），颜色与模糊斜坡解耦、上浓下淡；
+  渐进模糊本身传 `blurBarColorsNoTint()`，不要再用 blend color 上色——miuix 会把它折进 ramp pass，
+  颜色形状被模糊斜坡绑死且强端出现平台期，观感就是一块纯色板。
+- 底栏若沿用渐进模糊（`PostDetailScreen` / `MessageConversationScreen` 手写的那两处），方向是
+  下浓上淡，用 `barTintBrush(topHeavy = false)` 即可；它们目前仍走旧的 `progressiveBlurBarColors()`。
 
 ### 状态管理
 
