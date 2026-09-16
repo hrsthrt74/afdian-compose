@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import kotlinx.coroutines.launch
@@ -29,6 +31,8 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.preference.CheckboxLocation
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
@@ -40,13 +44,12 @@ fun HomeCustomizationSheet(settingsStore: SettingsStore, show: Boolean, onDismis
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
     val scope = rememberCoroutineScope()
 
-    WindowBottomSheet(show = show, title = "自定义首页", onDismissRequest = onDismiss, insideMargin = DpSize(16.dp, 0.dp)) {
+    WindowBottomSheet(show = show, title = "自定义首页", onDismissRequest = onDismiss, insideMargin = DpSize(12.dp, 0.dp)) {
         val listState = rememberLazyListState()
         val hapticFeedback = LocalHapticFeedback.current
         var editableOrder by remember(moduleOrder) { mutableStateOf(moduleOrder) }
         val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
             editableOrder = editableOrder.toMutableList().apply { add(to.index, removeAt(from.index)) }
-            // 每成功调换一次位置就轻微震动，给出“卡哒”一格的反馈
             hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             scope.launch { settingsStore.setHomeModuleOrder(editableOrder) }
         }
@@ -95,16 +98,18 @@ private fun HomeModuleSettingRow(module: HomeModule, checked: Boolean, onChecked
         colors = CardColors(MiuixTheme.colorScheme.secondaryContainer, MiuixTheme.colorScheme.onSurfaceContainerHighest),
         modifier = Modifier.padding(bottom = 8.dp),
     ) {
-        SwitchPreference(
+        CheckboxPreference(
             title = module.title,
             summary = module.summary,
             checked = checked,
             onCheckedChange = onCheckedChange,
-            // 拖拽手柄放在左侧 startAction 槽位
+            checkboxLocation = CheckboxLocation.End,
+            insideMargin = PaddingValues(16.dp, 12.dp),
             startAction = {
                 Text(
                     "☰",
-                    modifier = dragModifier.padding(end = 4.dp),
+                    fontSize = 20.sp,
+                    modifier = dragModifier.padding(start = 4.dp, end = 4.dp),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
             },
