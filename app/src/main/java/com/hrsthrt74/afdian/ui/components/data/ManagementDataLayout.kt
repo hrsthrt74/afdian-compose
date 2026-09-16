@@ -348,6 +348,7 @@ internal fun EditableLayoutEntryContent(
                 DataCard(
                     title = card.title,
                     value = card.value,
+                    unit = card.unit,
                     subtitle = card.subtitle,
                     modifier = dragModifier,
                 )

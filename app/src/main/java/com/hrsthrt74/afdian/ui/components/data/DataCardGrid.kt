@@ -69,6 +69,7 @@ fun DataCardGrid(
                             DataCard(
                                 title = item.title,
                                 value = item.value,
+                                unit = item.unit,
                                 subtitle = item.subtitle,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = cardColors,

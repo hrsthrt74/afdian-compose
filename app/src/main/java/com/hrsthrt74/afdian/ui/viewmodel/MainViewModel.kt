@@ -20,6 +20,7 @@ import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
 import com.hrsthrt74.afdian.data.stats.CardValue
 import com.hrsthrt74.afdian.data.stats.DataCardModel
 import com.hrsthrt74.afdian.data.stats.displayText
+import com.hrsthrt74.afdian.data.stats.removeLegacyUnitSuffix
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -178,7 +179,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _sponsoring.value = snapshot.sponsoring
             _markedCreators.value = snapshot.markedCreators
             _creatorCards.value = snapshot.creatorCards.associate {
-                it.id to DataCardModel(it.id, it.title, CardValue.Text(it.value), it.subtitle)
+                // 旧版本快照把单位拼进了 value（例如「12天」），去掉后缀避免和指标给的单位重复显示
+                it.id to DataCardModel(
+                    it.id,
+                    it.title,
+                    CardValue.Text(it.value.removeLegacyUnitSuffix(it.id)),
+                    it.subtitle,
+                )
             }
             AppLog.d("Home", "已用缓存回填首页首屏")
         }

@@ -192,9 +192,34 @@ sealed interface CardValue {
 fun CardValue.displayText(): String = when (this) {
     is CardValue.Money -> amount.setScale(2, RoundingMode.HALF_UP).toPlainString()
     is CardValue.Count -> value.toString()
-    is CardValue.DurationDays -> "${value}天"
+    // 只给纯数字，单位交给 UI 以弱化样式渲染（见 [unitText]）
+    is CardValue.DurationDays -> value.toString()
     is CardValue.Text -> value
     CardValue.Unavailable -> "--"
+}
+
+/**
+ * 指标对应的后导单位，未开启对应开关时返回 null。
+ *
+ * 收入类和人次类分别由「显示收入单位」「显示人次单位」两个设置开关控制；
+ * 倒计时天数不属于这两类，始终显示。
+ */
+fun CardMetric.unitText(showIncomeUnit: Boolean, showCountUnit: Boolean): String? = when (this) {
+    CardMetric.Income, CardMetric.IncomeAfterFee, CardMetric.Balance, CardMetric.BalanceAfterTax ->
+        "元".takeIf { showIncomeUnit }
+    CardMetric.SponsorCount, CardMetric.ProfileUv -> "人".takeIf { showCountUnit }
+    CardMetric.SponsorOrderCount, CardMetric.ProfilePv -> "次".takeIf { showCountUnit }
+    CardMetric.WithdrawalRemainingDays -> "天"
+}
+
+/**
+ * 去掉旧版本缓存里被拼进数值的单位后缀（例如「12天」）。
+ *
+ * 旧快照的单位写在 value 里，现在单位改由指标单独提供，保留后缀会显示成「12天 天」。
+ */
+fun String.removeLegacyUnitSuffix(id: String): String {
+    val unit = CardKey.fromStorage(id)?.metric?.unitText(showIncomeUnit = true, showCountUnit = true) ?: return this
+    return if (unit.isNotEmpty() && endsWith(unit)) dropLast(unit.length) else this
 }
 
 /** 供 ViewModel 和缓存使用的类型化卡片模型。 */

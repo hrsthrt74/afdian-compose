@@ -38,6 +38,11 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `CreatorStatsRepository` 拉取 dashboard + stat 接口。
 - `CardModel` / `ChartModel` 数据模型。
 - `DataCardGrid` / `ChartDataCard` / `IncomeDataCards` 数据卡片组件。
+- `DataCard` 公共数据卡：数值右侧支持后导单位 `unit`（`unitStyle` 默认 footnote1、`unitColor` 默认次级灰，与数值基线对齐）。
+- 数据卡单位由 `CardMetric.unitText(showIncomeUnit, showCountUnit)` 决定：收入/可提现→「元」、
+  发电人数/访问人数→「人」、发电次数/访问次数→「次」、距离下次提现→「天」（始终显示）。
+  前两类受设置开关 `showIncomeUnit` / `showCountUnit` 控制，默认关闭；开关在 UI 边界
+  `toDataCardItem(showIncomeUnit, showCountUnit)` 处生效（首页、管理页各自 collect 设置）。
 - `ManagementEditableDataGrid` 整页编辑网格。
 - 按日图表（近30天收入 / 访问人数趋势）边界处理：`/api/my/stat` 对今天/昨天返回空值，`ChartModel.trimTrailingBlankDays` 只裁掉窗口末端（今天方向）连续的空/0 天，中间为 0 的天保留；全为 0/无数据时回退完整窗口。抓取时额外回溯 `CHART_TRAILING_TRIM_BUFFER_DAYS`(7) 天，保证裁剪后仍有 `CHART_DAILY_WINDOW_DAYS`(30) 个点。
 
@@ -148,7 +153,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 设置页（SettingsScreen）
 
 - `SwitchPreference`（爱发电主题色开关）、`OverlayDropdownPreference`（启动默认页）等。
-- 开关项：高级过渡动画、手势返回、系统预测性返回、调试日志、浏览历史。
+- 开关项：高级过渡动画、手势返回、系统预测性返回、调试日志、浏览历史、
+  显示收入单位、显示人次单位（后两项在「数据卡片」分区，默认关闭）。
 - 配色模式选择：跟随系统 / 浅色 / 深色。
 - 切配色时的平滑过渡：整页包在 `ThemeColorTransition`（`ui/theme/ThemeColorTransition.kt`）里，
   改动配色模式或主题色时逐帧插值到新色板（时长见文件内 `ColorTransitionDurationMillis`），不再瞬间换色。只设置页有，其他页面不参与。

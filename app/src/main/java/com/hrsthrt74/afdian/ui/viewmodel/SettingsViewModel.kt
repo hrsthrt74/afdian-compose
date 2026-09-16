@@ -48,12 +48,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val historyEnabled: StateFlow<Boolean> = store.historyEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    /** 金额类数据卡显示「元」单位，默认关闭。 */
+    val showIncomeUnit: StateFlow<Boolean> = store.showIncomeUnit
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** 人数/次数类数据卡显示「人」「次」单位，默认关闭。 */
+    val showCountUnit: StateFlow<Boolean> = store.showCountUnit
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     fun setDebugLogging(enabled: Boolean) {
         viewModelScope.launch { store.setDebugLogging(enabled) }
     }
 
     fun setHistoryEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setHistoryEnabled(enabled) }
+    }
+
+    fun setShowIncomeUnit(enabled: Boolean) {
+        viewModelScope.launch { store.setShowIncomeUnit(enabled) }
+    }
+
+    fun setShowCountUnit(enabled: Boolean) {
+        viewModelScope.launch { store.setShowCountUnit(enabled) }
     }
 
     fun clearHistoryAll() {

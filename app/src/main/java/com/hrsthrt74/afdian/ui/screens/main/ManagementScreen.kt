@@ -93,8 +93,11 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
     val context = LocalContext.current
     val settingsStore = remember { SettingsStore(context) }
     val managementLayout by settingsStore.managementLayout.collectAsState(initial = emptyList())
-    val cardItems = remember(cardModels) {
-        cardModels.mapValues { (_, card) -> card.toDataCardItem() }
+    // 卡片单位是否显示由设置决定，开关变化后立即重算展示项
+    val showIncomeUnit by settingsStore.showIncomeUnit.collectAsState(initial = false)
+    val showCountUnit by settingsStore.showCountUnit.collectAsState(initial = false)
+    val cardItems = remember(cardModels, showIncomeUnit, showCountUnit) {
+        cardModels.mapValues { (_, card) -> card.toDataCardItem(showIncomeUnit, showCountUnit) }
     }
     var showCustomization by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }

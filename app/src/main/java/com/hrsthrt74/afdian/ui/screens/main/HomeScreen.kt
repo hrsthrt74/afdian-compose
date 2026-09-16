@@ -86,8 +86,11 @@ fun HomeScreen(
     val sponsoring by viewModel.sponsoring.collectAsState()
     val loading by viewModel.isLoading.collectAsState()
     val creatorCards by viewModel.creatorCards.collectAsState()
-    val creatorCardItems = remember(creatorCards) {
-        creatorCards.mapValues { (_, card) -> card.toDataCardItem() }
+    // 卡片单位是否显示由设置决定，开关变化后立即重算展示项
+    val showIncomeUnit by settingsStore.showIncomeUnit.collectAsState(initial = false)
+    val showCountUnit by settingsStore.showCountUnit.collectAsState(initial = false)
+    val creatorCardItems = remember(creatorCards, showIncomeUnit, showCountUnit) {
+        creatorCards.mapValues { (_, card) -> card.toDataCardItem(showIncomeUnit, showCountUnit) }
     }
     val charts by viewModel.creatorCharts.collectAsState()
     val markedCreators by viewModel.markedCreators.collectAsState()

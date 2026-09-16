@@ -1,9 +1,10 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import android.app.Application
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.BackButton
+import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
@@ -99,6 +101,8 @@ private fun SettingsScreenContent(
     val predictiveBack by viewModel.predictiveBack.collectAsState()
     val debugLogging by viewModel.debugLogging.collectAsState()
     val historyEnabled by viewModel.historyEnabled.collectAsState()
+    val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
+    val showCountUnit by viewModel.showCountUnit.collectAsState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val listState = rememberLazyListState()
@@ -194,6 +198,46 @@ private fun SettingsScreenContent(
                             onCheckedChange = viewModel::setPredictiveBack,
                             title = "预测性返回",
                             summary = "关闭系统返回时的页面预览动画，返回键和返回手势仍然可用",
+                        )
+                    }
+                }
+                item { SmallTitle(text = "数据卡片", modifier = Modifier.padding(start = 4.dp)) }
+                item {
+                    // 开关的实时预览：切换下面两个开关时，预览卡的单位会立即出现/消失
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        DataCard(
+                            title = "收入预览",
+                            value = "1280.00",
+                            unit = "元".takeIf { showIncomeUnit },
+                            modifier = Modifier.weight(1f),
+                        )
+                        DataCard(
+                            title = "人数预览",
+                            value = "256",
+                            unit = "人".takeIf { showCountUnit },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        SwitchPreference(
+                            checked = showIncomeUnit,
+                            onCheckedChange = viewModel::setShowIncomeUnit,
+                            title = "显示收入单位",
+                            summary = "收入、可提现等金额卡片在数值后显示「元」",
+                        )
+                        SwitchPreference(
+                            checked = showCountUnit,
+                            onCheckedChange = viewModel::setShowCountUnit,
+                            title = "显示人次单位",
+                            summary = "发电人数、发电次数、访问人次等卡片显示「人」「次」",
                         )
                     }
                 }

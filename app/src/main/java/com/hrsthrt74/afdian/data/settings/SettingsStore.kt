@@ -44,8 +44,12 @@ class SettingsStore(private val context: Context) {
         val GESTURE_BACK = booleanPreferencesKey("gesture_back")
         // 系统预测性返回总开关；关闭后由导航 entry 消费系统返回事件
         val PREDICTIVE_BACK = booleanPreferencesKey("predictive_back")
-        // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
-        val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
+    // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
+    val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
+    // 数据卡单位：金额类（收入、可提现）是否显示「元」
+    val SHOW_INCOME_UNIT = booleanPreferencesKey("show_income_unit")
+    // 数据卡单位：人数/次数类（发电人数、发电次数、访问人数、访问次数）是否显示「人」「次」
+    val SHOW_COUNT_UNIT = booleanPreferencesKey("show_count_unit")
         // 浏览历史开关：关闭后不再写入新的历史记录或头像缓存
         val HISTORY_ENABLED = booleanPreferencesKey("history_enabled")
         val HOME_CREATOR_DATA = booleanPreferencesKey("home_creator_data")
@@ -94,6 +98,14 @@ class SettingsStore(private val context: Context) {
     /** 是否记录浏览历史，默认开启；关闭只暂停新增，不删除已有记录。 */
     val historyEnabled: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.HISTORY_ENABLED] ?: true }
+
+    /** 金额类数据卡是否显示「元」单位，默认关闭（只显示数字）。 */
+    val showIncomeUnit: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.SHOW_INCOME_UNIT] ?: false }
+
+    /** 人数/次数类数据卡是否显示「人」「次」单位，默认关闭（只显示数字）。 */
+    val showCountUnit: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.SHOW_COUNT_UNIT] ?: false }
 
     /** 首页模块开关，默认全部开启；新账号无需额外初始化配置。 */
     val homeCreatorData: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_CREATOR_DATA] ?: true }
@@ -172,6 +184,14 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setHistoryEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.HISTORY_ENABLED] = enabled }
+    }
+
+    suspend fun setShowIncomeUnit(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.SHOW_INCOME_UNIT] = enabled }
+    }
+
+    suspend fun setShowCountUnit(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.SHOW_COUNT_UNIT] = enabled }
     }
 
     suspend fun setAdvancedTransition(enabled: Boolean) {

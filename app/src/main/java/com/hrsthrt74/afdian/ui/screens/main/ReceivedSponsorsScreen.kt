@@ -861,7 +861,9 @@ private fun ReceivedSponsorDetailSheet(
                     ) {
                         DataCard(
                             title = "发电金额",
-                            value = "¥${current.totalAmountWithShipping.ifBlank { "--" }}",
+                            value = current.totalAmountWithShipping.ifBlank { "--" },
+                            // 金额为占位符时不挂单位，避免出现「-- 元」
+                            unit = current.totalAmountWithShipping.takeIf { it.isNotBlank() }?.let { "元" },
                             modifier = Modifier.weight(1f),
                             colors = CardDefaults.defaultColors(
                                 color = MiuixTheme.colorScheme.surface,
@@ -869,7 +871,9 @@ private fun ReceivedSponsorDetailSheet(
                         )
                         DataCard(
                             title = "月份",
-                            value = if (current.monthCount > 0) "${current.monthCount} 个月" else "--",
+                            value = if (current.monthCount > 0) current.monthCount.toString() else "--",
+                            // 同上，无有效月数时不显示「个月」
+                            unit = if (current.monthCount > 0) "个月" else null,
                             modifier = Modifier.weight(1f),
                             colors = CardDefaults.defaultColors(
                                 color = MiuixTheme.colorScheme.surface,

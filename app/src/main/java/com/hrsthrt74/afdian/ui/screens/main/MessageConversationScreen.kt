@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -82,12 +83,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.graphics.toArgb
-import kotlin.math.roundToInt
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.ComplaintNotice
 import com.hrsthrt74.afdian.data.content.MessageContent
@@ -132,6 +130,8 @@ import top.yukonga.miuix.kmp.basic.SnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults.textFieldColors
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -146,13 +146,11 @@ import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Notes
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.pressable
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import top.yukonga.miuix.kmp.basic.VerticalScrollBar
-import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
-import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -616,8 +614,9 @@ private fun SponsorSection(
             // 当前发电：月度总额
             DataCard(
                 title = "当前发电",
-                value = "${amount?.current_amount ?: "0.00"} 元/月",
-                maxFontSize = 24.sp,
+                value = amount?.current_amount ?: "0.00",
+                unit = "元/月",
+//                maxFontSize = 24.sp,
                 modifier = Modifier.weight(1f),
                 colors = CardColors(
                     color = MiuixTheme.colorScheme.surface,
@@ -627,8 +626,9 @@ private fun SponsorSection(
             // 总共发电：累计总额
             DataCard(
                 title = "总共发电",
-                value = "${amount?.all_sum_amount ?: "0.00"} 元",
-                maxFontSize = 24.sp,
+                value = amount?.all_sum_amount ?: "0.00",
+                unit = "元",
+//                maxFontSize = 24.sp,
                 modifier = Modifier.weight(1f),
                 colors = CardColors(
                     color = MiuixTheme.colorScheme.surface,
