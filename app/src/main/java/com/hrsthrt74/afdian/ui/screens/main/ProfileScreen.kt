@@ -41,6 +41,7 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import java.time.YearMonth
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -59,6 +60,18 @@ import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Rename
 import top.yukonga.miuix.kmp.icon.extended.Store
+import top.yukonga.miuix.kmp.icon.extended.Th1
+import top.yukonga.miuix.kmp.icon.extended.Th2
+import top.yukonga.miuix.kmp.icon.extended.Th3
+import top.yukonga.miuix.kmp.icon.extended.Th4
+import top.yukonga.miuix.kmp.icon.extended.Th5
+import top.yukonga.miuix.kmp.icon.extended.Th6
+import top.yukonga.miuix.kmp.icon.extended.Th7
+import top.yukonga.miuix.kmp.icon.extended.Th8
+import top.yukonga.miuix.kmp.icon.extended.Th9
+import top.yukonga.miuix.kmp.icon.extended.Th10
+import top.yukonga.miuix.kmp.icon.extended.Th11
+import top.yukonga.miuix.kmp.icon.extended.Th12
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -193,7 +206,8 @@ private fun ProfileMainScreen(
                         )
                         ProfileQuickEntry(
                             title = "感谢页",
-                            icon = MiuixIcons.Months,
+                            // 图标跟随感谢页默认展示的年月（上个月），本月 9 月 → 上月 8 → Th8
+                            icon = thankSponsorsEntryIcon(),
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.ThankSponsors) },
                         )
@@ -247,6 +261,29 @@ private fun ProfileMainScreen(
         }
     }
 }
+
+/**
+ * 「感谢页」快捷入口的图标：取 Miuix 的 ThN 数字图标。
+ *
+ * 因打开是「上月」的感谢页，故数字 -1
+ *
+ */
+private fun thankSponsorsEntryIcon(): ImageVector =
+    when (YearMonth.now().minusMonths(1).monthValue) {
+        1 -> MiuixIcons.Th1
+        2 -> MiuixIcons.Th2
+        3 -> MiuixIcons.Th3
+        4 -> MiuixIcons.Th4
+        5 -> MiuixIcons.Th5
+        6 -> MiuixIcons.Th6
+        7 -> MiuixIcons.Th7
+        8 -> MiuixIcons.Th8
+        9 -> MiuixIcons.Th9
+        10 -> MiuixIcons.Th10
+        11 -> MiuixIcons.Th11
+        // 剩下只可能是 12 月
+        else -> MiuixIcons.Th12
+    }
 
 /**
  * 「我的」页的圆形快捷入口：上面是圆形底 + 图标（或等大占位），下面一行标题文字。
