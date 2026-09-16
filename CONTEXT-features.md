@@ -154,6 +154,10 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   改动配色模式或主题色时逐帧插值到新色板（时长见文件内 `ColorTransitionDurationMillis`），不再瞬间换色。只设置页有，其他页面不参与。
 - 过渡只作用于中性色；主色家族（primary 及派生色：禁用态、强调容器、下拉选中项、Slider 刻度点）
   直接取目标值一步到位，不跟着渐变。
+- 系统栏图标颜色跟随 App 深浅：`AfdianTheme` 内调 `ApplySystemBarAppearance`
+  （`ui/theme/SystemBarAppearance.kt`），按生效色板的底色亮度决定图标深浅。
+  开 edge-to-edge 后系统只按「系统深浅色」给图标，App 手动切深色时必须自己覆盖，
+  否则黑图标压在深色背景上看不见。状态栏与导航栏一起处理，且是瞬间切换、不参与渐变。
 - 退出登录。
 
 ## 内容 URL 拦截

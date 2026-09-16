@@ -65,6 +65,9 @@ fun AfdianTheme(
                 (view.context as? Activity)?.window?.decorView?.background =
                     ColorDrawable(windowBackground.toArgb())
             }
+            // 系统栏（状态栏 / 导航栏）图标颜色跟随 App 实际生效的深浅：
+            // 手动切深色而系统仍是浅色时，系统默认给的还是黑图标，会看不见
+            ApplySystemBarAppearance(isDark = isDarkColorScheme(MiuixTheme.colorScheme))
             content()
         }
     }
