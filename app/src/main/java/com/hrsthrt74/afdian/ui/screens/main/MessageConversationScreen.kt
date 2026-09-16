@@ -362,6 +362,7 @@ fun MessageConversationScreen(
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 SmallTopAppBar(
                 title = userName,
+                titlePadding = 0.dp,
                 color = blurBarColor(backdrop),
                 navigationIcon = {
                     BackButton(onBack = onBack, backStack = backStack)
