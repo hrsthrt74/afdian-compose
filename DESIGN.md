@@ -67,6 +67,7 @@ Text(
 
 - 加载中 → `LoadingComponent`
 - 空状态 / 错误态 → `EmptyStateView`（见「空状态 / 错误态」一节）
+- 复制按钮 → `CopyButton`（震动 + 写剪贴板 + 图标切 Ok + Toast，异步反馈全在内部；字重用 `iconWeight`，档位 `MiuixIconWeight.Light/Normal/Regular/Medium/Demibold`，默认 `Regular`）
 - 动态卡片 → `PostCard`
 - 创作者卡（长条形） → `CreatorListItem`
 - 创作者卡（矩形） → `CreatorLargeCard` / `CreatorSmallCard`

@@ -40,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.Affiliate
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.CopyButton
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
@@ -63,7 +64,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
@@ -119,12 +119,8 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val pullToRefreshState = rememberPullToRefreshState()
     val context = LocalContext.current
-    // 剪贴板：复制优惠码用
+    // 剪贴板：生成优惠码链接时写入
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val copyCode: (String) -> Unit = { code ->
-        clipboard.setPrimaryClip(ClipData.newPlainText("优惠码", code))
-        Toast.makeText(context, "已复制 $code", Toast.LENGTH_SHORT).show()
-    }
 
     val haptic = LocalHapticFeedback.current
 
@@ -227,7 +223,6 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
                                 affiliate = affiliate,
                                 // 生成链接：https://ifdian.net/a/{slug}/plan?affiliate_code={code}
                                 link = affiliateLink(creatorSlug, affiliate.affiliate_code),
-                                onCopy = copyCode,
                                 pending = affiliate.affiliate_code in pendingAffiliateCodes,
                                 onToggle = { enable ->
                                     // 切换结果用 Toast 提示（成功/失败文案由 ViewModel 回传）
@@ -310,7 +305,6 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
 private fun AffiliateCard(
     affiliate: Affiliate,
     link: String?,
-    onCopy: (String) -> Unit,
     pending: Boolean,
     onToggle: (Boolean) -> Unit,
     onGenerateLink: (String) -> Unit,
@@ -337,16 +331,14 @@ private fun AffiliateCard(
                     style = MiuixTheme.textStyles.title4,
                     fontWeight = FontWeight.Bold,
                 )
-                IconButton(
-                    onClick = { onCopy(affiliate.affiliate_code) },
+                // 复制优惠码：震动 → 写剪贴板 → 图标切 Ok + Toast，全部由 CopyButton 内部处理
+                CopyButton(
+                    text = affiliate.affiliate_code,
+                    toastText = "已复制 ${affiliate.affiliate_code}",
                     enabled = affiliate.affiliate_code.isNotBlank(),
-                    modifier = Modifier.padding(start = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Copy,
-                        contentDescription = "复制优惠码",
-                    )
-                }
+                    contentDescription = "复制优惠码",
+                    modifier = Modifier.padding(start = 8.dp),
+                )
                 Spacer(Modifier.weight(1f))
                 // 状态文案：跟随开关显示「生效中 / 未生效」
                 Text(

@@ -1,10 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,7 +45,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.ReceivedShipmentFilter
 import com.hrsthrt74.afdian.data.content.ReceivedSponsor
 import com.hrsthrt74.afdian.data.content.ReceivedSponsorsSort
@@ -57,12 +52,14 @@ import com.hrsthrt74.afdian.data.content.ReceivedTimeRange
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.CopyButton
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.DateTimeField
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.FilterChip
 import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.MiuixIconWeight
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
@@ -95,7 +92,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.icon.extended.Community
-import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Create
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Search
@@ -936,12 +932,11 @@ private fun SponsorDetailField(label: String, value: String, modifier: Modifier 
 /**
  * 带复制按钮的详情行：点击复制按钮把该行内容写入剪贴板，
  * 不改变 Sheet 的关闭状态。留言等长文本占满剩余宽度并换行。
+ *
+ * 复制动作（震动、写剪贴板、图标反馈、Toast）统一交给 [CopyButton] 处理。
  */
 @Composable
 private fun SponsorDetailCopyField(label: String, value: String) {
-    val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -949,21 +944,14 @@ private fun SponsorDetailCopyField(label: String, value: String) {
         // weight(1f)：长内容（如留言）在按钮左侧换行，不会把按钮挤出屏幕
         SponsorDetailField(label, value, modifier = Modifier.weight(1f))
 
-        IconButton(
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
-                AppLog.d("ReceivedSponsors", "$label 已复制")
-                Toast.makeText(context, "${label}已复制", Toast.LENGTH_SHORT).show()
-            },
-        ) {
-            Icon(
-                imageVector = MiuixIcons.Demibold.Copy,
-                contentDescription = "复制$label",
-            )
-        }
+        // 复制该行内容：Toast 沿用「$label已复制」的既有文案，
+        // 字重保持该处原有的 Demibold，避免替换组件后图标变细
+        CopyButton(
+            text = value,
+            toastText = "${label}已复制",
+            iconWeight = MiuixIconWeight.Demibold,
+            contentDescription = "复制$label",
+        )
     }
 }
 
