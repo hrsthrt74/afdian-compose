@@ -150,6 +150,10 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `SwitchPreference`（爱发电主题色开关）、`OverlayDropdownPreference`（启动默认页）等。
 - 开关项：高级过渡动画、手势返回、系统预测性返回、调试日志、浏览历史。
 - 配色模式选择：跟随系统 / 浅色 / 深色。
+- 切配色时的平滑过渡：整页包在 `ThemeColorTransition`（`ui/theme/ThemeColorTransition.kt`）里，
+  改动配色模式或主题色时逐帧插值到新色板（时长见文件内 `ColorTransitionDurationMillis`），不再瞬间换色。只设置页有，其他页面不参与。
+- 过渡只作用于中性色；主色家族（primary 及派生色：禁用态、强调容器、下拉选中项、Slider 刻度点）
+  直接取目标值一步到位，不跟着渐变。
 - 退出登录。
 
 ## 内容 URL 拦截

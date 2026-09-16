@@ -28,6 +28,7 @@ import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.theme.ThemeColorTransition
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -52,6 +53,13 @@ private val startupPageNames = listOf("首页", "发现", "消息", "我的")
 // 配色模式选项，索引与 SettingsStore 的 0/1/2 约定一致
 private val colorModeNames = listOf("跟随系统", "浅色模式", "深色模式")
 
+/**
+ * 设置页。
+ *
+ * 内容整体包在 [ThemeColorTransition] 里：本页是唯一能改配色的地方，切「配色模式」
+ * 或「使用爱发电主题色」时整页颜色渐变过去，而不是瞬间换色。模糊取色也在包裹范围内，
+ * 顶栏才能跟着一起渐变。其他页面保持原来的瞬间生效（切设置时它们看不见，没必要每帧重算）。
+ */
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
 fun SettingsScreen(
@@ -64,6 +72,24 @@ fun SettingsScreen(
             LocalContext.current.applicationContext as Application
         )
     )
+) {
+    ThemeColorTransition {
+        SettingsScreenContent(
+            onBack = onBack,
+            backStack = backStack,
+            onLogout = onLogout,
+            viewModel = viewModel,
+        )
+    }
+}
+
+@OptIn(ExperimentalScrollBarApi::class)
+@Composable
+private fun SettingsScreenContent(
+    onBack: () -> Unit,
+    backStack: NavBackStack,
+    onLogout: () -> Unit,
+    viewModel: SettingsViewModel,
 ) {
     val startupPage by viewModel.startupPage.collectAsState()
     val useAfdianColor by viewModel.useAfdianColor.collectAsState()
