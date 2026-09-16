@@ -44,6 +44,13 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   前两类受设置开关 `showIncomeUnit` / `showCountUnit` 控制，默认关闭；开关在 UI 边界
   `toDataCardItem(showIncomeUnit, showCountUnit)` 处生效（首页、管理页各自 collect 设置）。
 - `ManagementEditableDataGrid` 整页编辑网格。
+- 首页首屏缓存（`data/content/HomeCache`，DataStore 文件 `home`）：缓存发电列表、收藏创作者、数据卡文字
+  与图表数据（`creatorCharts`，key 为 `ChartType.storageValue`），冷启动先回填秒显、网络结果回来再覆盖；
+  只缓存可展示数据，不缓存加载状态与分页游标。`ChartSeries` / `ChartDataItem` 是 `@Serializable`，
+  图表整体无损落盘（数据卡因 `CardValue` 类型会退化，才单独拍平成 `HomeCacheCard`）。
+  新增字段一律带默认值，旧快照反序列化为空集合而不是解析失败。
+  图表刷新是**合并**语义（`_creatorCharts.value + overview.charts`）：数据源临时失败时该图键缺失，
+  保留上一份好数据而不抹成加载占位，缓存里也就能留住上次的图。
 - 按日图表（近30天收入 / 访问人数趋势）边界处理：`/api/my/stat` 对今天/昨天返回空值，`ChartModel.trimTrailingBlankDays` 只裁掉窗口末端（今天方向）连续的空/0 天，中间为 0 的天保留；全为 0/无数据时回退完整窗口。抓取时额外回溯 `CHART_TRAILING_TRIM_BUFFER_DAYS`(7) 天，保证裁剪后仍有 `CHART_DAILY_WINDOW_DAYS`(30) 个点。
 
 ## 发现页

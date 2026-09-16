@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.data.stats
 
 import com.hrsthrt74.afdian.AppLog
+import kotlinx.serialization.Serializable
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -46,12 +47,14 @@ data class MonthlyBillRecord(
 )
 
 /** 图表里的一条序列（一条柱/折线）。数值用 Double 便于直接交给 Vico。 */
+@Serializable
 data class ChartSeries(
     val name: String,
     val values: List<Double>,
 )
 
 /** 可渲染的图表数据：横轴标签 + 一至多条序列。数据缺失/加载失败时为全空。 */
+@Serializable
 data class ChartDataItem(
     val key: String,
     val title: String,
