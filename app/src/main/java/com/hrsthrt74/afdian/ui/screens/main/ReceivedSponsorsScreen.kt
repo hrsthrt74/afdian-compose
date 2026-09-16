@@ -732,7 +732,10 @@ private fun ReceivedSponsorCard(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     SponsorField("方案", order.planName)
-                    SponsorField("型号", order.modelName)
+                    // 型号为「默认型号」时视为无有效型号，整行不展示（精确四字匹配）
+                    if (order.modelName != "默认型号") {
+                        SponsorField("型号", order.modelName)
+                    }
                     // 使用优惠码的订单展示优惠码本身
                     order.affiliateCode?.let { SponsorField("优惠码", it) }
                     order.redeemCode?.let { SponsorField("兑换自", it) }
