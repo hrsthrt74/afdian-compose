@@ -178,9 +178,9 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
                         bottom = contentBottomPadding(),
                     )
                 ) {
-                    // 说明卡片：介绍优惠码用途（与官方网页文案一致），右下角为创建入口
+                    // 说明卡片
                     item(key = "intro") {
-                        Card(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 8.dp)) {
+                        Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 8.dp)) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
                                     text = "优惠码可让获得码的用户购买指定方案或商品时，享受规定的折扣。\n" +
