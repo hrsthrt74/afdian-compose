@@ -336,3 +336,54 @@ data class CreatorProduct(
     val priceText: String get() = show_price ?: floor_price ?: price ?: "--"
     val summary: String get() = description.orEmpty()
 }
+
+/** 方案详情接口返回的计划信息；字段保持字符串金额，避免精度丢失。 */
+@Serializable
+data class CreatorPlanSkuPlan(
+    val plan_id: String = "",
+    val user_id: String = "",
+    val name: String = "",
+    val pic: String? = null,
+    val desc: String? = null,
+    val price: String? = null,
+    val show_price: String? = null,
+    val pay_month: Int? = null,
+    val product_type: Int? = null,
+    val can_buy_count: Int? = null,
+    val permanent: Int? = null,
+    val need_address: Int? = null,
+)
+
+/** /api/creator/get-plan-skus 返回的单个商品 SKU。 */
+@Serializable
+data class CreatorPlanSku(
+    val sku_id: String = "",
+    val plan_id: String = "",
+    val user_id: String = "",
+    val status: Int? = null,
+    val name: String = "",
+    val stock: String? = null,
+    val price: String? = null,
+    val album_id: String? = null,
+    val post_id: String? = null,
+    val pic: String? = null,
+    val desc: String? = null,
+    val sponsor_count: String? = null,
+    val purchased_rich_text: String? = null,
+    val show_stock: Int? = null,
+    val plan: CreatorPlanSkuPlan? = null,
+    val sku_limitation_label_switch: Int? = null,
+    val has_sku_purchase_limit: Int? = null,
+    val can_buy_count: Int? = null,
+)
+
+/** 方案 SKU 查询结果，包含方案信息、可购买 SKU 及已购 SKU。 */
+@Serializable
+data class CreatorPlanSkus(
+    val plan: CreatorPlanSkuPlan? = null,
+    val floor_price: String? = null,
+    val has_time_limit_price: Int? = null,
+    val list: List<CreatorPlanSku> = emptyList(),
+    val vip_all_plans: List<CreatorPlanSkuPlan> = emptyList(),
+    val bought_skus: List<CreatorPlanSku> = emptyList(),
+)

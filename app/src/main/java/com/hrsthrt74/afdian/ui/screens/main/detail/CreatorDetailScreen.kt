@@ -51,11 +51,13 @@ import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.PostCard
+import com.hrsthrt74.afdian.ui.components.PlanDetailSheet
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.CreatorDetailViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.PlanDetailViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -96,6 +98,17 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, backStack: NavBac
     val loading by vm.loading.collectAsState()
     val error by vm.error.collectAsState()
     val isMarking by vm.isMarking.collectAsState()
+    val planDetailViewModel: PlanDetailViewModel = viewModel(
+        key = "plan-detail-${user.user_id}",
+        factory = remember {
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    PlanDetailViewModel(app) as T
+            }
+        }
+    )
+    var selectedPlanId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -150,6 +163,7 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, backStack: NavBac
                     scrollBehavior = scrollBehavior,
                     topPadding = paddingValues.calculateTopPadding(),
                     onOpenPost = onOpenPost,
+                    onOpenPlan = { selectedPlanId = it },
                     onSponsor = {
                         val plansIndex = current.sections().indexOf(CreatorSection.Plans)
                         val productsIndex = current.sections().indexOf(CreatorSection.Products)
@@ -163,6 +177,12 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, backStack: NavBac
                 )
             }
         }
+        PlanDetailSheet(
+            show = selectedPlanId != null,
+            planId = selectedPlanId,
+            viewModel = planDetailViewModel,
+            onDismiss = { selectedPlanId = null },
+        )
     }
 }
 
@@ -174,6 +194,7 @@ private fun CreatorDetailContent(
     scrollBehavior: ScrollBehavior,
     topPadding: Dp,
     onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
+    onOpenPlan: (String) -> Unit,
     onSponsor: () -> Unit,
 ) {
     LazyColumn(
@@ -195,8 +216,8 @@ private fun CreatorDetailContent(
         sections.forEachIndexed { index, section ->
             item(key = section.name) {
                 when (section) {
-                    CreatorSection.Plans -> CreatorPlansSection(detail)
-                    CreatorSection.Products -> CreatorProductsSection(detail)
+                    CreatorSection.Plans -> CreatorPlansSection(detail, onOpenPlan)
+                    CreatorSection.Products -> CreatorProductsSection(detail, onOpenPlan)
                     CreatorSection.Albums -> CreatorAlbumsSection(detail)
                     CreatorSection.Posts -> CreatorPostsSection(detail, onOpenPost = onOpenPost)
                     CreatorSection.Sponsors -> CreatorSponsorsSection(detail)
@@ -382,13 +403,16 @@ private fun CollapsibleTextContent(
 }
 
 @Composable
-private fun CreatorPlansSection(detail: CreatorDetail) {
+private fun CreatorPlansSection(detail: CreatorDetail, onOpenPlan: (String) -> Unit) {
     SmallTitle(text = "订阅方案", modifier = Modifier.padding(start = 4.dp))
     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Spacer(Modifier.height(8.dp))
         detail.plans.forEach { plan ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable(enabled = !plan.plan_id.isNullOrBlank()) {
+                        plan.plan_id?.let(onOpenPlan)
+                    },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!plan.pic.isNullOrBlank()) {
@@ -428,7 +452,7 @@ private fun CreatorPlansSection(detail: CreatorDetail) {
 }
 
 @Composable
-private fun CreatorProductsSection(detail: CreatorDetail) {
+private fun CreatorProductsSection(detail: CreatorDetail, onOpenPlan: (String) -> Unit) {
 
     SmallTitle(text = "商品", modifier = Modifier.padding(start = 4.dp))
 
@@ -438,7 +462,10 @@ private fun CreatorProductsSection(detail: CreatorDetail) {
 
         detail.products.forEach { product ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable(enabled = !product.plan_id.isNullOrBlank()) {
+                        product.plan_id?.let(onOpenPlan)
+                    },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 商品图

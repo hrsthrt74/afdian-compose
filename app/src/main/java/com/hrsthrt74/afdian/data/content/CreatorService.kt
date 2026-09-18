@@ -7,6 +7,8 @@ import com.hrsthrt74.afdian.data.network.requireAfdianSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -79,10 +81,28 @@ internal class CreatorService(
             .data?.user
             ?: error("用户信息加载失败")
 
+    /** 加载方案下的商品 SKU，供订单/购买流程复用。 */
+    suspend fun fetchPlanSkus(planId: String, isExt: String = ""): CreatorPlanSkus = withContext(Dispatchers.IO) {
+        val path = "/api/creator/get-plan-skus?plan_id=$planId&is_ext=$isExt"
+        val root = get(path, CreatorPlanSkusResponse.serializer())
+        parseCreatorPlanSkus(root.raw)
+    }
+
     private fun fetchGoals(userID: String): List<CreatorGoal> {
         val payload = get("/api/creator/get-goals?user_id=$userID", CreatorGoalsResponse.serializer()).data
             ?: return emptyList()
         return payload.list ?: payload.goals ?: emptyList()
+    }
+
+    @Serializable
+    private data class CreatorPlanSkusResponse(
+        val ec: Int? = null,
+        val data: kotlinx.serialization.json.JsonObject? = null,
+    ) {
+        val raw: JsonObject
+            get() = kotlinx.serialization.json.buildJsonObject {
+                put("data", data ?: kotlinx.serialization.json.JsonObject(emptyMap()))
+            }
     }
 
     private fun fetchTopSponsors(userID: String): List<TopSponsor> =
