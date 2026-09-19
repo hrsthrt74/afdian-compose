@@ -29,6 +29,7 @@ import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.CreatorListItem
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
@@ -37,7 +38,6 @@ import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
-import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 import top.yukonga.miuix.kmp.basic.Button
@@ -46,14 +46,14 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import top.yukonga.miuix.kmp.basic.VerticalScrollBar
-import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
-import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
@@ -82,6 +82,8 @@ fun FavoritesScreen(
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             TopAppBar(
                 title = "我的收藏",
@@ -92,6 +94,7 @@ fun FavoritesScreen(
                     BackButton(onBack = onBack, backStack = backStack)
                 }
             )
+            }
             }
         }
     ) { paddingValues ->

@@ -1,19 +1,18 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.waterfallPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,16 +35,18 @@ import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
-import com.hrsthrt74.afdian.ui.components.home.HomeCustomizationSheet
+import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.components.home.CreatorDataEditPage
+import com.hrsthrt74.afdian.ui.components.home.HomeCustomizationSheet
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContent
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContentContext
-import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -61,7 +61,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.SinkFeedback
 import top.yukonga.miuix.kmp.utils.pressable
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import kotlinx.coroutines.delay
 
 /** 首页容器只负责页面骨架、数据订阅和模块顺序；具体模块 UI 放在 home 包内。 */
 @Composable
@@ -148,22 +147,25 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
-                TopAppBar(
-                    title = if (editingCreatorData) "编辑创作者数据" else "首页",
-                    color = blurBarColor(backdrop), scrollBehavior = scrollBehavior,
-                    actions = {
-                        if (!editingCreatorData) {
-                            IconButton(onClick = viewModel::refresh) {
-                                Icon(
-                                    MiuixIcons.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.rotate(if (showRefreshAnimation) refreshRotation else 0f),
-                                )
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
+                BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
+                    TopAppBar(
+                        title = if (editingCreatorData) "编辑创作者数据" else "首页",
+                        color = blurBarColor(backdrop), scrollBehavior = scrollBehavior,
+                        actions = {
+                            if (!editingCreatorData) {
+                                IconButton(onClick = viewModel::refresh) {
+                                    Icon(
+                                        MiuixIcons.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.rotate(if (showRefreshAnimation) refreshRotation else 0f),
+                                    )
+                                }
                             }
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             }
         },
     ) { paddingValues ->

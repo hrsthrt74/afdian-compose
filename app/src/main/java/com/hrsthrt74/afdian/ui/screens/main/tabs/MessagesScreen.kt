@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.FilterChip
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
@@ -57,7 +58,9 @@ import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -65,11 +68,9 @@ import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Redo
 import top.yukonga.miuix.kmp.icon.extended.Reply
 import top.yukonga.miuix.kmp.icon.extended.Undo
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import top.yukonga.miuix.kmp.basic.VerticalScrollBar
-import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
-import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -131,12 +132,15 @@ fun MessagesScreen(
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 TopAppBar(
                     title = "消息",
                     color = blurBarColor(backdrop),
                     scrollBehavior = scrollBehavior
                 )
+            }
             }
         }
     ) { paddingValues ->

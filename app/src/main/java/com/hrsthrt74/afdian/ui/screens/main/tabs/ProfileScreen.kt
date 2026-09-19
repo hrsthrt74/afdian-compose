@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
@@ -41,7 +43,6 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
-import java.time.YearMonth
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -56,11 +57,13 @@ import top.yukonga.miuix.kmp.icon.extended.All
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.ListView
 import top.yukonga.miuix.kmp.icon.extended.MindMap
-import top.yukonga.miuix.kmp.icon.extended.Months
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Rename
 import top.yukonga.miuix.kmp.icon.extended.Store
 import top.yukonga.miuix.kmp.icon.extended.Th1
+import top.yukonga.miuix.kmp.icon.extended.Th10
+import top.yukonga.miuix.kmp.icon.extended.Th11
+import top.yukonga.miuix.kmp.icon.extended.Th12
 import top.yukonga.miuix.kmp.icon.extended.Th2
 import top.yukonga.miuix.kmp.icon.extended.Th3
 import top.yukonga.miuix.kmp.icon.extended.Th4
@@ -69,12 +72,10 @@ import top.yukonga.miuix.kmp.icon.extended.Th6
 import top.yukonga.miuix.kmp.icon.extended.Th7
 import top.yukonga.miuix.kmp.icon.extended.Th8
 import top.yukonga.miuix.kmp.icon.extended.Th9
-import top.yukonga.miuix.kmp.icon.extended.Th10
-import top.yukonga.miuix.kmp.icon.extended.Th11
-import top.yukonga.miuix.kmp.icon.extended.Th12
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import java.time.YearMonth
 
 /**
  * 「我的」tab 的内容页。二级路由（收藏/我发电的/订单/管理/设置）不再在这里嵌套
@@ -102,6 +103,8 @@ private fun ProfileMainScreen(
 ) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    // 列表滚动状态：双击顶栏回顶 + 滚动条共用
+    val listState = rememberLazyListState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
 
@@ -109,6 +112,8 @@ private fun ProfileMainScreen(
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 // 捕获头像边界，作为「主页展开」过渡动画的起点
                 val avatarOrigin = rememberCreatorOrigin()
@@ -129,10 +134,12 @@ private fun ProfileMainScreen(
                     }
                 )
             }
+            }
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection)

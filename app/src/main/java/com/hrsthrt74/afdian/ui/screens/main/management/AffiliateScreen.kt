@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,6 +42,7 @@ import com.hrsthrt74.afdian.data.content.Affiliate
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.CopyButton
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
@@ -117,6 +119,8 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    // 列表滚动状态：双击顶栏回顶 + 滚动条共用
+    val listState = rememberLazyListState()
     val pullToRefreshState = rememberPullToRefreshState()
     val context = LocalContext.current
     // 剪贴板：生成优惠码链接时写入
@@ -135,6 +139,8 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
             // 顶栏实时模糊：与其他页面同款写法（BlurredBar + blurBarColor 半透明底色）
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 TopAppBar(
@@ -154,6 +160,7 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
                     },
                 )
             }
+            }
         }
     ) { paddingValues ->
         PullToRefresh(
@@ -168,6 +175,7 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
         ) {
             Box {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .nestedScroll(scrollBehavior.nestedScrollConnection)

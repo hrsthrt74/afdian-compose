@@ -1,8 +1,7 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-import androidx.compose.foundation.layout.Arrangement
+// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,34 +21,31 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
-import com.hrsthrt74.afdian.ui.components.CreatorListItem
-import com.hrsthrt74.afdian.ui.components.EmptyStateView
-import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
-import com.hrsthrt74.afdian.ui.components.LoadingComponent
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.nav.core.NavBackStack
-import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.CreatorListItem
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
+import com.hrsthrt74.afdian.ui.components.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
-import androidx.compose.foundation.lazy.rememberLazyListState
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
@@ -70,6 +67,8 @@ fun SponsoringScreen(
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
             TopAppBar(
                 title = "我发电的",
@@ -80,6 +79,7 @@ fun SponsoringScreen(
                     BackButton(onBack = onBack, backStack = backStack)
                 }
             )
+            }
             }
         }
     ) { paddingValues ->

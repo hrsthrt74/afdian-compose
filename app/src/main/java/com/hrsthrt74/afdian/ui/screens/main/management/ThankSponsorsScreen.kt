@@ -1,11 +1,10 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,8 +22,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -34,22 +31,20 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.time.YearMonth
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.Avatar
 import com.hrsthrt74.afdian.ui.components.BackButton
-import com.hrsthrt74.afdian.ui.components.CreatorListItem
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.CreatorListItem
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
-import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
-import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Button
@@ -68,13 +63,13 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.window.WindowListPopup
+import java.time.YearMonth
 
 /**
  * 赞助者感谢页
@@ -139,6 +134,8 @@ fun ThankSponsorsScreen(
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 小标题栏（固定栏无折叠态，scrollBehavior 传 null）
+            DoubleTapToTop(listState, scrollBehavior = null) {
             // 顶栏实时模糊：与其他页面同款写法（BlurredBar + blurBarColor 半透明底色）
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 SmallTopAppBar(
@@ -222,6 +219,7 @@ fun ThankSponsorsScreen(
                         }
                     },
                 )
+            }
             }
         }
     ) { paddingValues ->

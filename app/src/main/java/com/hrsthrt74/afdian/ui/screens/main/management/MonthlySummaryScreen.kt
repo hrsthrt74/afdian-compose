@@ -37,6 +37,7 @@ import com.hrsthrt74.afdian.data.stats.amountFor
 import com.hrsthrt74.afdian.data.stats.moneyText
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
@@ -110,6 +111,8 @@ fun MonthlySummaryScreen(
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
             // 顶栏实时模糊：与其他页面同款写法（BlurredBar + blurBarColor 半透明底色）
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 TopAppBar(
@@ -139,6 +142,7 @@ fun MonthlySummaryScreen(
                         }
                     },
                 )
+            }
             }
         }
     ) { paddingValues ->

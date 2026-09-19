@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,14 +19,16 @@ import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.history.HistoryTarget
 import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
-import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.AppDialog
 import com.hrsthrt74.afdian.ui.components.BackButton
+import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.HistoryEntryOption
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.components.rememberDialogState
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import top.yukonga.miuix.kmp.basic.Card
@@ -39,14 +42,10 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Recent
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import com.hrsthrt74.afdian.ui.components.AppDialog
-import com.hrsthrt74.afdian.ui.components.rememberDialogState
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -68,12 +67,16 @@ fun HistoryScreen(
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    // 列表滚动状态：双击顶栏回顶 + 滚动条共用
+    val listState = rememberLazyListState()
     val groups = historyGroups(entries)
     // 是否显示「清空历史记录」确认弹窗
     val clearDialogState = rememberDialogState()
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 TopAppBar(
                     title = "浏览历史",
@@ -92,10 +95,12 @@ fun HistoryScreen(
                     },
                 )
             }
+            }
         },
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection).scrollEndHaptic(),
                 contentPadding = PaddingValues(
                     top = paddingValues.calculateTopPadding(),

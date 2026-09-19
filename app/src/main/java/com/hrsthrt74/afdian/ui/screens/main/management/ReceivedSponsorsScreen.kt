@@ -55,6 +55,7 @@ import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.CopyButton
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.DateTimeField
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.FilterChip
 import com.hrsthrt74.afdian.ui.components.LoadMoreEffect
@@ -193,7 +194,10 @@ fun ReceivedSponsorsScreen(
 
     Scaffold(
         topBar = {
-            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
+            // 双击顶栏回顶包装层：仅普通顶栏形态启用；
+            // 搜索形态（输入框）下整段不挂手势，避免双击回顶干扰输入框的点按/选词操作
+            DoubleTapToTop(listState, scrollBehavior, enabled = !searchActive) {
+                BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 AnimatedContent(
                     targetState = searchActive,
                     label = "收到发电搜索栏切换",
@@ -274,6 +278,7 @@ fun ReceivedSponsorsScreen(
                             },
                         )
                     }
+                }
                 }
             }
         },

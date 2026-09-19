@@ -71,6 +71,7 @@ Text(
 - 动态卡片 → `PostCard`
 - 创作者卡（长条形） → `CreatorListItem`
 - 创作者卡（矩形） → `CreatorLargeCard` / `CreatorSmallCard`
+- 双击顶栏回顶 → `DoubleTapToTop`（包住 `BlurredBar` + `TopAppBar`，双击栏身平滑回顶并展开大标题；输入框形态的栏传 `enabled = false`，固定小标题栏 `scrollBehavior` 传 `null`）
 - and more in ui/components/
 
 ### 点击按压下沉反馈

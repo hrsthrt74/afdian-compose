@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -41,6 +42,7 @@ import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.HtmlContent
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.PostActionBar
@@ -113,9 +115,13 @@ fun PostDetailScreen(
     // 操作栏通过 textureBlur 把采样结果糊化后垫在自己底下
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
+    // 列表滚动状态：双击顶栏回顶 + 滚动条共用（本页是固定小标题栏，无折叠行为）
+    val listState = rememberLazyListState()
 
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 小标题栏（固定栏无折叠态，scrollBehavior 传 null）
+            DoubleTapToTop(listState, scrollBehavior = null) {
             // 顶栏实时模糊：与其他页面（消息会话/订单页）同款写法——
             // BlurredBar 负责糊化 backdrop 采样到的滚动内容，底色用 blurBarColor 半透明
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
@@ -132,6 +138,7 @@ fun PostDetailScreen(
                         }
                     },
                 )
+            }
             }
         },
     ) { paddingValues ->
@@ -159,6 +166,7 @@ fun PostDetailScreen(
                     }
                 } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize().scrollEndHaptic(),
                     contentPadding = PaddingValues(
                         top = paddingValues.calculateTopPadding(),

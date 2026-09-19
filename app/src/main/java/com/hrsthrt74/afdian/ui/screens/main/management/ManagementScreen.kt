@@ -1,18 +1,24 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,18 +26,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.ManagementSection
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
 import com.hrsthrt74.afdian.data.settings.SettingsStore
-import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
+import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.blurBarColor
@@ -39,22 +48,12 @@ import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.data.ManagementAddCardSheet
 import com.hrsthrt74.afdian.ui.components.data.ManagementDataLayout
 import com.hrsthrt74.afdian.ui.components.data.ManagementEditableDataGrid
+import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
-import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.ManagementViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -66,7 +65,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
@@ -88,6 +86,8 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    // 列表滚动状态：双击顶栏回顶 + 滚动条共用
+    val listState = rememberLazyListState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val context = LocalContext.current
@@ -106,6 +106,8 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
     val haptic = LocalHapticFeedback.current
     Scaffold(
         topBar = {
+            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
+            DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 TopAppBar(
                     title = "管理",
@@ -151,6 +153,7 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                     }
                 )
             }
+            }
         }
     ) { paddingValues ->
         // 垂直布局：TabRow 放在列表外面，结构上永远固定在列表上方（同 FavoritesScreen）
@@ -195,6 +198,7 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                     modifier = Modifier.weight(1f).nestedScroll(scrollBehavior.nestedScrollConnection),
                 )
             } else LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
