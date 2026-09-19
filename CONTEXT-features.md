@@ -159,12 +159,26 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `HistoryStore` DataStore 持久化。
 - 空状态用 `EmptyStateView`（`fillParentMaxSize` 撑满视口居中）。
 
+## 每月汇总（MonthlySummaryScreen）
+
+- 「我的」页「创作者」分组入口（标题「每月汇总」，图标沿用 `ThN` 数字图标=上个月）；原「感谢页」入口由它取代。
+- 数据来自创作者后台 `/api/my/income`（一次返回自开通以来全部月份），仓库 `MonthlySummaryRepository`；
+  解析逻辑 `parseMonthlyBills` 与 `CreatorStatsRepository.fetchMonthlyIncome()` 共用（`data/stats/MonthlyBill.kt`）。
+- 展示：按年分节（`SmallTitle`「2026年」）的扁平列表，行内「月份 + N 赞助者 + ¥金额收入」，右侧「感谢页」；整行可点进该年月的感谢页。
+  列表**不显示**账单单据的 `create_time` 结算时间；0 收入的月份也照常列出。
+- 顶栏三点菜单（`WindowIconDropdownMenu` + `DropdownItem.selected`）切换金额口径：
+  「抽成前金额」`total_amount`（默认）/「抽成后金额」`creator_amount`。
+- 金额口径持久化到 DataStore（`SettingsStore.monthlySummaryAmountMode`，键 `monthly_summary_amount_mode`）。
+- 加载/空（「暂无月度账单」）/错误+重试三分支，右侧 `VerticalScrollBar`。
+
 ## 赞助者感谢页（ThankSponsorsScreen）
 
 - 创作者后台功能：顶部比心插画 + 创作者信息 + 感谢语卡片 + 赞助者列表。
 - 按年月分页查看赞助者。
 - 感谢语编辑和保存。
 - 数据来自 `get-thank-sponsors` 和 `get-thank-word` 接口。
+- 路由 `Route.ThankSponsors(year, month)` 带年月参数，由「每月汇总」页按行传入；
+  `ThankSponsorsViewModel` 的 `initialYear`/`initialMonth` 为 null 时才回退到上个月（页内「月份跳转」仍用 `jumpTo`）。
 
 ## 设置页（SettingsScreen）
 

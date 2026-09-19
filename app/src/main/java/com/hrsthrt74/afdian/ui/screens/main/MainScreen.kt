@@ -50,6 +50,7 @@ import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.MonthlySummaryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Badge
@@ -319,19 +320,39 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 providedViewModel = vm,
             )
         }
-        entry<Route.ThankSponsors> {
+        entry<Route.MonthlySummary> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 每月汇总（创作者后台 /api/my/income）；点某一行 → 该年月的感谢页
+            val app = LocalContext.current.applicationContext as Application
+            val vm: MonthlySummaryViewModel = viewModel(
+                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app),
+            )
+            MonthlySummaryScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                onOpenThankSponsors = { year, month -> backStack.pushUnique(Route.ThankSponsors(year, month)) },
+                providedViewModel = vm,
+            )
+        }
+        entry<Route.ThankSponsors> { route ->
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 顶部创作者信息直接用当前登录账号的资料（/api/my/profile）
             val myProfile by viewModel.profile.collectAsState()
             val userId = myProfile?.user?.user_id.orEmpty()
             val app = LocalContext.current.applicationContext as Application
+            // 年月由「每月汇总」页带入；viewModelStore 按路由对象隔离，不同年月是不同 entry，不会串数据
             val vm: ThankSponsorsViewModel = viewModel(
                 key = "thank-sponsors",
-                factory = remember(userId) {
+                factory = remember(userId, route.year, route.month) {
                     object : ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                            ThankSponsorsViewModel(app, userId = userId) as T
+                            ThankSponsorsViewModel(
+                                app,
+                                userId = userId,
+                                initialYear = route.year,
+                                initialMonth = route.month,
+                            ) as T
                     }
                 }
             )

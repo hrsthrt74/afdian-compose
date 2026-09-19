@@ -26,10 +26,12 @@ sealed interface Route : NavKey {
     @Serializable data object Management : Route
     // 收入明细页（创作者后台 /api/my/stat，按日/周/月统计表格）
     @Serializable data object IncomeDetail : Route
+    // 每月汇总页（创作者后台 /api/my/income，按年分组的月度账单，可切换抽成前/后金额）
+    @Serializable data object MonthlySummary : Route
     // 独立收到发电订单列表，暂未接入「我的」页入口
     @Serializable data object ReceivedSponsors : Route
-    // 赞助者感谢页（创作者后台 get-thank-sponsors），入口后续再接
-    @Serializable data object ThankSponsors : Route
+    // 赞助者感谢页（创作者后台 get-thank-sponsors）；年月由「每月汇总」页按行带入
+    @Serializable data class ThankSponsors(val year: Int, val month: Int) : Route
     // 优惠码页（创作者后台 creator/list-affiliate），入口后续再接
     @Serializable data object Affiliates : Route
     @Serializable data object Settings : Route

@@ -18,17 +18,20 @@ import java.time.YearMonth
  * 赞助者感谢页的 ViewModel：封装 get-thank-sponsors 的加载与分页
  *
  * @param userId 创作者自己的 user_id（接口必填，来自当前登录账号的资料）
- * @param year 感谢的年份，默认上个月所在年
- * @param month 感谢的月份，默认上个月（感谢页语义就是感谢上一批赞助者）
+ * @param initialYear 进入页面时指定的年份，为 null 时取上个月所在年
+ * @param initialMonth 进入页面时指定的月份，为 null 时取上个月
+ *   （感谢页语义是感谢上一批赞助者，缺省兜底为上个月；「每月汇总」页会按行传入具体年月）
  */
 class ThankSponsorsViewModel(
     application: Application,
     private val userId: String,
+    initialYear: Int? = null,
+    initialMonth: Int? = null,
 ) : AndroidViewModel(application) {
-    // 当前正在查看的年月，默认上个月；jumpTo 可切换（外部只读）
-    var year: Int = YearMonth.now().minusMonths(1).year
+    // 当前正在查看的年月：优先用外部传入的年月，否则默认上个月；jumpTo 可切换（外部只读）
+    var year: Int = initialYear ?: YearMonth.now().minusMonths(1).year
         private set
-    var month: Int = YearMonth.now().minusMonths(1).monthValue
+    var month: Int = initialMonth ?: YearMonth.now().minusMonths(1).monthValue
         private set
 
     private val service = AfadianContentService(AuthTokenStore(application))

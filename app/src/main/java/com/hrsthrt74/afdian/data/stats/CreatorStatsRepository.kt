@@ -257,25 +257,10 @@ class CreatorStatsRepository(
         return result
     }
 
-    /** 拉取月度账单；抽成后金额只用接口明确返回的 creator_amount。 */
+    /** 拉取月度账单；抽成后金额只用接口明确返回的 creator_amount。解析逻辑与「每月汇总」页共用。 */
     private fun fetchMonthlyIncome(): List<MonthlyBillRecord> {
         val data = getData("/api/my/income")
-        return data["monthly_bill"]?.jsonArray.orEmpty().flatMap { yearElement ->
-            val yearObject = yearElement.jsonObject
-            val year = yearObject.long("year") ?: return@flatMap emptyList()
-            yearObject["data"]?.jsonArray.orEmpty().mapNotNull { monthElement ->
-                val monthObject = monthElement.jsonObject
-                val month = monthObject.long("month") ?: return@mapNotNull null
-                val bill = monthObject["data"]?.jsonObject ?: return@mapNotNull null
-                val creatorAmount = bill.money("creator_amount") ?: return@mapNotNull null
-                MonthlyBillRecord(
-                    month = LocalDate.of(year.toInt(), month.toInt(), 1),
-                    totalAmount = bill.money("total_amount") ?: creatorAmount,
-                    creatorAmount = creatorAmount,
-                    sponsorCount = bill.long("sponsor_count") ?: 0L,
-                )
-            }
-        }
+        return parseMonthlyBills(data["monthly_bill"])
     }
 
     /** 统一网络响应解析，禁止把凭据写入日志。 */

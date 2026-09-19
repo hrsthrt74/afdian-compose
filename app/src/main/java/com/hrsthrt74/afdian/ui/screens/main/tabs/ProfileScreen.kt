@@ -205,11 +205,11 @@ private fun ProfileMainScreen(
                             onClick = { onNavigate(Route.ReceivedSponsors) },
                         )
                         ProfileQuickEntry(
-                            title = "感谢页",
-                            // 图标跟随感谢页默认展示的年月（上个月），本月 9 月 → 上月 8 → Th8
-                            icon = thankSponsorsEntryIcon(),
+                            title = "每月汇总",
+                            // 图标沿用 ThN 数字图标（上个月），本月 9 月 → 上月 8 → Th8
+                            icon = monthlySummaryEntryIcon(),
                             modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.ThankSponsors) },
+                            onClick = { onNavigate(Route.MonthlySummary) },
                         )
                     }
                 }
@@ -263,12 +263,11 @@ private fun ProfileMainScreen(
 }
 
 /**
- * 「感谢页」快捷入口的图标：取 Miuix 的 ThN 数字图标。
+ * 「每月汇总」快捷入口的图标：取 Miuix 的 ThN 数字图标。
  *
- * 因打开是「上月」的感谢页，故数字 -1
- *
+ * 取上个月（本月 9 月 → 8），与入口里最常查看的月份保持一致。
  */
-private fun thankSponsorsEntryIcon(): ImageVector =
+private fun monthlySummaryEntryIcon(): ImageVector =
     when (YearMonth.now().minusMonths(1).monthValue) {
         1 -> MiuixIcons.Th1
         2 -> MiuixIcons.Th2

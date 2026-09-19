@@ -4,6 +4,7 @@ import android.content.Context
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
+import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -60,6 +61,8 @@ class SettingsStore(private val context: Context) {
         val HOME_ENABLED_MODULES = androidx.datastore.preferences.core.stringPreferencesKey("home_enabled_modules")
         val HOME_MODULE_ORDER = androidx.datastore.preferences.core.stringPreferencesKey("home_module_order")
         val MANAGEMENT_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("management_layout")
+        // 「每月汇总」页的金额口径：抽成前 / 抽成后（存 IncomeAmountMode.storageValue）
+        val MONTHLY_SUMMARY_AMOUNT_MODE = androidx.datastore.preferences.core.stringPreferencesKey("monthly_summary_amount_mode")
         // 消息页「发电明细」开关
         val MSG_SHOW_SPONSOR_DETAIL = booleanPreferencesKey("msg_show_sponsor_detail")
     }
@@ -175,6 +178,15 @@ class SettingsStore(private val context: Context) {
     suspend fun setManagementLayout(layout: List<ManagementLayoutEntry>) {
         AppLog.d("Settings", "保存管理页数据卡片布局，项目数=${layout.size}")
         context.settingsDataStore.edit { it[Keys.MANAGEMENT_LAYOUT] = Json.encodeToString(layout) }
+    }
+
+    /** 「每月汇总」页的金额口径，默认抽成前（与爱发电网页版月度账单口径一致）。 */
+    val monthlySummaryAmountMode: Flow<IncomeAmountMode> =
+        context.settingsDataStore.data.map { IncomeAmountMode.fromStorage(it[Keys.MONTHLY_SUMMARY_AMOUNT_MODE]) }
+
+    suspend fun setMonthlySummaryAmountMode(mode: IncomeAmountMode) {
+        AppLog.d("Settings", "保存每月汇总金额口径，mode=${mode.storageValue}")
+        context.settingsDataStore.edit { it[Keys.MONTHLY_SUMMARY_AMOUNT_MODE] = mode.storageValue }
     }
 
 
