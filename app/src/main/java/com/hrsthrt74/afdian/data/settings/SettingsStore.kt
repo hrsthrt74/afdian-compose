@@ -1,16 +1,16 @@
 package com.hrsthrt74.afdian.data.settings
 
 import android.content.Context
-import com.hrsthrt74.afdian.AppLog
-import com.hrsthrt74.afdian.data.stats.ChartCatalog
-import com.hrsthrt74.afdian.data.stats.DataCardCatalog
-import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.stats.ChartCatalog
+import com.hrsthrt74.afdian.data.stats.DataCardCatalog
+import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
@@ -168,6 +168,16 @@ class SettingsStore(private val context: Context) {
         AppLog.d("Settings", "保存首页创作者数据卡布局，项目数=${layout.size}")
         context.settingsDataStore.edit { it[Keys.HOME_CREATOR_LAYOUT] = Json.encodeToString(layout) }
     }
+
+    /**
+     * 重置首页创作者数据卡片布局为默认顺序。
+     * 直接删除 key 而非写入默认值：读取端在 key 缺失时自动回落 [defaultHomeCreatorDataLayout]，
+     * 语义上回到「未自定义」状态，日后默认布局升级也能自动跟上。
+     */
+    suspend fun resetHomeCreatorDataLayout() {
+        AppLog.d("Settings", "重置首页创作者数据卡布局为默认")
+        context.settingsDataStore.edit { it.remove(Keys.HOME_CREATOR_LAYOUT) }
+    }
     suspend fun setHomeEnabledModules(modules: Set<HomeModule>) {
         context.settingsDataStore.edit { it[Keys.HOME_ENABLED_MODULES] = modules.joinToString(",") { module -> module.storageValue } }
     }
@@ -178,6 +188,15 @@ class SettingsStore(private val context: Context) {
     suspend fun setManagementLayout(layout: List<ManagementLayoutEntry>) {
         AppLog.d("Settings", "保存管理页数据卡片布局，项目数=${layout.size}")
         context.settingsDataStore.edit { it[Keys.MANAGEMENT_LAYOUT] = Json.encodeToString(layout) }
+    }
+
+    /**
+     * 重置管理页卡片布局为默认顺序与分组。
+     * 同 [resetHomeCreatorDataLayout]：删 key 让读取端回落 [defaultManagementLayout]。
+     */
+    suspend fun resetManagementLayout() {
+        AppLog.d("Settings", "重置管理页数据卡片布局为默认")
+        context.settingsDataStore.edit { it.remove(Keys.MANAGEMENT_LAYOUT) }
     }
 
     /** 「每月汇总」页的金额口径，默认抽成前（与爱发电网页版月度账单口径一致）。 */

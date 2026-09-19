@@ -3,11 +3,11 @@ package com.hrsthrt74.afdian.ui.viewmodel
 import android.app.Application
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
-import com.hrsthrt74.afdian.data.settings.SettingsStore
-import com.hrsthrt74.afdian.data.settings.ThemeRepository
-import com.hrsthrt74.afdian.data.history.HistoryStore
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.history.HistoryStore
+import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.data.settings.ThemeRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -76,6 +76,30 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             runCatching { historyStore.clearAll() }
                 .onSuccess { Toast.makeText(getApplication(), "已清除浏览历史", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    /** 重置管理页卡片布局为默认顺序；成功/失败都给 Toast 反馈，失败额外记警告日志。 */
+    fun resetManagementLayout() {
+        viewModelScope.launch {
+            runCatching { store.resetManagementLayout() }
+                .onSuccess { Toast.makeText(getApplication(), "已重置管理页卡片布局", Toast.LENGTH_SHORT).show() }
+                .onFailure { error ->
+                    AppLog.w("Settings", "重置管理页卡片布局失败", error)
+                    Toast.makeText(getApplication(), "重置失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                }
+        }
+    }
+
+    /** 重置首页创作者数据卡片布局为默认顺序；反馈逻辑同 [resetManagementLayout]。 */
+    fun resetHomeCreatorDataLayout() {
+        viewModelScope.launch {
+            runCatching { store.resetHomeCreatorDataLayout() }
+                .onSuccess { Toast.makeText(getApplication(), "已重置首页创作者数据卡片布局", Toast.LENGTH_SHORT).show() }
+                .onFailure { error ->
+                    AppLog.w("Settings", "重置首页创作者数据卡片布局失败", error)
+                    Toast.makeText(getApplication(), "重置失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                }
         }
     }
 

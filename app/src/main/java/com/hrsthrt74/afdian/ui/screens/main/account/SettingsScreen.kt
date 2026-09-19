@@ -20,9 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.ui.components.AppDialog
 import com.hrsthrt74.afdian.ui.components.BackButton
 import com.hrsthrt74.afdian.ui.components.BlurredBar
 import com.hrsthrt74.afdian.ui.components.DataCard
@@ -30,6 +32,7 @@ import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.components.rememberDialogState
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.ThemeColorTransition
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
@@ -109,6 +112,11 @@ private fun SettingsScreenContent(
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+
+    // 「重置管理页卡片布局」确认弹窗状态（破坏性操作，防误触）
+    val resetManagementDialogState = rememberDialogState()
+    // 「重置首页创作者数据卡片布局」确认弹窗状态
+    val resetHomeCreatorDialogState = rememberDialogState()
 
     Scaffold(
         topBar = {
@@ -211,7 +219,7 @@ private fun SettingsScreenContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
-                            .padding(bottom = 12.dp),
+                            .padding(bottom = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         DataCard(
@@ -248,6 +256,17 @@ private fun SettingsScreenContent(
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         SwitchPreference(
+                            checked = debugLogging,
+                            onCheckedChange = viewModel::setDebugLogging,
+                            title = "调试日志",
+                            summary = "日常使用建议关闭，重启应用后生效",
+                        )
+                    }
+                }
+
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
+                        SwitchPreference(
                             checked = historyEnabled,
                             onCheckedChange = viewModel::setHistoryEnabled,
                             title = "记录浏览历史",
@@ -255,21 +274,32 @@ private fun SettingsScreenContent(
                         )
                         ArrowPreference(
                             title = "清除浏览历史",
-                            summary = "删除所有浏览历史条目和本地头像缓存",
+//                            summary = "删除所有浏览历史条目和本地头像缓存",
                             onClick = viewModel::clearHistoryAll,
-                        )
-                        SwitchPreference(
-                            checked = debugLogging,
-                            onCheckedChange = viewModel::setDebugLogging,
-                            title = "调试日志",
-                            // 面向用户的说明：开启属于排查问题模式，普通使用没必要开
-                            summary = "日常使用建议关闭，重启应用后生效",
                         )
                     }
                 }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
+
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
+                        // 重置管理页卡片布局：点击先弹确认框，确认后才执行
+                        ArrowPreference(
+                            title = "重置管理页卡片布局",
+//                            summary = "恢复管理页卡片的默认顺序与分组",
+                            onClick = { resetManagementDialogState.show() },
+                        )
+                        // 重置首页创作者数据卡片布局：同上，先确认再重置
+                        ArrowPreference(
+                            title = "重置首页创作者数据卡片布局",
+//                            summary = "恢复首页创作者数据卡片的默认顺序",
+                            onClick = { resetHomeCreatorDialogState.show() },
+                        )
+                    }
+                }
+//                item {  }
                 // 退出登录
                 item {
+                    Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = onLogout,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
@@ -288,5 +318,35 @@ private fun SettingsScreenContent(
                 trackPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
             )
         }
+    }
+
+    // 重置管理页卡片布局确认弹窗（破坏性：确认按钮变红）
+    AppDialog(
+        state = resetManagementDialogState,
+        title = "重置管理页卡片布局",
+        confirmText = "重置",
+        destructive = true,
+        onConfirm = viewModel::resetManagementLayout,
+    ) {
+        Text(
+            "确定要恢复默认布局吗？当前自定义的卡片顺序将丢失。",
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
+    }
+
+    // 重置首页创作者数据卡片布局确认弹窗（破坏性：确认按钮变红）
+    AppDialog(
+        state = resetHomeCreatorDialogState,
+        title = "重置首页创作者数据卡片布局",
+        confirmText = "重置",
+        destructive = true,
+        onConfirm = viewModel::resetHomeCreatorDataLayout,
+    ) {
+        Text(
+            "确定要恢复默认布局吗？当前自定义的卡片顺序将丢失。",
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
     }
 }
