@@ -387,3 +387,206 @@ data class CreatorPlanSkus(
     val vip_all_plans: List<CreatorPlanSkuPlan> = emptyList(),
     val bought_skus: List<CreatorPlanSku> = emptyList(),
 )
+
+/**
+ * 赞助者管理列表项（who-sponsored-me 精简解析）。
+ * 只保留展示与详情所需字段；接口里 plan 的巨型 HTML desc 等一律不映射。
+ */
+data class SponsorManageItem(
+    /** 赞助者用户 ID，列表稳定 key */
+    val userId: String,
+    val name: String,
+    val avatar: String?,
+    val urlSlug: String?,
+    /** 当前生效方案名；接口未返回 current_plan（如无生效计划）时为 null，展示层显示「无」 */
+    val currentPlanName: String?,
+    /** 累计赞助金额（接口为字符串，只展示不参与计算） */
+    val allSumAmount: String,
+    /** 最近赞助时间（Unix 秒） */
+    val lastPayTime: Long,
+    /** 初次赞助时间（Unix 秒） */
+    val createTime: Long,
+    /** 该赞助者购买过的方案（精简列表，用于详情 Sheet） */
+    val plans: List<SponsorPlanBrief>,
+) {
+    val id: String get() = userId
+
+    /** 转成通用用户模型，用于跳转赞助者主页。 */
+    fun toAfadianUser() = AfadianUser(user_id = userId, name = name, avatar = avatar, url_slug = urlSlug)
+}
+
+/** 赞助者购买过的单个方案（精简）。 */
+data class SponsorPlanBrief(
+    val planId: String,
+    val name: String,
+    val price: String,
+    /** 订阅月数；售卖商品通常为 1 */
+    val payMonth: Int,
+    /** 0=订阅 1=售卖 2=捆绑包 */
+    val productType: Int?,
+)
+
+/** 赞助者管理分页结果。 */
+data class SponsorManagePage(
+    val list: List<SponsorManageItem>,
+    /** 赞助者总人数 */
+    val totalCount: Int,
+    /** 总页数 */
+    val totalPages: Int,
+)
+
+/**
+ * 赞助者管理排序（对应网页 dashboard/sponsors 表头点击，抓包验证）。
+ *
+ * 字段名与网页一致：all_sum_amount / last_pay_time / create_time；
+ * 每个字段 asc/desc 成对，另带 Default 档（sort_field/sort_value 传空串，即网页初始默认顺序）。
+ * 筛选（filter）暂不实现。
+ */
+enum class SponsorManageSort(val field: String, val direction: String, val title: String) {
+    /** 默认排序：不传排序字段，接口返回原生顺序（与网页初始加载一致） */
+    Default("", "", "默认排序"),
+    /** 累计金额从高到低（网页首点 all_sum_amount/desc） */
+    AmountDesc("all_sum_amount", "desc", "金额从高到低"),
+    /** 累计金额从低到高 */
+    AmountAsc("all_sum_amount", "asc", "金额从低到高"),
+    /** 最近赞助时间：最近在前（网页默认列表即此顺序） */
+    RecentDesc("last_pay_time", "desc", "最近赞助在前"),
+    /** 最近赞助时间：最早在前（网页首点 last_pay_time/asc） */
+    RecentAsc("last_pay_time", "asc", "最早赞助在前"),
+    /** 初次赞助时间：新赞助者在前（网页首点 create_time/desc） */
+    FirstDesc("create_time", "desc", "新赞助者在前"),
+    /** 初次赞助时间：老赞助者在前 */
+    FirstAsc("create_time", "asc", "老赞助者在前"),
+}
+
+/**
+ * 筛选档位 popup 的单个方案选项（来自 GET /api/creator/all-plans，
+ * 合并 list + sale_list 去重并排除 0 元方案，与网页「筛选档位」下拉一致）。
+ */
+data class SponsorFilterPlan(
+    val planId: String,
+    val name: String,
+    /** 展示价格（show_price 优先），字符串原样展示不参与计算 */
+    val price: String,
+) {
+    /** Chip / popup 展示文案：「￥3.99 方案名」 */
+    val display: String get() = "￥$price $name"
+}
+
+/**
+ * 筛选条件类型（对应网页条件构建器的 type 段，抓包验证的四种）。
+ */
+enum class SponsorFilterType(val title: String, val field: String) {
+    /** 正在赞助该方案（当前生效计划） */
+    Sponsoring("正在赞助", "sponsoring"),
+    /** 历史赞助过该方案 */
+    Sponsored("赞助过", "sponsored"),
+    /** 累计赞助金额比较 */
+    Amount("累计金额", "all_sum_amount"),
+    /** 赞助月数比较 */
+    Month("赞助月份", "month"),
+    ;
+
+    /** 该类型是否按方案取值（false = 数值/月份比较） */
+    val isPlanType: Boolean get() = this == Sponsoring || this == Sponsored
+
+    /** 该类型可用的动作集合与顺序（对齐网页下拉） */
+    val actions: List<SponsorFilterAction>
+        get() = when (this) {
+            // 方案型：包含 / 不包含
+            Sponsoring, Sponsored -> listOf(SponsorFilterAction.Eq, SponsorFilterAction.Ne)
+            // 累计金额：网页顺序 大于等于 / 小于等于 / 不等于 / 大于 / 等于 / 小于
+            Amount -> listOf(
+                SponsorFilterAction.Ge,
+                SponsorFilterAction.Le,
+                SponsorFilterAction.Ne,
+                SponsorFilterAction.Gt,
+                SponsorFilterAction.Eq,
+                SponsorFilterAction.Lt,
+            )
+            // 赞助月份：多月份匹配语义固定为「等于（属于其中之一）」
+            Month -> listOf(SponsorFilterAction.Eq)
+        }
+}
+
+/** 筛选条件动作（符号与网页 filter.action 一致）。 */
+enum class SponsorFilterAction(val symbol: String) {
+    Eq("="),
+    Ne("!="),
+    Ge(">="),
+    Le("<="),
+    Gt(">"),
+    Lt("<"),
+    ;
+
+    /**
+     * 展示标题：方案型「包含/不包含」；数值型用比较符号，
+     * 其中 `!=`/`>=`/`<=` 不直观，显示为「≠」「≥」「≤」。
+     * 请求体里的 action 值始终用 [symbol]，不受展示文案影响。
+     */
+    fun titleFor(type: SponsorFilterType): String = when {
+        // 数值型（累计金额/赞助月份）：符号紧凑，多字符比较符换成 Unicode 单字形
+        !type.isPlanType -> when (this) {
+            Ne -> "≠"
+            Ge -> "≥"
+            Le -> "≤"
+            else -> symbol
+        }
+        this == Eq -> "包含"
+        this == Ne -> "不包含"
+        else -> symbol
+    }
+}
+
+/**
+ * 一条筛选条件（popup 草稿与已应用状态共用）。
+ *
+ * 完整性规则与提交口径：
+ * - 方案型未选方案（plan = null 即「全部」）不生效；
+ * - 累计金额未输入合法数字不生效；
+ * - 赞助月份未选任何年月不生效。
+ * 不完整的行构建 filter 时跳过，等价于官方的「全部/空值」条件。
+ */
+data class SponsorFilterRow(
+    val type: SponsorFilterType = SponsorFilterType.Sponsoring,
+    val action: SponsorFilterAction = SponsorFilterAction.Eq,
+    /** 方案型选中的方案；null = 「全部」（不限定方案） */
+    val plan: SponsorFilterPlan? = null,
+    /** 累计金额输入的数字字符串（原样进 filter.value；仅 Amount 使用） */
+    val number: String = "",
+    /** 赞助月份选中的年月（YYYYMM 如「202610」，降序；仅 Month 使用） */
+    val months: List<String> = emptyList(),
+) {
+    /** 是否可提交进 filter（见类注释） */
+    val isComplete: Boolean
+        get() = when {
+            type.isPlanType -> plan != null
+            type == SponsorFilterType.Month -> months.isNotEmpty()
+            else -> number.toBigDecimalOrNull() != null
+        }
+
+    /** value 段展示：方案名 / 数字 / 月份摘要 / 「全部」/ 占位提示 */
+    val valueLabel: String
+        get() = when {
+            type.isPlanType -> plan?.name ?: "全部"
+            type == SponsorFilterType.Month -> when {
+                months.isEmpty() -> "选择月份"
+                months.size == 1 -> monthDisplayName(months.first())
+                else -> "${monthDisplayName(months.first())} 等${months.size}个"
+            }
+            number.isNotBlank() -> number
+            else -> "输入数值"
+        }
+
+    /** 条件摘要（Chip 单条筛选时展示）：「正在赞助 = 宇宙航线」「累计金额 >= 10」 */
+    val summary: String
+        get() = "${type.title} ${action.titleFor(type)} $valueLabel"
+}
+
+/** YYYYMM（如「202610」）→「2026年10月」；非法格式原样返回。 */
+fun monthDisplayName(yyyymm: String): String {
+    if (yyyymm.length != 6) return yyyymm
+    val month = yyyymm.substring(4).toIntOrNull() ?: return yyyymm
+    if (month !in 1..12) return yyyymm
+    return "${yyyymm.substring(0, 4)}年${month}月"
+}
