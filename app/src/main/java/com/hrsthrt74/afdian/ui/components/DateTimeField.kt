@@ -277,6 +277,66 @@ private fun WheelLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * 年月滚轮选择器：年 / 月两列常显（无 badge 折叠、无日与时分），供「仅月份」场景复用。
+ * 样式与 [DateTimeField] 展开态的日期滚轮一致（去掉「日」列）。
+ *
+ * @param label 上方文案（如「选择月份」）
+ * @param year 当前年
+ * @param month 当前月（1–12）
+ * @param onYearMonthChange 年或月变化回调
+ * @param modifier 修饰符
+ * @param yearRange 年份范围，默认与 [DateTimeField] 一致 2018..2100
+ */
+@Composable
+fun YearMonthField(
+    label: String,
+    year: Int,
+    month: Int,
+    onYearMonthChange: (Int, Int) -> Unit,
+    modifier: Modifier = Modifier,
+    yearRange: IntRange = 2018..2100,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        // 上方文案
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.body1,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        HorizontalDivider(modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+        // 列标题
+        Row(modifier = Modifier.fillMaxWidth()) {
+            WheelLabel("年", Modifier.weight(1.4f))
+            WheelLabel("月", Modifier.weight(1f))
+        }
+        // 年 / 月滚轮（常显）
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            NumberPicker(
+                value = year,
+                onValueChange = { onYearMonthChange(it, month) },
+                range = yearRange,
+                visibleItemCount = 3,
+                textStyle = MiuixTheme.textStyles.title3,
+                modifier = Modifier.weight(1.4f),
+                colors = NumberPickerDefaults.colors(selectedTextColor = MiuixTheme.colorScheme.primary),
+            )
+            NumberPicker(
+                value = month,
+                onValueChange = { onYearMonthChange(year, it) },
+                range = 1..12,
+                visibleItemCount = 3,
+                textStyle = MiuixTheme.textStyles.title3,
+                modifier = Modifier.weight(1f),
+                colors = NumberPickerDefaults.colors(selectedTextColor = MiuixTheme.colorScheme.primary),
+            )
+        }
+    }
+}
+
 /** DateTimeField 预览：展示默认值 */
 @Preview(showBackground = true)
 @Composable
