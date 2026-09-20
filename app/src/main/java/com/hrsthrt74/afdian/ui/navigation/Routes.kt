@@ -30,6 +30,8 @@ sealed interface Route : NavKey {
     @Serializable data object MonthlySummary : Route
     // 独立收到发电订单列表，暂未接入「我的」页入口
     @Serializable data object ReceivedSponsors : Route
+    // 赞助者管理页（创作者后台 who-sponsored-me），入口在「我的」页创作者分组
+    @Serializable data object SponsorManage : Route
     // 赞助者感谢页（创作者后台 get-thank-sponsors）；年月由「每月汇总」页按行带入
     @Serializable data class ThankSponsors(val year: Int, val month: Int) : Route
     // 优惠码页（创作者后台 creator/list-affiliate），入口后续再接

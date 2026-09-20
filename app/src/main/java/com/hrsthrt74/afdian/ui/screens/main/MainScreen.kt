@@ -52,6 +52,7 @@ import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MonthlySummaryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.SponsorManageViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.NavigationBar
@@ -318,6 +319,20 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
                 providedViewModel = vm,
+            )
+        }
+        entry<Route.SponsorManage> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 赞助者管理页（who-sponsored-me 列表）；入口在「我的」页创作者分组
+            val app = LocalContext.current.applicationContext as Application
+            val vm: SponsorManageViewModel = viewModel(
+                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app),
+            )
+            SponsorManageScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                providedViewModel = vm,
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
             )
         }
         entry<Route.MonthlySummary> {

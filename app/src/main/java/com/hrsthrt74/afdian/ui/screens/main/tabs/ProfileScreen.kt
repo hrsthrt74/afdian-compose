@@ -54,6 +54,7 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.All
+import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.ListView
 import top.yukonga.miuix.kmp.icon.extended.MindMap
@@ -212,11 +213,10 @@ private fun ProfileMainScreen(
                             onClick = { onNavigate(Route.ReceivedSponsors) },
                         )
                         ProfileQuickEntry(
-                            title = "每月汇总",
-                            // 图标沿用 ThN 数字图标（上个月），本月 9 月 → 上月 8 → Th8
-                            icon = monthlySummaryEntryIcon(),
+                            title = "赞助者管理",
+                            icon = MiuixIcons.Demibold.ContactsCircle,
                             modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.MonthlySummary) },
+                            onClick = { onNavigate(Route.SponsorManage) },
                         )
                     }
                 }
@@ -235,15 +235,17 @@ private fun ProfileMainScreen(
                             onClick = { onNavigate(Route.Affiliates) },
                         )
                         ProfileQuickEntry(
+                            title = "每月汇总",
+                            // 图标沿用 ThN 数字图标（上个月），本月 9 月 → 上月 8 → Th8
+                            icon = monthlySummaryEntryIcon(),
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.MonthlySummary) },
+                        )
+                        ProfileQuickEntry(
                             title = "创作者指南",
                             icon = MiuixIcons.Demibold.MindMap,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
-                        )
-                        ProfileQuickEntry(
-                            title = "",
-                            modifier = Modifier.weight(1f),
-                            onClick = {  },
                         )
                         ProfileQuickEntry(
                             title = "",
