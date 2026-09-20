@@ -24,11 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
@@ -254,7 +256,10 @@ private fun MonthlySummaryRow(
                 // 左侧：月份，大号 + 主色
                 Text(
                     text = "${bill.month.monthValue}月",
-                    style = MiuixTheme.textStyles.title2,
+                    style = TextStyle(
+                        fontSize = 24.sp,
+                        fontFeatureSettings = "tnum"
+                    ),
                     color = primary,
                 )
                 Spacer(modifier = Modifier.width(10.dp))
