@@ -133,10 +133,21 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 管理页（ManagementScreen）
 
-- TabRow 固定头部模式（保留 `minWidth = 110.dp`）。
-- 管理分区：整体概况、赞助者管理；收到发电已独立为单独页面。
+- TabRow 固定头部模式已随原「发电者管理」占位分区一并移除（赞助者管理独立成页后只剩整体概况一个分区）。
+- 管理分区：整体概况（原「赞助者管理」占位 tab 已删除）；收到发电已独立为单独页面。
 - 数据卡片系统：`DataCardItem` + `DataCardGrid` + `ChartDataCard`（Vico 图表库）+ `IncomeDataCards`。
 - 可自定义布局：`ManagementAddCardSheet` 添加卡片，支持拖拽排序。
+
+## 赞助者管理页（SponsorManageScreen）
+
+- 创作者后台功能（对应网页 `/dashboard/sponsors`），入口在「我的」页创作者分组（原管理页「发电者管理」占位 tab 已删除并迁至此）。
+- 路由 `Route.SponsorManage`（无参）；列表数据 `POST /api/my/who-sponsored-me`（ManagementService.fetchSponsors，页码分页，每页 20）。
+- 排序：列表顶部排序下拉 Chip（FilterChip + WindowListPopup，样式照搬收到发电页），`SponsorManageSort` 共 7 档 = 默认排序（sort_field/sort_value 空串，可取消排序）+ 三字段 × 升降序成对（`all_sum_amount` / `last_pay_time` / `create_time` × asc/desc，字段名抓包自网页表头）；切换回第 1 页重载（加载中不响应），默认档 Chip 不高亮。
+- 筛选：筛选 Chip（与排序 Chip 并排）弹**双层 WindowListPopup 级联**（对齐网页「筛选档位」dialog，载体为 popup）：第一层条件构建主页（锚 Chip）= 条件行（type 段/操作段/value 段三段 FilterChip + 删除）+「新增筛选项」多条件（最多 4 行，AND 关系）+「清除/确定」；点段时从**该段自身**叠弹第二层选择视图（段级 popup 组合在主页内容的段 Box 内，主页/子层均为全屏透明 Dialog 坐标系对齐，`enableWindowDim=false`），选完只关第二层，点外先关第二层再关主页。4 种 type（正在赞助 `sponsoring`/赞助过 `sponsored`/累计金额 `all_sum_amount`/赞助月份 `month`）、方案型动作 包含/不包含（`=`/`!=`）、金额型动作 `>=` `<=` `≠(!=)` `>` `=` `<`（展示用 ≥/≤/≠，抓包验证）、月份型固定 `=`；value 按类型分流：方案列表（`GET /api/creator/all-plans`，list+sale_list 去重、排除 0 元）/ 金额数字输入 / **月份多选**（自定义 4 位年份 + 1–12 月格跨年累加，YYYYMM 降序，提交时 value=`"202610,202609"` 逗号串 + `month_value` 名值数组，抓包协议）。草稿与已应用分离（打开主页时重置），「确定」只提交完整行（未选方案/空数值 = 该行不生效，等价官方「全部」），Chip 摘要：无条件「筛选档位」/ 单条条件摘要 / 多条「筛选 (N)」；切换回第 1 页重载（加载中不响应）。
+- 展示：「共 N 名赞助者」统计 + 卡片列表（头像 / 昵称 / 当前方案或「无」/ 累计金额 / 最近赞助相对时间），`LoadMoreEffect` 滚动加载。
+- 行点击弹 `WindowBottomSheet` 详情：头像昵称、当前方案、累计金额 DataCard、初次/最近赞助绝对时间、赞助过的方案列表、「查看主页」跳 `Route.CreatorDetail`。
+- 模型：`SponsorManageItem` / `SponsorPlanBrief` / `SponsorManagePage` / `SponsorManageSort` / `SponsorFilterPlan` / `SponsorFilterType` / `SponsorFilterAction` / `SponsorFilterRow` / `monthDisplayName()`（ContentModels.kt）；解析/构建为顶层 `internal parseSponsorManagePage` / `parseFilterPlans` / `buildSponsorFilterArray`（`SponsorManageParserTest` / `SponsorFilterPlanParserTest` / `SponsorFilterBuildTest` 覆盖），plan 的巨型 HTML desc 不映射。
+- 不含：官方面板的「自选金额」快捷项、条件行数上限 4 以上的扩展、导出、群发私信（群发私信按需求永久排除）。
 
 ## 收到发电（ReceivedSponsorsScreen）
 

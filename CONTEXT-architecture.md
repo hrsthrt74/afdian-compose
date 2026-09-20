@@ -39,7 +39,8 @@ app/src/main/java/com/hrsthrt74/afdian/
 | 创作者 | `CreatorService.kt` | 创作者详情聚合（复用 FeedService 的收藏查询） |
 | 收到发电 | `ReceivedSponsorService.kt` | 筛选、游标分页、订单字段解析 |
 | 感谢页 | `ThankSponsorsService.kt` | 感谢者分页、感谢语读写 |
-| 订单/管理 | `OrderService.kt` / `ManagementService.kt` | 早期拆分出的独立服务 |
+| 赞助者管理 | `ManagementService.kt` | who-sponsored-me 排序+多条件筛选分页列表（buildSponsorFilterArray 可单测）、all-plans 筛选选项 |
+| 订单/管理 | `OrderService.kt` | 早期拆分出的独立服务 |
 
 数据层约定：
 
@@ -54,7 +55,7 @@ app/src/main/java/com/hrsthrt74/afdian/
 
 二级路由（覆盖全屏，由外层 NavBackStack 管理）：
 - `CreatorDetail` / `PostDetail` / `PostDetailById` / `MessageConversation`
-- `Favorites` / `Sponsoring` / `Orders` / `Management` / `IncomeDetail` / `MonthlySummary` / `ThankSponsors` / `Settings` / `History`
+- `Favorites` / `Sponsoring` / `Orders` / `Management` / `IncomeDetail` / `MonthlySummary` / `ReceivedSponsors` / `SponsorManage` / `ThankSponsors` / `Settings` / `History`
 
 带参路由：`ThankSponsors(year, month)` —— 年月由「每月汇总」页按行带入；miuix-nav 的 ViewModelStore 按 entry 的 contentKey（默认取路由对象）隔离，不同年月互不串数据。
 
@@ -65,7 +66,7 @@ app/src/main/java/com/hrsthrt74/afdian/
 - 「我的」页的子路由（收藏/我发电的/订单/管理/设置）提升到外层栈，push 时盖住底部导航栏
 - 页面过渡使用 `CreatorDetailTransition`（卡片展开动画），由设置开关控制
 
-## TabRow 固定头部模式（Favorites/Order/Management 均已应用）
+## TabRow 固定头部模式（Favorites/Order 已应用；Management 原有 TabRow 已随占位分区移除）
 
 不要用 `stickyHeader` 实现 Tab 吸顶。原因：miuix Scaffold 把内容全屏铺在 (0,0)、TopAppBar 叠在内容上层绘制，LazyColumn 视口顶端被不透明的 TopAppBar 盖住，sticky 吸附点不可见，看起来就像没生效。
 
