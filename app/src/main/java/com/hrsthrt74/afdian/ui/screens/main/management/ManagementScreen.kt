@@ -5,8 +5,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -58,7 +55,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -68,7 +64,6 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
@@ -156,33 +151,11 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
             }
         }
     ) { paddingValues ->
-        // 垂直布局：TabRow 放在列表外面，结构上永远固定在列表上方（同 FavoritesScreen）
+        // 垂直布局：原 TabRow（整体概况 / 发电者管理）已随「赞助者管理」独立成页而移除，
+        // 现在只剩整体概况一个分区。
+        // 注意：内容必须从屏幕顶（顶栏背后）开始铺，模糊栏才有滚动内容可采样；
+        // 顶部可视留白改用 contentPadding / padding 实现，不能用 Spacer 把内容压到顶栏下方。
         Column(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-            // 顶部留出 TopAppBar 的高度（随折叠动画动态变化）
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(paddingValues.calculateTopPadding())
-            )
-
-            // 固定的 TabRow，加背景色防止列表内容透出
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MiuixTheme.colorScheme.surface)
-                    .padding(vertical = 8.dp, horizontal = 16.dp)
-            ) {
-                TabRow(
-                    tabs = ManagementSection.values().map { it.title },
-                    selectedTabIndex = ManagementSection.values().indexOf(section),
-                    onTabSelected = { index ->
-                        viewModel.load(ManagementSection.values()[index])
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    minWidth = 110.dp
-                )
-            }
-
             if (editing && section == ManagementSection.Overview && !loading && error == null) {
                 ManagementEditableDataGrid(
                     cards = cardItems,
@@ -195,7 +168,11 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                         // 拖拽过程中只更新内存，松手后一次性持久化最终顺序。
                         scope.launch { settingsStore.setManagementLayout(committedLayout) }
                     },
-                    modifier = Modifier.weight(1f).nestedScroll(scrollBehavior.nestedScrollConnection),
+                    // topInset 走 contentPadding：首行让出顶栏、网格仍穿过顶栏供模糊采样
+                    topInset = paddingValues.calculateTopPadding(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .nestedScroll(scrollBehavior.nestedScrollConnection),
                 )
             } else LazyColumn(
                 state = listState,
@@ -203,9 +180,11 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                     .weight(1f)
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
                     .scrollEndHaptic(),
+                // top：内容从屏幕顶布局、首项让出顶栏高度；滚动时列表穿过顶栏供模糊采样
                 contentPadding = PaddingValues(
-                    bottom = contentBottomPadding()
-                )
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = contentBottomPadding(),
+                ),
             ) {
                 // 加载错误提示
                 item {
@@ -230,27 +209,14 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                 }
 
                 if (!loading && error == null) {
-                    if (section == ManagementSection.Overview) {
-                        item {
-                            ManagementDataLayout(
-                                cards = cardItems,
-                                layout = managementLayout,
-                                charts = charts,
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                            )
-                        }
-                    } else {
-                        items(result?.rows.orEmpty(), key = { it.first }) { (title, value) ->
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp)
-                                    .padding(vertical = 8.dp)
-                            ) {
-                                Text(title)
-                                Text(value)
-                            }
-                        }
+                    // 分区只剩整体概况（赞助者管理已独立成页面），直接渲染数据卡布局
+                    item {
+                        ManagementDataLayout(
+                            cards = cardItems,
+                            layout = managementLayout,
+                            charts = charts,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
                     }
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }

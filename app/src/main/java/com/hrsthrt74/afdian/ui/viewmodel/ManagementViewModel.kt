@@ -7,7 +7,6 @@ import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.ManagementResult
 import com.hrsthrt74.afdian.data.content.ManagementSection
-import com.hrsthrt74.afdian.data.content.ManagementService
 import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
 import com.hrsthrt74.afdian.data.stats.DataCardModel
@@ -20,7 +19,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class ManagementViewModel(application: Application) : AndroidViewModel(application) {
-    private val service = ManagementService(AuthTokenStore(application))
     private val statsRepository = CreatorStatsRepository(AuthTokenStore(application))
     private val _section = MutableStateFlow(ManagementSection.Overview)
     val section = _section.asStateFlow()
@@ -54,25 +52,19 @@ class ManagementViewModel(application: Application) : AndroidViewModel(applicati
             // 调试日志：记录请求的管理板块
             AppLog.d("Management", "load: section=${section.name}")
             try {
-                if (section == ManagementSection.Overview) {
-                    val overview = withContext(Dispatchers.IO) {
-                        statsRepository.loadOverview()
-                    }
-                    if (generation == loadGeneration) {
-                        _cards.value = overview.cards
-                        _charts.value = overview.charts
-                        _result.value = ManagementResult(section, emptyList())
-                        AppLog.d(
-                            "Management",
-                            "load ok: section=${section.name}, cards=${overview.cards.size}, charts=${overview.charts.size}",
-                        )
-                    }
-                } else {
-                    val loadedResult = withContext(Dispatchers.IO) { service.load(section) }
-                    if (generation == loadGeneration) {
-                        _result.value = loadedResult
-                        AppLog.d("Management", "load ok: section=${section.name}, rows=${loadedResult.rows.size}")
-                    }
+                // 分区只剩整体概况（赞助者管理已独立成页面），直接拉概况数据；
+                // 原 else 分支的 ManagementService.load(section) 已随占位分区一起移除
+                val overview = withContext(Dispatchers.IO) {
+                    statsRepository.loadOverview()
+                }
+                if (generation == loadGeneration) {
+                    _cards.value = overview.cards
+                    _charts.value = overview.charts
+                    _result.value = ManagementResult(section, emptyList())
+                    AppLog.d(
+                        "Management",
+                        "load ok: section=${section.name}, cards=${overview.cards.size}, charts=${overview.charts.size}",
+                    )
                 }
             } catch (e: CancellationException) {
                 throw e

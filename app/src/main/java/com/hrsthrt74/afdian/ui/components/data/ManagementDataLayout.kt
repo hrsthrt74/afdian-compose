@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutEntry
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
@@ -128,7 +129,11 @@ fun ManagementDataLayout(
     }
 }
 
-/** 编辑态管理页：真实卡片直接处于可拖拽网格中。 */
+/** 编辑态管理页：真实卡片直接处于可拖拽网格中。
+ *
+ * @param topInset 顶部让位（如顶栏高度）：加进 contentPadding 而非外层 padding，
+ * 网格仍从屏幕顶布局、滚动时穿过顶栏，保证模糊顶栏能采样到内容。
+ */
 @Composable
 fun ManagementEditableDataGrid(
     cards: Map<String, DataCardItem>,
@@ -137,6 +142,7 @@ fun ManagementEditableDataGrid(
     onLayoutCommitted: (List<ManagementLayoutEntry>) -> Unit,
     modifier: Modifier = Modifier,
     charts: Map<String, ChartDataItem> = emptyMap(),
+    topInset: Dp = 0.dp,
 ) {
     val gridState = rememberLazyGridState()
     val haptic = LocalHapticFeedback.current
@@ -215,7 +221,8 @@ fun ManagementEditableDataGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            // topInset 并入 contentPadding：首项让出顶栏、布局仍从屏幕顶开始（可被顶栏采样）
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp + topInset, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
