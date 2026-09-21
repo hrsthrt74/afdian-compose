@@ -27,6 +27,7 @@
 | 改某个已实现的功能 | `CONTEXT-features.md` 对应小节 |
 | 写 UI、不确定组件/样式写法 | `DESIGN.md` |
 | 查开发规则（Miuix/线程/状态） | `CONTEXT-rules.md` |
+| 嵌套滚动/收拢动画/高度动画/滚动驱动 UI | `CONTEXT-best-practices.md` |
 | 规划下一步做什么 | `CONTEXT-roadmap.md` |
 | Miuix 组件 API 存疑 | miuix-skill |
 
