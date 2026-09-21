@@ -179,13 +179,13 @@ private fun SettingsScreenContent(
                             checked = themeSettings.enableBlur,
                             onCheckedChange = viewModel::setEnableBlur,
                             title = "模糊效果",
-                            summary = "为顶栏和底栏启用毛玻璃效果",
+                            summary = "顶栏、底栏、动画中的模糊效果",
                         )
                         SwitchPreference(
                             checked = themeSettings.progressiveBlur,
                             onCheckedChange = viewModel::setProgressiveBlur,
                             title = "渐进模糊",
-                            summary = "仅顶栏使用渐进模糊",
+//                            summary = "仅顶栏使用渐进模糊",
                         )
                     }
                 }
