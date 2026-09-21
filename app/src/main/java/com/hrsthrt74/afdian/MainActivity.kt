@@ -18,6 +18,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.ImageLoader
+import coil3.compose.setSingletonImageLoaderFactory
+import coil3.request.crossfade
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
 import com.hrsthrt74.afdian.data.settings.SettingsStore
@@ -77,6 +80,15 @@ private fun AfdianApp(
     // SettingsStore 内部是进程级单例 DataStore，remember 一个包装对象即可
     val settingsStore = remember { SettingsStore(context) }
     val scope = rememberCoroutineScope()
+
+    // 全局 ImageLoader：开启 crossfade，全应用图片（封面/正文/历史缩略图等）加载完成后统一淡入。
+    // 必须在任何 AsyncImage 首次组合前调用（setSafe 要求早于 Coil 首次 get），
+    // 放在根组合 AfdianApp 顶部即满足；各调用点无需再单独包 ImageRequest。
+    setSingletonImageLoaderFactory { loaderContext ->
+        ImageLoader.Builder(loaderContext)
+            .crossfade(true)
+            .build()
+    }
 
     // 主题色开关：订阅 DataStore，设置页改动后立即生效（替代旧 SP 监听器）
     val useAfdianColor by settingsStore.useAfdianColor.collectAsState(initial = true)
