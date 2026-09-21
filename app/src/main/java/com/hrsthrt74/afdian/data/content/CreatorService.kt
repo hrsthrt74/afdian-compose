@@ -81,6 +81,32 @@ internal class CreatorService(
             .data?.user
             ?: error("用户信息加载失败")
 
+    /** 按公开关键词搜索创作者，供发现页搜索层使用。 */
+    suspend fun searchCreators(query: String, page: Int = 1): CreatorSearchPage = withContext(Dispatchers.IO) {
+        val url = (IFDIAN_HOST + "/api/creator/list").toHttpUrl().newBuilder()
+            .addQueryParameter("page", page.toString())
+            .addQueryParameter("type", "hot")
+            .addQueryParameter("category_id", "")
+            .addQueryParameter("q", query)
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .build()
+        val start = System.currentTimeMillis()
+        http.execute(request).use { response ->
+            if (!response.isSuccessful) {
+                AppLog.e(TAG, "/api/creator/list -> HTTP ${response.code}")
+                error("搜索请求失败 (${response.code})")
+            }
+            val root = json.parseToJsonElement(response.body.string()).jsonObject
+            root.requireAfdianSuccess(TAG, "/api/creator/list", "搜索失败", requireEc = true)
+            json.decodeFromJsonElement(CreatorSearchResponse.serializer(), root).data.let {
+                AppLog.d(TAG, "/api/creator/list -> ${it?.list?.size ?: 0} 项（${System.currentTimeMillis() - start}ms）")
+                CreatorSearchPage(it?.list.orEmpty(), it?.has_more == 1)
+            }
+        }
+    }
+
     /** 加载方案下的商品 SKU，供订单/购买流程复用。 */
     suspend fun fetchPlanSkus(planId: String, isExt: String = ""): CreatorPlanSkus = withContext(Dispatchers.IO) {
         val path = "/api/creator/get-plan-skus?plan_id=$planId&is_ext=$isExt"
@@ -184,8 +210,22 @@ internal class CreatorService(
     }
 }
 
+data class CreatorSearchPage(val creators: List<AfadianUser>, val hasMore: Boolean)
+
 @Serializable
 private data class UserProfileResponse(val ec: Int? = null, val data: UserProfilePayload? = null)
+
+@Serializable
+private data class CreatorSearchResponse(
+    val ec: Int? = null,
+    val data: CreatorSearchPayload? = null,
+)
+
+@Serializable
+private data class CreatorSearchPayload(
+    val list: List<AfadianUser> = emptyList(),
+    val has_more: Int = 0,
+)
 
 @Serializable
 private data class UserProfilePayload(val user: AfadianUser? = null)

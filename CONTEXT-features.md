@@ -65,6 +65,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 发现页
 
 - 动态流（LazyColumn + PostCard），支持滚动加载。
+- 顶部提供只读搜索入口；点击后在发现页内展开搜索层，采用 Miuix 官方 IconPage 的 `SearchBarFake` / `SearchPager` 状态切换模式。
+- 搜索层当前提供真实输入框、取消操作与「搜索结果 / 最近搜索」占位区域，网络搜索和历史持久化后续接入。
 
 ## 动态详情页（PostDetailScreen）
 

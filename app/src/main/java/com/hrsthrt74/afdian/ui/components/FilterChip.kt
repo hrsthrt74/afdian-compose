@@ -2,6 +2,7 @@ package com.hrsthrt74.afdian.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,8 @@ fun FilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     trailingIcon: ImageVector? = null,
+    onLongClick: (() -> Unit)? = null,
+    onTrailingIconClick: (() -> Unit)? = null,
 ) {
     val backgroundColor = if (selected) {
         MiuixTheme.colorScheme.primaryContainer
@@ -50,10 +53,13 @@ fun FilterChip(
             .pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
             .clip(RoundedCornerShape(48.dp))
             .background(backgroundColor)
-            .clickable {
+            .combinedClickable(
+                onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onClick()
-            }
+                },
+                onLongClick = onLongClick,
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -72,7 +78,18 @@ fun FilterChip(
                     tint = contentColor,
                     modifier = Modifier
                         .size(20.dp)
-                        .padding(start = 6.dp),
+                        .padding(start = 6.dp)
+                        .then(
+                            if (onTrailingIconClick != null) {
+                                Modifier.clickable(
+                                    interactionSource = null,
+                                    indication = null,
+                                    onClick = onTrailingIconClick,
+                                )
+                            } else {
+                                Modifier
+                            }
+                        ),
                 )
             }
         }

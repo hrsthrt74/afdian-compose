@@ -269,8 +269,8 @@ private fun SettingsScreenContent(
                         SwitchPreference(
                             checked = historyEnabled,
                             onCheckedChange = viewModel::setHistoryEnabled,
-                            title = "记录浏览历史",
-                            summary = "记录创作者主页和动态详情的最近访问",
+                            title = "记录浏览、搜索历史",
+                            summary = "最近访问、最近搜索",
                         )
                         ArrowPreference(
                             title = "清除浏览历史",

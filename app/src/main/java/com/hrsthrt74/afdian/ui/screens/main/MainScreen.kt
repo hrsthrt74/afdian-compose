@@ -523,7 +523,11 @@ private fun MainTabsContent(
                             }
                         },
                     )
-                    1 -> DiscoverScreen(viewModel, onOpenCreator, onOpenPost)
+                    1 -> DiscoverScreen(
+                        viewModel = viewModel,
+                        onOpenCreator = onOpenCreator,
+                        onOpenPost = onOpenPost,
+                    )
                     2 -> MessagesScreen(messagesViewModel) { route ->
                         when (route) {
                             is Route.MessageConversation -> onOpenConversation(route.userId, route.userName, route.avatarUrl)

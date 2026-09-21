@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -29,6 +30,8 @@ import top.yukonga.miuix.kmp.utils.pressable
  * @param avatarUrl 头像图片URL、Uri或Coil支持的任意数据源
  * @param coverUrl 封面/头图图片URL、Uri或Coil支持的任意数据源
  * @param creatorName 创作者名称
+ * @param categoryName 创作者分类，例如「游戏」「绘画」
+ * @param doing 创作者正在创作的内容
  * @param onClick 点击回调，传null则不可点击
  * @param modifier 修饰符
  */
@@ -37,6 +40,8 @@ fun CreatorLargeCard(
     avatarUrl: Any?,
     coverUrl: Any?,
     creatorName: String,
+    categoryName: String? = null,
+    doing: String? = null,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -45,19 +50,19 @@ fun CreatorLargeCard(
         modifier = modifier.pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
     ) {
         Column {
-            // 上半部分：封面图（16:9 比例）
+            // 上半部分：封面图
             AsyncImage(
                 model = coverUrl,
                 contentDescription = "$creatorName 的封面",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
+                    .aspectRatio(7f / 3f)   // 21:9，别问为什么
                     // 图片加载前/失败时的占位背景色
                     .background(MiuixTheme.colorScheme.disabledSecondary),
                 contentScale = ContentScale.Crop
             )
 
-            // 下半部分：头像 + 创作者名称
+            // 下半部分：头像 + 名称/分类 + 创作内容
             Row(
                 modifier = Modifier.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -67,13 +72,38 @@ fun CreatorLargeCard(
                     size = 40.dp,
                     contentDescription = "$creatorName 的头像"
                 )
-                Text(
-                    text = creatorName,
-                    modifier = Modifier.padding(start = 12.dp),
-                    style = MiuixTheme.textStyles.title3,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    // 第一行显示名称和分类 Badge，分类缺失时不留下空占位。
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = creatorName,
+                            style = MiuixTheme.textStyles.body1,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (!categoryName.isNullOrBlank()) {
+                            Badge(
+                                modifier = Modifier.padding(start = 8.dp),
+                                containerColor = MiuixTheme.colorScheme.primary,
+                            ) {
+                                Text(categoryName, color = MiuixTheme.colorScheme.onPrimary)
+                            }
+                        }
+                    }
+
+                    // 第二行统一使用「正在创作 xxx」格式，缺失内容时隐藏整行。
+                    if (!doing.isNullOrBlank()) {
+                        Text(
+                            text = "正在创作 $doing",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -145,6 +175,8 @@ private fun CreatorLargeCardPreview() {
         avatarUrl = "https://example.com/avatar.jpg",
         coverUrl = "https://example.com/cover.jpg",
         creatorName = "创作者名称",
+        categoryName = "绘画",
+        doing = "每日绘画分享",
         onClick = {}
     )
 }

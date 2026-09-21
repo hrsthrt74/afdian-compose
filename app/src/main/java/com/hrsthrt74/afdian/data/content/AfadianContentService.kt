@@ -113,6 +113,9 @@ class AfadianContentService(tokenStore: AuthTokenStore, client: OkHttpClient = s
 
     suspend fun fetchCreatorDetail(user: AfadianUser): CreatorDetail = creatorService.fetchCreatorDetail(user)
 
+    suspend fun searchCreators(query: String, page: Int = 1): CreatorSearchPage =
+        creatorService.searchCreators(query, page)
+
     /** 读取单个发电方案的商品 SKU。 */
     suspend fun fetchPlanSkus(planId: String, isExt: String = ""): CreatorPlanSkus =
         creatorService.fetchPlanSkus(planId, isExt)

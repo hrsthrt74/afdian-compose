@@ -12,9 +12,12 @@ import com.hrsthrt74.afdian.data.content.AfadianProfile
 import com.hrsthrt74.afdian.data.content.ProfileCache
 import com.hrsthrt74.afdian.data.content.SponsoringItem
 import com.hrsthrt74.afdian.data.content.FavoriteItem
+import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.HomeCache
 import com.hrsthrt74.afdian.data.content.HomeCacheSnapshot
 import com.hrsthrt74.afdian.data.content.HomeCacheCard
+import com.hrsthrt74.afdian.data.search.SearchHistoryStore
+import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
 import com.hrsthrt74.afdian.data.stats.CardValue
@@ -29,9 +32,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
+    private val searchHistoryStore = SearchHistoryStore(application)
+    private val settingsStore = SettingsStore(application)
     private val statsRepository = CreatorStatsRepository(AuthTokenStore(application))
     // 个人资料磁盘缓存：冷启动先回填，消除「我的」页用户名/头像闪烁
     private val profileCache = ProfileCache(application)
@@ -63,7 +73,105 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val error = _error.asStateFlow()
     private val _hasMore = MutableStateFlow(true)
     val hasMore = _hasMore.asStateFlow()
+    private val _searchResults = MutableStateFlow<List<AfadianUser>>(emptyList())
+    val searchResults = _searchResults.asStateFlow()
+    private val _searchLoading = MutableStateFlow(false)
+    val searchLoading = _searchLoading.asStateFlow()
+    private val _searchLoadingMore = MutableStateFlow(false)
+    val searchLoadingMore = _searchLoadingMore.asStateFlow()
+    private val _searchHasMore = MutableStateFlow(false)
+    val searchHasMore = _searchHasMore.asStateFlow()
+    private val _searchError = MutableStateFlow<String?>(null)
+    val searchError = _searchError.asStateFlow()
+    val searchHistory: StateFlow<List<String>> = searchHistoryStore.queries
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val searchHistoryEnabled: StateFlow<Boolean> = settingsStore.historyEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    private var searchJob: Job? = null
+    private var searchQuery = ""
+    private var searchPage = 0
     private var nextPublishSN = ""
+
+    fun searchCreators(query: String) {
+        searchJob?.cancel()
+        val keyword = query.trim()
+        searchQuery = keyword
+        searchPage = 0
+        _searchHasMore.value = false
+        _searchLoadingMore.value = false
+        if (keyword.isBlank()) {
+            _searchResults.value = emptyList()
+            _searchError.value = null
+            _searchLoading.value = false
+            return
+        }
+        searchJob = viewModelScope.launch {
+            _searchLoading.value = true
+            _searchError.value = null
+            try {
+                // 防抖输入，避免用户连续输入时频繁请求并短暂显示错误/空结果。
+                delay(400)
+                val page = withContext(Dispatchers.IO) { service.searchCreators(keyword, page = 1) }
+                _searchResults.value = page.creators
+                searchPage = 1
+                _searchHasMore.value = page.hasMore && page.creators.isNotEmpty()
+                searchHistoryStore.record(keyword)
+                AppLog.d("DiscoverSearch", "query=$keyword, results=${page.creators.size}")
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                AppLog.e("DiscoverSearch", "search failed", error)
+                _searchError.value = error.message ?: "搜索失败"
+            } finally {
+                _searchLoading.value = false
+            }
+
+        }
+    }
+
+    fun removeSearchHistory(query: String) {
+        viewModelScope.launch { searchHistoryStore.remove(query) }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch { searchHistoryStore.clear() }
+    }
+
+    fun loadMoreSearchCreators(query: String) {
+        val keyword = query.trim()
+        if (
+            keyword.isBlank() ||
+            keyword != searchQuery ||
+            searchPage == 0 ||
+            !_searchHasMore.value ||
+            _searchLoading.value ||
+            _searchLoadingMore.value
+        ) return
+
+        searchJob?.cancel()
+        val nextPage = searchPage + 1
+        searchJob = viewModelScope.launch {
+            _searchLoadingMore.value = true
+            try {
+                val page = withContext(Dispatchers.IO) {
+                    service.searchCreators(keyword, page = nextPage)
+                }
+                _searchResults.value = (_searchResults.value + page.creators)
+                    .distinctBy { it.user_id }
+                searchPage = nextPage
+                _searchHasMore.value = page.hasMore && page.creators.isNotEmpty()
+                AppLog.d(
+                    "DiscoverSearch",
+                    "load more query=$keyword, page=$nextPage, results=${page.creators.size}",
+                )
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                AppLog.e("DiscoverSearch", "load more failed", error)
+                _searchHasMore.value = false
+            } finally {
+                _searchLoadingMore.value = false
+            }
+        }
+    }
     // 动态点赞/收藏的全局共享互动状态（乐观更新 + 失败回滚；状态来自服务端 has_like / marked-post）
     val interactions = PostInteractionController.get(application)
 
