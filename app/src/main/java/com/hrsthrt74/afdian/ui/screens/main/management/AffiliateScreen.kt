@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -348,15 +350,23 @@ private fun AffiliateCard(
                     modifier = Modifier.padding(start = 8.dp),
                 )
                 Spacer(Modifier.weight(1f))
-                // 状态文案：跟随开关显示「生效中 / 未生效」
-                Text(
-                    text = affiliate.periodStatusLabel(),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = if (affiliate.switch == 1) {
-                        MiuixTheme.colorScheme.primary
-                    } else {
-                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                // 当前展示状态：文案与颜色共用一份判断，避免两者不同步
+                val status = affiliate.displayStatus
+                // 状态颜色：状态切换时做 200ms 渐变过渡（生效=主色 / 已过期=错误红 / 未生效=灰）
+                val statusColor by animateColorAsState(
+                    targetValue = when (status) {
+                        AffiliateDisplayStatus.Active -> MiuixTheme.colorScheme.primary
+                        AffiliateDisplayStatus.Expired -> MiuixTheme.colorScheme.error
+                        AffiliateDisplayStatus.Inactive -> MiuixTheme.colorScheme.onSurfaceVariantSummary
                     },
+                    animationSpec = tween(200),
+                    label = "statusColor",
+                )
+                // 状态文案：「生效中 / 已过期 / 未生效」
+                Text(
+                    text = status.label,
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = statusColor,
                 )
                 Spacer(Modifier.width(8.dp))
                 // 提交中禁用开关，避免重复请求
@@ -494,9 +504,37 @@ private fun Affiliate.planLabel(): String = when {
     else -> "全部方案"
 }
 
-/** 状态文案：开关开启且处于有效期内显示「生效中」，否则「未生效」 */
-private fun Affiliate.periodStatusLabel(): String =
-    if (switch == 1 && (has_time_limit != 1 || in_valid_period == 1)) "生效中" else "未生效"
+/**
+ * 优惠码在卡片上的展示状态（三态）。
+ *
+ * @param label 状态文案，直接用于卡片右上角
+ */
+private enum class AffiliateDisplayStatus(val label: String) {
+    /** 开关开启且在有效期内 */
+    Active("生效中"),
+    /** 开关开启但已超出有效期（文案与颜色都按异常标注） */
+    Expired("已过期"),
+    /** 开关关闭 */
+    Inactive("未生效"),
+}
+
+/**
+ * 计算展示状态：先看开关，再看是否在有效期内。
+ * 未开启一律「未生效」；开启后超期标「已过期」，否则「生效中」。
+ */
+private val Affiliate.displayStatus: AffiliateDisplayStatus
+    get() = when {
+        switch != 1 -> AffiliateDisplayStatus.Inactive
+        isOutOfPeriod -> AffiliateDisplayStatus.Expired
+        else -> AffiliateDisplayStatus.Active
+    }
+
+/**
+ * 是否「设置有效期且当前在有效期之外」（未开始或已过期）。
+ * 服务端 in_valid_period：1=在有效期内，0=在有效期外；未设时限时恒为 0，故需 has_time_limit 过滤。
+ */
+private val Affiliate.isOutOfPeriod: Boolean
+    get() = has_time_limit == 1 && in_valid_period != 1
 
 /** 有效期时间范围文案：无时限显示「不限」，有时限则拼起止时间 */
 private fun Affiliate.periodRangeLabel(): String =
