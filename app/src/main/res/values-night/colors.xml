@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 深色模式下的 SplashScreen 背景色：接近纯黑，避免启动瞬间闪白 -->
+    <!-- 深色模式下的 SplashScreen 背景色：MiuixTheme.colorScheme.surface -->
     <color name="splash_background">#FF000000</color>
 </resources>
