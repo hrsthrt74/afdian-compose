@@ -18,6 +18,8 @@ reorderable = "3.1.0"
 vico = "3.3.1"
 # AboutLibraries：构建期收集依赖与许可证元数据（15.2.0 匹配 AGP 9 / Kotlin 2.4 / compile 37）
 aboutLibs = "15.2.0"
+# 平滑胶囊
+shapes = "1.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -54,6 +56,8 @@ miuix-nav = { group = "top.yukonga.miuix.kmp", name = "miuix-nav-android", versi
 miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", version.ref = "miuix" }
 # AboutLibraries 核心：只取生成的依赖/许可证数据，UI 自己用 Miuix 画
 aboutlibraries-core = { group = "com.mikepenz", name = "aboutlibraries-core", version.ref = "aboutLibs" }
+# 平滑胶囊
+shapes = { module = "io.github.kyant0:shapes", version.ref = "shapes" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

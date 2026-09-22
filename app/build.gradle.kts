@@ -118,8 +118,8 @@ dependencies {
     implementation(libs.reorderable)
     implementation(libs.miuix.blur)
     implementation(libs.vico.compose)
-    // AboutLibraries 核心：解析构建期生成的 aboutlibraries.json（UI 不用它的 Compose 模块）
     implementation(libs.aboutlibraries.core)
+    implementation(libs.shapes)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
