@@ -37,4 +37,6 @@ sealed interface Route : NavKey {
     // 优惠码页（创作者后台 creator/list-affiliate），入口后续再接
     @Serializable data object Affiliates : Route
     @Serializable data object Settings : Route
+    // 开源许可页：AboutLibraries 收集的第三方依赖与许可证，入口在设置页「退出登录」上方
+    @Serializable data object OssLicenses : Route
 }

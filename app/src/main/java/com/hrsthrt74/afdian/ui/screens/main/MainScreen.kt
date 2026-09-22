@@ -393,6 +393,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SettingsScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack, onLogout = handleLogout)
         }
+        entry<Route.OssLicenses> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 开源许可页：设置页「退出登录」上方入口进入
+            OssLicensesScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
         entry<Route.History> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             HistoryScreen(

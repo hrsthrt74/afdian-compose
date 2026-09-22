@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 资源收缩白名单：AGP 9 默认开启优化资源收缩，会把 aboutlibraries.json 裁掉导致运行时读不到 -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/aboutlibraries" />

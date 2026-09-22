@@ -16,6 +16,8 @@ miuix = "0.9.4"
 datastorePreferences = "1.2.1"
 reorderable = "3.1.0"
 vico = "3.3.1"
+# AboutLibraries：构建期收集依赖与许可证元数据（15.2.0 匹配 AGP 9 / Kotlin 2.4 / compile 37）
+aboutLibs = "15.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -50,8 +52,12 @@ miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference-a
 miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons-android", version.ref = "miuix" }
 miuix-nav = { group = "top.yukonga.miuix.kmp", name = "miuix-nav-android", version.ref = "miuix" }
 miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", version.ref = "miuix" }
+# AboutLibraries 核心：只取生成的依赖/许可证数据，UI 自己用 Miuix 画
+aboutlibraries-core = { group = "com.mikepenz", name = "aboutlibraries-core", version.ref = "aboutLibs" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+# Android 专用变体：随 Android 构建自动生成 res/raw/aboutlibraries.json，无需手动跑 export 任务
+aboutlibraries-android = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutLibs" }

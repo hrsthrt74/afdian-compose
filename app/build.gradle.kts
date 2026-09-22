@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // 构建期收集依赖与许可证，生成 res/raw/aboutlibraries.json 供「开源许可」页读取
+    alias(libs.plugins.aboutlibraries.android)
 }
 
 // 读取签名配置文件，如果文件不存在则跳过（方便 CI 等无密钥环境构建 debug 包）
@@ -87,6 +89,11 @@ android {
     }
 }
 
+// AboutLibraries：离线模式，构建期不访问网络（远程 license/funding 本就默认关闭，显式锁死更稳）
+aboutLibraries {
+    offlineMode = true
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -111,6 +118,8 @@ dependencies {
     implementation(libs.reorderable)
     implementation(libs.miuix.blur)
     implementation(libs.vico.compose)
+    // AboutLibraries 核心：解析构建期生成的 aboutlibraries.json（UI 不用它的 Compose 模块）
+    implementation(libs.aboutlibraries.core)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

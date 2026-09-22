@@ -33,6 +33,7 @@ import com.hrsthrt74.afdian.ui.components.blurBarColor
 import com.hrsthrt74.afdian.ui.components.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.rememberDialogState
+import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.ThemeColorTransition
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
@@ -297,6 +298,19 @@ private fun SettingsScreenContent(
                     }
                 }
 //                item {  }
+                // 开源许可：进 AboutLibraries 数据页（退出登录上方）
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        ArrowPreference(
+                            title = "开源许可",
+                            summary = "第三方依赖与许可证信息",
+                            onClick = {
+                                // 去重 push，避免重复入栈（与 MainScreen.pushUnique 行为一致）
+                                if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses)
+                            },
+                        )
+                    }
+                }
                 // 退出登录
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
