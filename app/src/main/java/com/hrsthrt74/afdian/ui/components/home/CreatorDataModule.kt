@@ -20,12 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutEntry
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
-import com.hrsthrt74.afdian.ui.components.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.data.ManagementAddCardSheet
 import com.hrsthrt74.afdian.ui.components.data.ManagementDataLayout
 import com.hrsthrt74.afdian.ui.components.data.ManagementEditableDataGrid
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collect
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton

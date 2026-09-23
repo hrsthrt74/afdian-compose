@@ -1,13 +1,10 @@
-package com.hrsthrt74.afdian.ui.components
+package com.hrsthrt74.afdian.ui.components.post
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -20,32 +17,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
 import com.hrsthrt74.afdian.data.content.AfadianCreator
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
-import java.text.SimpleDateFormat
-import java.util.Date
+import com.hrsthrt74.afdian.ui.navigation.CreatorOrigin
+import org.jsoup.Jsoup
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Community
-import top.yukonga.miuix.kmp.icon.extended.Favorites
-import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
 import top.yukonga.miuix.kmp.icon.extended.Unlock
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.hrsthrt74.afdian.ui.navigation.CreatorOrigin
 
 /**
  * 单条动态卡片，参考爱发电官方 feed 布局
@@ -122,7 +111,7 @@ private fun PostContent(post: RecommendedPost, onCreatorClick: (() -> Unit)?) {
             // 纯文本输入经过 Jsoup 也只是原样返回，无副作用；remember 缓存避免滚动重复解析
             val summary = remember(post.id) {
                 val raw = post.summary
-                if (raw.contains('<')) org.jsoup.Jsoup.parse(raw).text() else raw
+                if (raw.contains('<')) Jsoup.parse(raw).text() else raw
             }
             if (summary.isNotBlank()) {
                 Text(
@@ -172,7 +161,7 @@ fun PostPaidBlock(
     // 与 PostCard 正文预览同款处理：summary 可能含 HTML 标签，剥掉后只留纯文本判断是否为空
     val summary = remember(post.id) {
         val raw = post.summary
-        if (raw.contains('<')) org.jsoup.Jsoup.parse(raw).text() else raw
+        if (raw.contains('<')) Jsoup.parse(raw).text() else raw
     }
     if (summary.isBlank()) {
         // 未解锁：显示发电按钮

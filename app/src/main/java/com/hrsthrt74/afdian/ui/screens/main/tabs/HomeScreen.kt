@@ -33,10 +33,11 @@ import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
-import com.hrsthrt74.afdian.ui.components.BlurredBar
-import com.hrsthrt74.afdian.ui.components.DoubleTapToTop
-import com.hrsthrt74.afdian.ui.components.blurBarColor
-import com.hrsthrt74.afdian.ui.components.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
+import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
+import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
+import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.components.home.CreatorDataEditPage
 import com.hrsthrt74.afdian.ui.components.home.HomeCustomizationSheet
@@ -78,7 +79,7 @@ fun HomeScreen(
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val listState = rememberLazyListState()
     val themeSettings = LocalThemeSettings.current
-    val backdrop = com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop(themeSettings.enableBlur)
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val context = LocalContext.current
     val settingsStore = remember { SettingsStore(context) }
 

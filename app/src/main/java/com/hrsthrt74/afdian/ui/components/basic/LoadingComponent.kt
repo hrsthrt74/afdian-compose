@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.ui.components
+package com.hrsthrt74.afdian.ui.components.basic
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
@@ -66,7 +67,7 @@ fun LoadingComponent(
 /**
  * LoadingComponent 预览
  */
-@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Preview(showBackground = true)
 @Composable
 private fun LoadingComponentPreview() {
     MiuixTheme {

@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.ui.components
+package com.hrsthrt74.afdian.ui.components.post
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement

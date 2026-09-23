@@ -1,5 +1,6 @@
-package com.hrsthrt74.afdian.ui.components
+package com.hrsthrt74.afdian.ui.components.post
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.RecommendedPost
@@ -54,7 +56,7 @@ fun PostActionBar(
     onMarkToggle: (() -> Unit)? = null,
 ) {
     // 全局互动状态：所有页面的操作栏共享同一份「已赞/已收藏」集合
-    val interactions = PostInteractionController.get(androidx.compose.ui.platform.LocalContext.current)
+    val interactions = PostInteractionController.get(LocalContext.current)
     val globalLiked by interactions.likedIds.collectAsState()
     val globalMarked by interactions.markedIds.collectAsState()
 
@@ -82,7 +84,7 @@ fun PostActionBar(
      * 整个函数退化成空操作（之前点击全部失效就是这个原因）。
      */
     fun hapticThen(action: () -> Unit): () -> Unit = {
-        android.util.Log.d("PostActionBar", "操作栏点击: post=${post.id}")
+        Log.d("PostActionBar", "操作栏点击: post=${post.id}")
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         action()
     }

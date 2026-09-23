@@ -36,9 +36,9 @@ import com.hrsthrt74.afdian.data.history.HistoryTarget
 import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.data.settings.SettingsStore
-import com.hrsthrt74.afdian.ui.components.AppBlurRadius
-import com.hrsthrt74.afdian.ui.components.blurBarColors
-import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
+import com.hrsthrt74.afdian.ui.components.basic.blurBarColors
+import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin

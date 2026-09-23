@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.ui.components
+package com.hrsthrt74.afdian.ui.components.post
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -16,11 +16,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
+import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.navigation.CreatorOrigin
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 /**
  * 动态卡片头部：创作者头像、名称、「正在创作」、发布日期。
@@ -84,11 +87,11 @@ fun PostHeader(
             // 当年内只显示「M/d」，跨年才带上年份，与官方网页端习惯一致
             val dateStr = remember(post.publish_time) {
                 val date = Date(post.publish_time * 1000)
-                val cal = java.util.Calendar.getInstance()
-                val postYear = cal.apply { time = date }.get(java.util.Calendar.YEAR)
-                val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                val cal = Calendar.getInstance()
+                val postYear = cal.apply { time = date }.get(Calendar.YEAR)
+                val currentYear = Calendar.getInstance().get(Calendar.YEAR)
                 val pattern = if (postYear == currentYear) "M/d" else "yyyy/M/d"
-                SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(date)
+                SimpleDateFormat(pattern, Locale.getDefault()).format(date)
             }
             Spacer(modifier = Modifier.width(16.dp))
             Text(

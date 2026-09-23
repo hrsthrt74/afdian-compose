@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.ui.components
+package com.hrsthrt74.afdian.ui.components.basic
 
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable

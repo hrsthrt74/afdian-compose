@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.ui.components
+package com.hrsthrt74.afdian.ui.components.basic
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,22 +17,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.LinkInteractionListener
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.platform.LocalUriHandler
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.ui.components.post.normalizeImageUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -227,7 +231,7 @@ private fun InlineParagraph(nodes: List<Node>, onUrlClick: (String) -> Unit) {
 private fun HtmlImage(element: Element) {
     val scope = element.select("img").ifEmpty { element.getElementsByTag("img") }
     val images = if (element.tagName() == "img") listOf(element) else scope
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         images.forEach { img ->
             // 一次取多个候选属性：部分编辑器/懒加载方案把真实地址放在 data-* 里
@@ -263,7 +267,7 @@ private fun HtmlImage(element: Element) {
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
@@ -294,7 +298,7 @@ private fun BlockQuote(element: Element, onUrlClick: (String) -> Unit) {
 
 /** 标题：直接使用传入的 miuix 字阶样式（title2/title3/title4/subtitle），不自造字号字重 */
 @Composable
-private fun Heading(element: Element, style: androidx.compose.ui.text.TextStyle) {
+private fun Heading(element: Element, style: TextStyle) {
     Text(
         text = element.wholeText().trim(),
         style = style,
@@ -312,7 +316,7 @@ private fun Caption(element: Element) {
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.fillMaxWidth(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
     }
 }

@@ -42,10 +42,10 @@ import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.Affiliate
 import com.hrsthrt74.afdian.data.content.AffiliateForm
 import com.hrsthrt74.afdian.data.content.AffiliateSelectablePlan
-import com.hrsthrt74.afdian.ui.components.AppDialog
 import com.hrsthrt74.afdian.ui.components.DateTimeField
-import com.hrsthrt74.afdian.ui.components.LoadingComponent
-import com.hrsthrt74.afdian.ui.components.rememberDialogState
+import com.hrsthrt74.afdian.ui.components.basic.AppDialog
+import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
