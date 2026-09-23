@@ -38,13 +38,14 @@ class MainActivity : ComponentActivity() {
     private var appReady = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 必须在 super.onCreate 之前安装，才能接管 Android 12+ 原生启动画面
-        val splash = installSplashScreen()
+        val splash = installSplashScreen()  // 启动界面大肥鱼
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // 首个真正可见的界面（主页布局就绪 / 登录页 / 免责声明）出现前不放行，
         // 冷启动已登录时直接从启动画面无缝进入主界面，不再闪「登录中」
         splash.setKeepOnScreenCondition { !appReady.value }
+
+        // 内测版「时间炸弹」逻辑
         val expired = BuildConfig.DEBUG || BuildConfig.INTERNAL_BUILD
         val now = System.currentTimeMillis()
         val expiresAt = TimeBomb.expiresAt(BuildConfig.BUILD_TIMESTAMP_MS)
@@ -56,6 +57,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             if (expired && TimeBomb.isExpired(BuildConfig.BUILD_TIMESTAMP_MS, System.currentTimeMillis())) {
                 appReady.value = true
+                // 时间炸弹触发
                 AfdianTheme {
                     ExpiredScreen(
                         buildTimestampMs = BuildConfig.BUILD_TIMESTAMP_MS,
