@@ -43,6 +43,7 @@ import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.IncomeDetailScreen
 import com.hrsthrt74.afdian.ui.screens.main.tabs.ProfileScreen
@@ -287,7 +288,12 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                     LocalContext.current.applicationContext as Application
                 )
             )
-            FavoritesScreen(vm, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) }, backStack = backStack) {
+            FavoritesScreen(
+                vm,
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+                onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
+                backStack = backStack
+            ) {
                 backStack.removeLastOrNull()
             }
         }
