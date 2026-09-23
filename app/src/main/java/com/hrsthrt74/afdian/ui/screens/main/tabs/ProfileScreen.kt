@@ -1,6 +1,5 @@
-package com.hrsthrt74.afdian.ui.screens.main
+package com.hrsthrt74.afdian.ui.screens.main.tabs
 
-// Miuix 提供的「滚动到边界触觉反馈」修饰符：列表快速滑动到顶/底边界时震动一下
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -79,9 +78,8 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.time.YearMonth
 
 /**
- * 「我的」tab 的内容页。二级路由（收藏/我发电的/订单/管理/设置）不再在这里嵌套
- * NavDisplay，而是通过 [onNavigate] 提升到 MainScreen 外层栈全屏覆盖，
- * 避免 Pager 页内过渡层平移溢出泄漏到相邻 tab 并触发重复 contentKey 闪退。
+ * 「我的」tab 的内容页。
+ * 包括「我发电的」「浏览历史」，以及面向创作者的「管理」等功能。
  */
 @Composable
 fun ProfileScreen(
@@ -104,7 +102,6 @@ private fun ProfileMainScreen(
 ) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
-    // 列表滚动状态：双击顶栏回顶 + 滚动条共用
     val listState = rememberLazyListState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
@@ -113,7 +110,6 @@ private fun ProfileMainScreen(
 
     Scaffold(
         topBar = {
-            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
             DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 // 捕获头像边界，作为「主页展开」过渡动画的起点
@@ -127,7 +123,7 @@ private fun ProfileMainScreen(
                             model = profile?.user?.avatar,
                             size = 32.dp,
                             contentDescription = "头像",
-                            modifier = Modifier.padding(8.dp).then(avatarOrigin.trackModifier()),
+                            modifier = Modifier.then(avatarOrigin.trackModifier()).padding(8.dp),
                             onClick = avatarOrigin.onClick {
                                 profile?.user?.takeIf { it.user_id.isNotBlank() }?.let(onOpenCreator)
                             },
@@ -144,15 +140,13 @@ private fun ProfileMainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
-                    // 放在 nestedScroll 之后（最贴近列表），fling 到边界的剩余速度最先被它捕获
                     .scrollEndHaptic(),
                 contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding(),
+                    top = (paddingValues.calculateTopPadding() + 8.dp),
                     bottom = contentBottomPadding()
                 )
             ) {
-                item { Spacer(Modifier.height(8.dp)) }
-                // 快捷入口行
+                // 快捷入口
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -185,10 +179,7 @@ private fun ProfileMainScreen(
                     }
                 }
 
-                item { Spacer(Modifier.height(24.dp)) }
-
-                item { SmallTitle(text = "创作者", modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) }
-
+                item { SmallTitle(text = "创作者", modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, top = 24.dp)) }
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -236,8 +227,7 @@ private fun ProfileMainScreen(
                         )
                         ProfileQuickEntry(
                             title = "每月汇总",
-                            // 图标沿用 ThN 数字图标（上个月），本月 9 月 → 上月 8 → Th8
-                            icon = monthlySummaryEntryIcon(),
+                            icon = monthlySummaryEntryIcon(),   // 「上月」的数字图标
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.MonthlySummary) },
                         )
@@ -247,7 +237,7 @@ private fun ProfileMainScreen(
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
                         )
-                        ProfileQuickEntry(
+                        ProfileQuickEntry(  // 占位符
                             title = "",
                             modifier = Modifier.weight(1f),
                             onClick = {  },
@@ -261,7 +251,6 @@ private fun ProfileMainScreen(
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                         ArrowPreference(
                             title = "设置",
-                            summary = "偏好、安全和关于",
                             onClick = { onNavigate(Route.Settings) }
                         )
                     }
@@ -274,7 +263,7 @@ private fun ProfileMainScreen(
 /**
  * 「每月汇总」快捷入口的图标：取 Miuix 的 ThN 数字图标。
  *
- * 取上个月（本月 9 月 → 8），与入口里最常查看的月份保持一致。
+ * 取上个月（本月 9 月 → 8）。
  */
 private fun monthlySummaryEntryIcon(): ImageVector =
     when (YearMonth.now().minusMonths(1).monthValue) {
@@ -294,9 +283,8 @@ private fun monthlySummaryEntryIcon(): ImageVector =
     }
 
 /**
- * 「我的」页的圆形快捷入口：上面是圆形底 + 图标（或等大占位），下面一行标题文字。
- * 底色 / 图标色都留了可传参数（默认 surfaceContainer 底 + primary 图标），
- * 方便以后加新入口时按需换色。图标可选，未传时显示同尺寸 Spacer 占位。
+ * 「我的」页的圆形快捷入口：上面圆形底 + 图标，下面标题。
+ * 图标可选，未传时显示同尺寸 Spacer 占位。
  */
 @Composable
 private fun ProfileQuickEntry(
@@ -304,16 +292,14 @@ private fun ProfileQuickEntry(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     onClick: () -> Unit,
-    // 圆形底的背景色
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    // 图标的着色，默认主色
     iconTint: Color = MiuixTheme.colorScheme.primary,
 ) {
-    // 触觉反馈：点击入口时轻震一下
     val haptic = LocalHapticFeedback.current
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // 圆形裁切的 Box：图标坐里面居中；点击范围限定在圆形内（clip 在前，水波纹也被裁成圆形）
         Box(
@@ -338,7 +324,6 @@ private fun ProfileQuickEntry(
                 Spacer(modifier = Modifier.size(32.dp))
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = title,
             style = MiuixTheme.textStyles.footnote1,
