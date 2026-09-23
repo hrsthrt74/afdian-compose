@@ -21,17 +21,20 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
+import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
+import com.hrsthrt74.afdian.data.history.HistoryTarget
+import com.hrsthrt74.afdian.data.history.toAfadianUser
+import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.blurBarColors
@@ -39,21 +42,21 @@ import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
-import com.hrsthrt74.afdian.ui.navigation.CreatorExpandTransition
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
-import com.hrsthrt74.afdian.data.history.HistoryTarget
-import com.hrsthrt74.afdian.data.history.toAfadianUser
-import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MonthlySummaryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.SponsorManageViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
@@ -72,12 +75,7 @@ import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 import top.yukonga.miuix.kmp.nav.gesture.PredictiveBackHandler
-import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
-import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * 底部导航 Tab 定义：标题 + 图标。
@@ -391,7 +389,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         }
         entry<Route.Settings> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            SettingsScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack, onLogout = handleLogout)
+            SettingsScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                onLogout = handleLogout
+            )
         }
         entry<Route.OssLicenses> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }

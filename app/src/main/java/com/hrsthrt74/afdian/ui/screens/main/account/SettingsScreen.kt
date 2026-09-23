@@ -1,15 +1,13 @@
-package com.hrsthrt74.afdian.ui.screens.main
+package com.hrsthrt74.afdian.ui.screens.main.account
 
 import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -18,8 +16,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
@@ -37,34 +37,56 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.ThemeColorTransition
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Community
+import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.Home
+import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-private val startupPageNames = listOf("首页", "发现", "消息", "我的")
+// 「启动」页 下拉菜单选项
+private val startupPageNames = listOf(
+    DropdownItem(
+        icon = { Icon(MiuixIcons.Home, null, modifier = Modifier.padding(end = 12.dp)) },
+        text = "首页"
+    ),
+    DropdownItem(
+        icon = { Icon(MiuixIcons.Search, null, modifier = Modifier.padding(end = 12.dp)) },
+        text = "发现"
+    ),
+    DropdownItem(
+        icon = { Icon(MiuixIcons.Community, null, modifier = Modifier.padding(end = 12.dp)) },
+        text = "消息"
+    ),
+    DropdownItem(
+        icon = { Icon(MiuixIcons.Contacts, null, modifier = Modifier.padding(end = 12.dp)) },
+        text = "我的"
+    ),
+)
 // 配色模式选项，索引与 SettingsStore 的 0/1/2 约定一致
-private val colorModeNames = listOf("跟随系统", "浅色模式", "深色模式")
+private val colorModeNames = listOf("跟随系统", "浅色", "深色")
 
 /**
- * 设置页。
- *
- * 内容整体包在 [ThemeColorTransition] 里：本页是唯一能改配色的地方，切「配色模式」
- * 或「使用爱发电主题色」时整页颜色渐变过去，而不是瞬间换色。模糊取色也在包裹范围内，
- * 顶栏才能跟着一起渐变。其他页面保持原来的瞬间生效（切设置时它们看不见，没必要每帧重算）。
+ * 设置页
  */
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
@@ -79,6 +101,11 @@ fun SettingsScreen(
         )
     )
 ) {
+    /**
+     * 内容整体包在 [ThemeColorTransition] 里：本页是唯一能改配色的地方，切「配色模式」
+     * 或「使用爱发电主题色」时整页颜色渐变过去，而不是瞬间换色。模糊取色也在包裹范围内，
+     * 顶栏才能跟着一起渐变。其他页面保持原来的瞬间生效（切设置时它们看不见，没必要每帧重算）。
+     */
     ThemeColorTransition {
         SettingsScreenContent(
             onBack = onBack,
@@ -97,6 +124,7 @@ private fun SettingsScreenContent(
     onLogout: () -> Unit,
     viewModel: SettingsViewModel,
 ) {
+    // 设置
     val startupPage by viewModel.startupPage.collectAsState()
     val useAfdianColor by viewModel.useAfdianColor.collectAsState()
     val colorMode by viewModel.colorMode.collectAsState()
@@ -108,32 +136,31 @@ private fun SettingsScreenContent(
     val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
     val showCountUnit by viewModel.showCountUnit.collectAsState()
     val themeSettings = LocalThemeSettings.current
+
+    // 页面
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val listState = rememberLazyListState()
-
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    val haptic = LocalHapticFeedback.current
 
-    // 「重置管理页卡片布局」确认弹窗状态（破坏性操作，防误触）
+    // 「重置卡片布局」确认弹窗状态
     val resetManagementDialogState = rememberDialogState()
-    // 「重置首页创作者数据卡片布局」确认弹窗状态
     val resetHomeCreatorDialogState = rememberDialogState()
+
 
     Scaffold(
         topBar = {
-            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
             DoubleTapToTop(listState, scrollBehavior) {
-            BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
-            TopAppBar(
-                title = "设置",
-                largeTitle = "设置",
-                color = blurBarColor(backdrop),
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    BackButton(onBack = onBack, backStack = backStack)
+                BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
+                    TopAppBar(
+                        title = "设置",
+                        largeTitle = "设置",
+                        color = blurBarColor(backdrop),
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = { BackButton(onBack = onBack, backStack = backStack) }
+                    )
                 }
-            )
-            }
             }
         }
     ) { paddingValues ->
@@ -144,17 +171,17 @@ private fun SettingsScreenContent(
                     .fillMaxSize()
                     .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
-                    // 放在 nestedScroll 之后（最贴近列表），fling 到边界的剩余速度最先被它捕获
                     .scrollEndHaptic(),
                 contentPadding = PaddingValues(
                     top = paddingValues.calculateTopPadding(),
-                    bottom = contentBottomPadding()
+                    bottom = (contentBottomPadding() + 48.dp)
                 )
             ) {
+                // 设置项目
                 item { SmallTitle(text = "启动", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                        OverlayDropdownPreference(
+                        OverlaySpinnerPreference(
                             title = "打开 App 后默认进入",
                             items = startupPageNames,
                             selectedIndex = startupPage,
@@ -162,6 +189,7 @@ private fun SettingsScreenContent(
                         )
                     }
                 }
+
                 item { SmallTitle(text = "外观", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
@@ -186,33 +214,33 @@ private fun SettingsScreenContent(
                             checked = themeSettings.progressiveBlur,
                             onCheckedChange = viewModel::setProgressiveBlur,
                             title = "渐进模糊",
-//                            summary = "仅顶栏使用渐进模糊",
                         )
                     }
                 }
+
                 item { SmallTitle(text = "动画", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         SwitchPreference(
                             checked = advancedTransition,
                             onCheckedChange = viewModel::setAdvancedTransition,
-                            title = "高级过渡动画",
+                            title = "高级过渡动画（实验性）",
                             summary = "创作者主页以卡片展开的方式打开和返回",
                         )
                         SwitchPreference(
                             checked = gestureBack,
                             onCheckedChange = viewModel::setGestureBack,
                             title = "手势返回",
-                            summary = "在页面左缘向右滑动即可返回上一页（系统返回手势不受影响；退出此页面后生效）",
+                            summary = "向右滑动即可返回（退出设置后生效）",
                         )
                         SwitchPreference(
                             checked = predictiveBack,
                             onCheckedChange = viewModel::setPredictiveBack,
                             title = "预测性返回",
-                            summary = "关闭系统返回时的页面预览动画，返回键和返回手势仍然可用",
                         )
                     }
                 }
+
                 item { SmallTitle(text = "数据卡片", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     // 开关的实时预览：切换下面两个开关时，预览卡的单位会立即出现/消失
@@ -253,6 +281,7 @@ private fun SettingsScreenContent(
                         )
                     }
                 }
+
                 item { SmallTitle(text = "其他", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
@@ -270,12 +299,12 @@ private fun SettingsScreenContent(
                         SwitchPreference(
                             checked = historyEnabled,
                             onCheckedChange = viewModel::setHistoryEnabled,
-                            title = "记录浏览、搜索历史",
-                            summary = "最近访问、最近搜索",
+                            title = "记录历史",
+                            summary = "最近访问、最近搜索等" +
+                                    "（仅保存在本地）",
                         )
                         ArrowPreference(
                             title = "清除浏览历史",
-//                            summary = "删除所有浏览历史条目和本地头像缓存",
                             onClick = viewModel::clearHistoryAll,
                         )
                     }
@@ -283,45 +312,40 @@ private fun SettingsScreenContent(
 
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
-                        // 重置管理页卡片布局：点击先弹确认框，确认后才执行
                         ArrowPreference(
                             title = "重置管理页卡片布局",
-//                            summary = "恢复管理页卡片的默认顺序与分组",
-                            onClick = { resetManagementDialogState.show() },
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                resetManagementDialogState.show() },
                         )
-                        // 重置首页创作者数据卡片布局：同上，先确认再重置
                         ArrowPreference(
                             title = "重置首页创作者数据卡片布局",
-//                            summary = "恢复首页创作者数据卡片的默认顺序",
-                            onClick = { resetHomeCreatorDialogState.show() },
-                        )
-                    }
-                }
-//                item {  }
-                // 开源许可：进 AboutLibraries 数据页（退出登录上方）
-                item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                        ArrowPreference(
-                            title = "开源许可",
-                            summary = "第三方依赖与许可证信息",
                             onClick = {
-                                // 去重 push，避免重复入栈（与 MainScreen.pushUnique 行为一致）
-                                if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses)
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                resetHomeCreatorDialogState.show()
                             },
                         )
                     }
                 }
+
                 // 退出登录
                 item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
+                    TextButton(
+                        text = "退出登录",
                         onClick = onLogout,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                    ) {
-                        Text("退出登录")
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
+                    )
+                }
+
+                item { SmallTitle(text = "关于", modifier = Modifier.padding(start = 4.dp)) }
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        ArrowPreference(
+                            title = "开源许可",
+                            onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
+                        )
                     }
                 }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
             // 右侧滚动条
             VerticalScrollBar(
