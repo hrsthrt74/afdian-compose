@@ -111,6 +111,7 @@ import com.hrsthrt74.afdian.ui.components.progressiveBlurBarColors
 import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import com.kyant.shapes.Capsule
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -847,7 +848,9 @@ private fun ConversationInputBar(
                     )
                 }
                 items(faqs.take(6)) { faq ->
-                    Card {
+                    Card(
+                        Modifier.clip(Capsule())    // 平滑胶囊
+                    ) {
                         Text(
                             text = faq.title,
                             style = MiuixTheme.textStyles.body2,

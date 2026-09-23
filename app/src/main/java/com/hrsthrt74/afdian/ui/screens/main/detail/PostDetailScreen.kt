@@ -56,6 +56,7 @@ import com.hrsthrt74.afdian.ui.components.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.PostDetailViewModel
+import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -375,6 +376,7 @@ fun PostDetailScreen(
                 ) {
                     Box(
                         modifier = Modifier
+                            .clip(Capsule())
                             .fillMaxWidth()
                             // 圆角卡片外观：半透明底色让渐进模糊透出来，细描边勾出轮廓；
                             // 普通模糊开启时（非渐进），在卡片上叠一层实时糊化
@@ -397,9 +399,9 @@ fun PostDetailScreen(
                             .border(
                                 width = 0.75.dp,
                                 color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(24.dp),
+                                shape = Capsule(),
                             )
-                            .clip(RoundedCornerShape(24.dp)),
+                        ,
                     ) {
                         PostActionBar(post = detail)
                     }

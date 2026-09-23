@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,13 +33,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.NumberPickerDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.SinkFeedback
-import top.yukonga.miuix.kmp.utils.platform
 import top.yukonga.miuix.kmp.utils.pressable
 import java.time.Instant
 import java.time.LocalDateTime
@@ -172,7 +171,8 @@ private fun PickerBadge(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
-            .clip(RoundedCornerShape(48.dp))
+//            .clip(RoundedCornerShape(48.dp))
+            .clip(Capsule())    // 平滑胶囊
             .background(backgroundColor)
             .clickable {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)

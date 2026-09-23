@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +45,7 @@ import com.hrsthrt74.afdian.ui.components.home.HomeModuleContentContext
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import com.kyant.shapes.Capsule
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -190,14 +190,15 @@ fun HomeScreen(
                     }
                     item {
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).pressable(interactionSource = null, indication = SinkFeedback(), delay = null),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(48.dp))
-                                    .background(MiuixTheme.colorScheme.surfaceContainer)
+                                    .pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
+                                    .clip(Capsule())
                                     .clickable { showCustomizeSheet = true }
+                                    .background(MiuixTheme.colorScheme.surfaceContainer)
                                     .padding(16.dp, 8.dp)
                             ) {
                                 Text(
