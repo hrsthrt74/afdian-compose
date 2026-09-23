@@ -149,7 +149,7 @@ private fun ProfileMainScreen(
                 // 快捷入口
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         ProfileQuickEntry(
@@ -179,10 +179,10 @@ private fun ProfileMainScreen(
                     }
                 }
 
-                item { SmallTitle(text = "创作者", modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, top = 24.dp)) }
+                item { SmallTitle(text = "创作者", modifier = Modifier.padding(bottom = 4.dp, top = 24.dp)) }
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         ProfileQuickEntry(
@@ -212,11 +212,9 @@ private fun ProfileMainScreen(
                     }
                 }
 
-                item { Spacer(Modifier.height(16.dp)) }
-
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 20.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         ProfileQuickEntry(
@@ -304,7 +302,7 @@ private fun ProfileQuickEntry(
         // 圆形裁切的 Box：图标坐里面居中；点击范围限定在圆形内（clip 在前，水波纹也被裁成圆形）
         Box(
             modifier = Modifier
-                .size(68.dp)
+                .size(72.dp)
                 .clip(CircleShape)
                 .background(containerColor)
                 .clickable(onClick = {
