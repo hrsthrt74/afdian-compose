@@ -1,4 +1,4 @@
-package com.hrsthrt74.afdian.ui.screens.main
+package com.hrsthrt74.afdian.ui.screens.main.management
 
 import android.app.Application
 import android.content.ClipData
@@ -9,14 +9,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -24,22 +22,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.stats.IncomeStatRecord
@@ -87,7 +83,7 @@ import java.time.LocalDate
  */
 @Composable
 fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewModel: IncomeDetailViewModel? = null) {
-    // AndroidViewModel 走 AndroidViewModelFactory（项目规则，参考 ManagementScreen）
+    // 数据
     val application = LocalContext.current.applicationContext as Application
     val viewModel = providedViewModel ?: viewModel<IncomeDetailViewModel>(
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application),
@@ -98,6 +94,15 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
     val loadingMore by viewModel.loadingMore.collectAsState()
     val error by viewModel.error.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+
+    // 页面
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
+    val listState = rememberLazyListState()
+    val themeSettings = LocalThemeSettings.current
+    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
+    val haptic = LocalHapticFeedback.current
+
     // 「问 AI」/「导出数据」的全量拉取进行中
     val working by viewModel.working.collectAsState()
 
@@ -105,13 +110,9 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
     val aiDialogState = rememberDialogState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-
-    // 轻量提示：拉取进度 / 复制结果 / 导出结果都用 Toast 呈现
     val toast: (String) -> Unit = { message ->
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
-
-    // 剪贴板：问 AI 复制 Markdown 表格用
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     // CSV 导出：SAF 另存为，用户选定位置后回调；文本在回调里拉取并写入
@@ -140,65 +141,61 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
         }
     }
 
-    val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
-    // 列表滚动状态：双击顶栏回顶 + 滚动条共用
-    val listState = rememberLazyListState()
-    val themeSettings = LocalThemeSettings.current
-    val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
-    val haptic = LocalHapticFeedback.current
-
     Scaffold(
         topBar = {
-            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
             DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, progressive = false) {
-                TopAppBar(
-                    title = "收入明细",
-                    largeTitle = "收入明细",
-                    color = blurBarColor(backdrop),
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        BackButton(onBack = onBack, backStack = backStack)
-                    },
-                    actions = {
-                        // 右上角动作菜单：问 AI / 导出数据；全量拉取期间禁用防止重复触发
-                        WindowIconDropdownMenu(
-                            entry = DropdownEntry(
-                                items = listOf(
-                                    DropdownItem(
-                                        text = "问 AI",
-//                                        summary = "复制全量数据为 Markdown 表格",
-                                        onClick = { aiDialogState.show() },
-                                    ),
-                                    DropdownItem(
-                                        text = "导出数据",
-//                                        summary = "全量导出",
-                                        onClick = {
-                                            // 导出文件                 ↓文件名
-                                            csvLauncher.launch("爱发电_收入明细_${type.title}_${LocalDate.now()}.csv")
-                                        },
+                Column{
+                    // 顶栏
+                    TopAppBar(
+                        title = "收入明细",
+                        largeTitle = "收入明细",
+                        color = blurBarColor(backdrop),
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = { BackButton(onBack = onBack, backStack = backStack) },
+                        actions = {
+                            // 右上角动作菜单：问 AI / 导出数据；全量拉取期间禁用防止重复触发
+                            WindowIconDropdownMenu(
+                                entry = DropdownEntry(
+                                    items = listOf(
+                                        DropdownItem(
+                                            text = "问 AI",
+                                            onClick = { aiDialogState.show() },
+                                        ),
+                                        DropdownItem(
+                                            text = "导出数据",
+                                            onClick = {
+                                                // 导出文件                 ↓文件名
+                                                csvLauncher.launch("爱发电_收入明细_${type.title}_${LocalDate.now()}.csv")
+                                            },
+                                        ),
                                     ),
                                 ),
-                            ),
-                            enabled = !working && !loading,
-                        ) {
-                            Icon(imageVector = MiuixIcons.More, contentDescription = "更多操作")
-                        }
-                    },
-                )
+                                enabled = !working && !loading,
+                            ) {
+                                Icon(imageVector = MiuixIcons.More, contentDescription = "更多操作")
+                            }
+                        },
+                    )
+                    // 按日/按周/按月切换 Tab，切换即换 type 重新请求第 1 页
+                    TabRowWithContour(
+                        tabs = IncomeStatType.entries.map { it.title },
+                        selectedTabIndex = IncomeStatType.entries.indexOf(type),
+                        onTabSelected = { index ->
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.switchType(IncomeStatType.entries[index])
+                        },
+                        colors = TabRowDefaults.tabRowColors(backgroundColor = MiuixTheme.colorScheme.surfaceContainerHighest),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp),
+                    )
+                    // 表头
+                    TableHeader(modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
+                }
             }
             }
         }
     ) { paddingValues ->
-        // 固定头（TabRow + 表头）的实际高度，列表 contentPadding 用它来避让
-        var fixedHeaderHeightPx by remember { mutableStateOf(0) }
-        val density = LocalDensity.current
-        val fixedHeaderHeight = with(density) { fixedHeaderHeightPx.toDp() }
-
-        // 外层普通容器：采样层（带 layerBackdrop 的节点）绝不能包含 textureBlur 的栏，否则原生层崩溃
         Box(modifier = Modifier.fillMaxSize()) {
-            // 采样层只包列表本身：列表从屏幕 (0,0) 铺到屏幕顶端，滚动内容会绘制到 TopAppBar 底下供模糊采样
             Box(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
                 LazyColumn(
                     state = listState,
@@ -207,9 +204,8 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
                         .nestedScroll(scrollBehavior.nestedScrollConnection)
                         .scrollEndHaptic(),
                     contentPadding = PaddingValues(
-                        // 首个条目从顶栏 + 固定头下方开始；滚动后内容从顶栏背后穿过实现模糊
-                        top = paddingValues.calculateTopPadding() + fixedHeaderHeight,
-                        bottom = contentBottomPadding(),
+                        top = paddingValues.calculateTopPadding(),
+                        bottom = (contentBottomPadding() + 48.dp),
                     ),
                 ) {
                 when {
@@ -275,45 +271,6 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
                         }
                     }
                 }
-                } // LazyColumn 结束
-            } // 采样层 Box 结束（只含列表，绝不能把带 textureBlur 的固定头包进来）
-
-            // 固定头浮层：整体下移 TopAppBar 高度，绘制在列表上层（在采样层之外）
-            // 每一段都套 BlurredBar：模糊开时用 textureBlur 采样背后的列表内容，模糊关时背景不透明
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset(y = paddingValues.calculateTopPadding())
-                    .onSizeChanged { fixedHeaderHeightPx = it.height },
-            ) {
-                // 按日/按周/按月切换 Tab，切换即换 type 重新请求第 1 页
-                BlurredBar(backdrop, themeSettings.enableBlur, progressive = false) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(blurBarColor(backdrop))
-                            .padding(vertical = 4.dp, horizontal = 16.dp)
-                    ) {
-                        TabRowWithContour(
-                            tabs = IncomeStatType.entries.map { it.title },
-                            selectedTabIndex = IncomeStatType.entries.indexOf(type),
-                            onTabSelected = { index ->
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                viewModel.switchType(IncomeStatType.entries[index])
-                            },
-                            colors = TabRowDefaults.tabRowColors(backgroundColor = MiuixTheme.colorScheme.surfaceContainerHighest),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-
-                // 表头：模糊开时透出背后滚过的列表内容的模糊影像，模糊关时用不透明 surface
-                BlurredBar(backdrop, themeSettings.enableBlur, progressive = false) {
-                    TableHeader(
-                        modifier = Modifier
-                            .background(blurBarColor(backdrop))
-                    .padding(horizontal = 28.dp, vertical = 4.dp)
-                )
                 }
             }
         }
@@ -345,7 +302,7 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
 }
 
 /** 表格列的宽度分配 */
-private val ColumnWeights = listOf(1.8f, 1f, 1f, 1f, 1f, 0.68f)
+private val ColumnWeights = listOf(1.4f, 1f, 1f, 1f, 1f, 0.8f)
 
 /** 固定表头行：六列统计口径标题。 */
 @Composable
@@ -357,8 +314,8 @@ private fun TableHeader(modifier: Modifier = Modifier) {
                 text = title,
                 style = MiuixTheme.textStyles.footnote2,
                 color = MiuixTheme.colorScheme.onBackgroundVariant,
-                textAlign = TextAlign.Start,
-                modifier = Modifier.weight(ColumnWeights[index]).padding(vertical = 4.dp),
+                textAlign = if (index == 0) TextAlign.Start else TextAlign.End,
+                modifier = Modifier.weight(ColumnWeights[index]),
             )
         }
     }
@@ -396,10 +353,14 @@ private fun TableRow(record: IncomeStatRecord) {
         cells.forEachIndexed { index, cell ->
             Text(
                 text = cell,
-                style = MiuixTheme.textStyles.footnote1,
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    fontFeatureSettings = "tnum"
+                ),
                 // 日期列用次级文字色弱化，其余数值列用默认前景色
                 color = if (index == 0) MiuixTheme.colorScheme.onSurfaceVariantSummary else Color.Unspecified,
-                textAlign = TextAlign.Start,
+                textAlign = if (index == 0) TextAlign.Start else TextAlign.End,
+                maxLines = 1,
                 modifier = Modifier.weight(ColumnWeights[index]),
             )
         }
