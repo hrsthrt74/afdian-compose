@@ -2,7 +2,6 @@ package com.hrsthrt74.afdian.ui.components.home
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -33,7 +33,6 @@ import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
@@ -44,7 +43,12 @@ fun HomeCustomizationSheet(settingsStore: SettingsStore, show: Boolean, onDismis
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
     val scope = rememberCoroutineScope()
 
-    WindowBottomSheet(show = show, title = "自定义首页", onDismissRequest = onDismiss, insideMargin = DpSize(12.dp, 0.dp)) {
+    WindowBottomSheet(
+        show = show,
+        title = "自定义首页",
+        onDismissRequest = onDismiss,
+        insideMargin = DpSize(12.dp, 0.dp))
+    {
         val listState = rememberLazyListState()
         val hapticFeedback = LocalHapticFeedback.current
         var editableOrder by remember(moduleOrder) { mutableStateOf(moduleOrder) }
@@ -53,7 +57,11 @@ fun HomeCustomizationSheet(settingsStore: SettingsStore, show: Boolean, onDismis
             hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             scope.launch { settingsStore.setHomeModuleOrder(editableOrder) }
         }
-        LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = 48.dp)
+        ) {
             items(editableOrder, key = { it.storageValue }) { module ->
                 ReorderableItem(reorderableState, key = module.storageValue) { isDragging ->
                     // 拖拽中让整个条目轻微放大，突出“被抓起”的状态
@@ -110,7 +118,7 @@ private fun HomeModuleSettingRow(module: HomeModule, checked: Boolean, onChecked
                     "☰",
                     fontSize = 20.sp,
                     modifier = dragModifier.padding(start = 4.dp, end = 4.dp),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                 )
             },
         )
