@@ -115,7 +115,7 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                     actions = {
                         AnimatedContent(
                             targetState = editing,
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+//                            transitionSpec = { fadeIn() togetherWith fadeOut() },
                             label = "top_bar_actions",
                         ) { isEditing ->
                             if (isEditing) {
