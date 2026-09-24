@@ -51,6 +51,7 @@ import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
@@ -60,7 +61,6 @@ import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.CreatorDetailViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.PlanDetailViewModel
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -153,13 +153,12 @@ fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, backStack: NavBac
                 current == null && loading -> LoadingComponent(
                     modifier = Modifier.padding(top = paddingValues.calculateTopPadding() + 32.dp, start = 12.dp)
                 )
-                current == null && error != null -> Column(
-                    modifier = Modifier.padding(top = paddingValues.calculateTopPadding() + 32.dp, start = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(error!!)
-                    Button(onClick = vm::load) { Text("重试") }
-                }
+                current == null && error != null -> ErrorStateView(
+                    onRetry = vm::load,
+                    // 让出顶栏高度，错误态在剩余区域内居中
+                    modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding()),
+                    summary = error!!,
+                )
                 current != null -> CreatorDetailContent(
                     detail = current,
                     user = user,

@@ -35,6 +35,7 @@ import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
@@ -46,7 +47,6 @@ import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.ManagementViewModel
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -192,16 +192,10 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                         error != null -> {
                             // 加载失败：空状态视图 + 重试按钮
-                            EmptyStateView(
-                                title = "加载失败",
-                                summary = error!!,
+                            ErrorStateView(
+                                onRetry = { viewModel.load(section) },
                                 modifier = Modifier.fillParentMaxSize(),
-                                action = {
-                                    Button(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        onClick = { viewModel.load(section) })
-                                    { Text("重试") }
-                                },
+                                summary = error!!,
                             )
                         }
                         result == null -> Text("暂无数据")

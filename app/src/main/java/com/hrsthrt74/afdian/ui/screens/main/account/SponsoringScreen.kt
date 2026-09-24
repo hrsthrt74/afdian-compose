@@ -26,6 +26,7 @@ import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
@@ -33,7 +34,6 @@ import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
@@ -104,15 +104,10 @@ fun SponsoringScreen(
                 } else if (error != null) {
                     // 加载失败：空状态视图 + 重试按钮
                     item {
-                        EmptyStateView(
-                            title = "加载失败",
-                            summary = error!!,
+                        ErrorStateView(
+                            onRetry = viewModel::refresh,
                             modifier = Modifier.fillParentMaxSize(),
-                            action = {
-                                Button(onClick = viewModel::refresh, modifier = Modifier.fillMaxWidth()) {
-                                    Text("重试")
-                                }
-                            },
+                            summary = error!!,
                         )
                     }
                 } else if (sponsoring.isEmpty()) {

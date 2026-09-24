@@ -82,6 +82,7 @@ import com.hrsthrt74.afdian.ui.components.FilterChip
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
@@ -92,7 +93,6 @@ import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.kyant.shapes.Capsule
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -277,11 +277,10 @@ fun DiscoverScreen(
                 item { SmallTitle(text = "全站精选", modifier = Modifier.padding(start = 4.dp)) }
                 if (error != null) {
                     item {
-                        EmptyStateView(
-                            title = "加载失败",
-                            summary = error!!,
+                        ErrorStateView(
+                            onRetry = viewModel::refresh,
                             modifier = Modifier.fillParentMaxSize(),
-                            action = { Button(onClick = viewModel::refresh, modifier = Modifier.fillMaxWidth()) { Text("重试") } },
+                            summary = error!!,
                         )
                     }
                 } else if (posts.isEmpty()) {

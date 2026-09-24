@@ -37,17 +37,30 @@ dialogState.show()
 
 ### 空状态 / 错误态
 
-整页/整区的空状态与加载失败统一用 `EmptyStateView`（自带 Info 图标 + 从中心放大淡入动画）：
+整页/整区的空状态统一用 `EmptyStateView`（自带 Info 图标 + 从中心放大淡入动画），
+加载失败统一用预设好的 `ErrorStateView`（标题「加载失败」+ 重试按钮已内置，不要再手写 action）：
 
 ```kotlin
+// 错误态：标题「加载失败」、重试按钮均已内置
+ErrorStateView(
+    onRetry = viewModel::load,
+    modifier = Modifier.fillParentMaxSize(), // LazyColumn item 内撑满视口；普通容器用 fillMaxSize
+    summary = error,                          // 可选错误摘要，一般直接透传
+)
+
+// 空状态
 EmptyStateView(
-    title = "加载失败",
-    summary = error,                       // 可选引导语
-    icon = MiuixIcons.Light.Recent,        // 可选图标，默认 Info
+    title = "还没有收藏内容",
+    summary = "...",                        // 可选引导语
+    icon = MiuixIcons.Light.Recent,         // 可选图标，默认 Info
     modifier = Modifier.fillParentMaxSize(), // LazyColumn item 内撑满视口；普通容器用 fillMaxSize
     action = { Button(onClick = retry, modifier = Modifier.fillMaxWidth()) { Text("重试") } }, // 可选操作区
 )
 ```
+
+错误态图标：miuix-icons 没有 Warning / Alert / Error 语义的图标（只有 Help / Info / Refresh），
+`ErrorStateView` 默认把 Info 旋转 180° 充作错误图标（`iconRotation = 180f`）；
+换自定义图标且不想被旋转时，把 `iconRotation` 传 `0f`。
 
 列表内的小占位（一行「暂无订单」之类的非整页空态）仍用统一样式：
 
@@ -66,7 +79,8 @@ Text(
 需要以下能力时直接用封装好的组件，不要自己重写：
 
 - 加载中 → `LoadingComponent`
-- 空状态 / 错误态 → `EmptyStateView`（见「空状态 / 错误态」一节）
+- 空状态 → `EmptyStateView`（见「空状态 / 错误态」一节）
+- 加载失败 / 错误态 → `ErrorStateView`（预设「加载失败」+ 重试按钮，见「空状态 / 错误态」一节）
 - 复制按钮 → `CopyButton`（震动 + 写剪贴板 + 图标切 Ok + Toast，异步反馈全在内部；字重用 `iconWeight`，档位 `MiuixIconWeight.Light/Normal/Regular/Medium/Demibold`，默认 `Regular`）
 - 动态卡片 → `PostCard`
 - 创作者卡（长条形） → `CreatorListItem`

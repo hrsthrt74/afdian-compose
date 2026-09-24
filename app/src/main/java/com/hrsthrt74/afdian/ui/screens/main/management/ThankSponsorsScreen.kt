@@ -40,6 +40,7 @@ import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
@@ -362,15 +363,10 @@ fun ThankSponsorsScreen(
                 } else if (error != null && sponsors.isEmpty()) {
                     // 加载失败：空状态视图 + 重试按钮
                     item(key = "error") {
-                        EmptyStateView(
-                            title = "加载失败",
-                            summary = error!!,
+                        ErrorStateView(
+                            onRetry = viewModel::load,
                             modifier = Modifier.fillParentMaxSize(),
-                            action = {
-                                Button(onClick = viewModel::load, modifier = Modifier.fillMaxWidth()) {
-                                    Text("重试")
-                                }
-                            },
+                            summary = error!!,
                         )
                     }
                 } else if (sponsors.isEmpty()) {

@@ -29,13 +29,13 @@ import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.OrderViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TabRow
@@ -139,15 +139,10 @@ fun OrderScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewModel: 
                         loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                         error != null -> {
                             // 加载失败：空状态视图 + 重试按钮
-                            EmptyStateView(
-                                title = "加载失败",
-                                summary = error!!,
+                            ErrorStateView(
+                                onRetry = { vm.load(status) },
                                 modifier = Modifier.fillParentMaxSize(),
-                                action = {
-                                    Button(onClick = { vm.load(status) }, modifier = Modifier.fillMaxWidth()) {
-                                        Text("重试")
-                                    }
-                                },
+                                summary = error!!,
                             )
                         }
                         orders.isEmpty() -> Text("暂无订单", modifier = Modifier.padding(horizontal = 12.dp))

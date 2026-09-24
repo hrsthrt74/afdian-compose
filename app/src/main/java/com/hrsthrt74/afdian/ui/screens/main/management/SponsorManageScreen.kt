@@ -63,6 +63,7 @@ import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
@@ -260,18 +261,10 @@ fun SponsorManageScreen(
 
                     // 首屏加载失败：空状态 + 重试
                     error != null && sponsors.isEmpty() -> item(key = "error") {
-                        EmptyStateView(
-                            title = "加载失败",
-                            summary = error!!,
+                        ErrorStateView(
+                            onRetry = viewModel::load,
                             modifier = Modifier.fillParentMaxSize(),
-                            action = {
-                                Button(
-                                    onClick = viewModel::load,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text("重试")
-                                }
-                            },
+                            summary = error!!,
                         )
                     }
 

@@ -110,7 +110,11 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ### 错误态统一
 
-- 七个页面（发现/我发电的/收藏/管理面板/收入明细/感谢页/订单）的加载失败统一为 `EmptyStateView` + 底部 fillMaxWidth 重试按钮（各页保留原重试回调）。
+- 加载失败统一用 `ErrorStateView`（标题「加载失败」+ 内置 fillMaxWidth 重试按钮，各页保留原重试回调，不要手写 action）。
+  已覆盖 13 处：发现、我发电的、收藏、管理面板、优惠码（Affiliate）、收入明细、月度汇总、感谢页、订单、赞助管理、发电记录、创作者详情（首屏）、方案详情 sheet。
+- `CreatorDetailScreen` 首屏错误态额外加 `padding(top = paddingValues.calculateTopPadding())` 让出顶栏。
+- `PlanDetailSheet` 拆成两支：`detail == null && error != null` → `ErrorStateView`（重试 `viewModel::retry`）；
+  `detail == null`（如 planId 缺失、无错误）→ `EmptyStateView("暂无详情")` 兜底，不要合并成一个分支。
 
 ## 收藏页（FavoritesScreen）
 
@@ -220,7 +224,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 组件用法见 `DESIGN.md` 的「通用组件」一节。
 
-- `EmptyStateView`（`ui/components/EmptyStateView.kt`）：通用空状态/错误态视图，96dp 图标（默认 `Light.Info`）+ title2 标题 + body2 引导语 + 可选 action 槽位（重试按钮），组合时自带 0.8→1 缩放淡入动画（`animated = false` 可关）。
+- `EmptyStateView`（`ui/components/EmptyStateView.kt`）：通用空状态视图，96dp 图标（默认 `Light.Info`）+ title2 标题 + body2 引导语 + 可选 action 槽位（重试按钮）+ 可选 `iconModifier`（图标变换），组合时自带 0.8→1 缩放淡入动画（`animated = false` 可关）。
+- `ErrorStateView`（同文件）：错误态预设，标题固定「加载失败」+ 内置 fillMaxWidth「重试」按钮，参数 `onRetry` / `summary` / `modifier`；图标默认是 Info 旋转 180°（miuix 无错误语义图标，`iconRotation` 可调），内部直接复用 `EmptyStateView`。
 
 ## 关键文件
 

@@ -58,6 +58,7 @@ import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.CopyButton
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.MiuixIconWeight
@@ -67,7 +68,6 @@ import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -371,15 +371,10 @@ fun ReceivedSponsorsScreen(
                         isLoading -> item { LoadingComponent(modifier = Modifier.fillMaxWidth()) }
 
                         // 加载失败
-                        error != null -> item { EmptyStateView(
-                            title = "加载失败",
-                            summary = error!!,
+                        error != null -> item { ErrorStateView(
+                            onRetry = viewModel::load,
                             modifier = Modifier.fillParentMaxSize().padding(horizontal = 16.dp),
-                            action = {
-                                Button(onClick = viewModel::load, modifier = Modifier.fillMaxWidth()) {
-                                    Text("重试")
-                                }
-                            },
+                            summary = error!!,
                         ) }
 
                         // 暂无发电记录

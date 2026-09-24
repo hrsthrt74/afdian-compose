@@ -30,6 +30,8 @@ import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.CreatorPlanSku
 import com.hrsthrt74.afdian.data.content.CreatorPlanSkus
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
+import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.HtmlContent
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
@@ -76,16 +78,17 @@ fun PlanDetailSheet(
                     .fillMaxWidth()
                     .height(240.dp),
             )
-            detail == null -> Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(error ?: "暂无详情")
-                Button(onClick = viewModel::retry) { Text("重试") }
-            }
+            // 加载失败：预设错误态（含重试按钮）
+            detail == null && error != null -> ErrorStateView(
+                onRetry = viewModel::retry,
+                modifier = Modifier.fillMaxWidth(),
+                summary = error,
+            )
+            // 无错误也没有详情（如 planId 缺失）：空态兜底
+            detail == null -> EmptyStateView(
+                title = "暂无详情",
+                modifier = Modifier.fillMaxWidth(),
+            )
             else -> {
                 val loadedDetail = detail!!
                 PlanDetailContent(

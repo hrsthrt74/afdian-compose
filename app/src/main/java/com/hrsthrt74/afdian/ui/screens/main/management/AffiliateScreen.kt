@@ -46,13 +46,13 @@ import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.CopyButton
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.AffiliateViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -209,15 +209,10 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
                         }
                         // 加载失败且无缓存：空状态 + 重试
                         error != null && affiliates.isEmpty() -> item(key = "error") {
-                            EmptyStateView(
-                                title = "加载失败",
-                                summary = error,
+                            ErrorStateView(
+                                onRetry = viewModel::load,
                                 modifier = Modifier.fillParentMaxSize(),
-                                action = {
-                                    Button(onClick = viewModel::load, modifier = Modifier.fillMaxWidth()) {
-                                        Text("重试")
-                                    }
-                                },
+                                summary = error,
                             )
                         }
                         // 请求成功但没有优惠码
