@@ -241,14 +241,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 创作者数据独立加载：失败只影响创作者卡片/图表，不影响首页其他内容刷新 */
     private suspend fun refreshCreatorData() {
         try {
+            // 流式加载：dashboard 先到先推一帧，账单/按日统计/月度账单谁先完成谁推一帧，
+            // 订单多的账号不用陪账单翻页一起等最慢的接口。
             val overview = withContext(Dispatchers.IO) {
-                statsRepository.loadOverview()
+                statsRepository.loadOverviewStreaming { partial ->
+                    _creatorCards.value = partial.cards
+                    // 图表按「本次成功返回的图覆盖、本次缺键的图保留旧值」合并：
+                    // 单个数据源临时失败时不会把已拿到过的图抹掉（否则坏数据还会被写进缓存）。
+                    // 与卡片的容错口径一致：加载失败保留旧值，而不是退回加载占位。
+                    // 每帧回调在仓库内部互斥锁内串行触发，这里的读改写不会与其他帧竞态。
+                    _creatorCharts.value = _creatorCharts.value + partial.charts
+                }
             }
-            _creatorCards.value = overview.cards
-            // 图表按「本次成功返回的图覆盖、本次缺键的图保留旧值」合并：
-            // 单个数据源临时失败时不会把已拿到过的图抹掉（否则坏数据还会被写进缓存）。
-            // 与卡片的容错口径一致：加载失败保留旧值，而不是退回加载占位。
-            _creatorCharts.value = _creatorCharts.value + overview.charts
+            // 磁盘缓存只在全部数据源结束后落盘一次，避免中间帧反复写文件
             saveHomeCache()
             AppLog.d("Home", "创作者数据加载成功，卡片=${overview.cards.size}，图表=${overview.charts.size}")
         } catch (e: Exception) {
