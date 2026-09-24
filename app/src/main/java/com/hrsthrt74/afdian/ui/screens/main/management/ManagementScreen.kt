@@ -1,17 +1,13 @@
-package com.hrsthrt74.afdian.ui.screens.main
+package com.hrsthrt74.afdian.ui.screens.main.management
 
 import android.app.Application
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -68,6 +64,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
 fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewModel: ManagementViewModel? = null) {
+    // 数据
     val application = LocalContext.current.applicationContext as Application
     val viewModel = providedViewModel ?: viewModel<ManagementViewModel>(
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application),
@@ -78,17 +75,21 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
     val error by viewModel.error.collectAsState()
     val cardModels by viewModel.cards.collectAsState()
     val charts by viewModel.charts.collectAsState()
+    val scope = rememberCoroutineScope()
 
+    // 页面
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
-    // 列表滚动状态：双击顶栏回顶 + 滚动条共用
     val listState = rememberLazyListState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+
+    // 卡片
     val settingsStore = remember { SettingsStore(context) }
     val managementLayout by settingsStore.managementLayout.collectAsState(initial = emptyList())
-    // 卡片单位是否显示由设置决定，开关变化后立即重算展示项
+    // 卡片单位
     val showIncomeUnit by settingsStore.showIncomeUnit.collectAsState(initial = false)
     val showCountUnit by settingsStore.showCountUnit.collectAsState(initial = false)
     val cardItems = remember(cardModels, showIncomeUnit, showCountUnit) {
@@ -97,11 +98,9 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
     var showCustomization by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var editableLayout by remember(managementLayout) { mutableStateOf(managementLayout) }
-    val scope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback.current
+
     Scaffold(
         topBar = {
-            // 双击顶栏回顶包装层：内层照旧是模糊栏 + 标准顶栏
             DoubleTapToTop(listState, scrollBehavior) {
             BlurredBar(backdrop, themeSettings.enableBlur, themeSettings.progressiveBlur) {
                 TopAppBar(
@@ -109,10 +108,8 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                     largeTitle = "管理",
                     color = blurBarColor(backdrop),
                     scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        BackButton(onBack = onBack, backStack = backStack)
-                    },
-                    actions = {
+                    navigationIcon = { BackButton(onBack = onBack, backStack = backStack) },
+                    actions = { // 顶栏操作按钮
                         AnimatedContent(
                             targetState = editing,
 //                            transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -151,12 +148,17 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
             }
         }
     ) { paddingValues ->
-        // 垂直布局：原 TabRow（整体概况 / 发电者管理）已随「赞助者管理」独立成页而移除，
-        // 现在只剩整体概况一个分区。
-        // 注意：内容必须从屏幕顶（顶栏背后）开始铺，模糊栏才有滚动内容可采样；
-        // 顶部可视留白改用 contentPadding / padding 实现，不能用 Spacer 把内容压到顶栏下方。
-        Column(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-            if (editing && section == ManagementSection.Overview && !loading && error == null) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
+        ) {
+            AnimatedContent(
+                targetState = editing && section == ManagementSection.Overview && !loading && error == null,
+                modifier = Modifier.weight(1f),
+                label = "management_layout_switch",
+            ) { isEditableGrid ->
+            if (isEditableGrid) {
                 ManagementEditableDataGrid(
                     cards = cardItems,
                     layout = editableLayout,
@@ -168,19 +170,17 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                         // 拖拽过程中只更新内存，松手后一次性持久化最终顺序。
                         scope.launch { settingsStore.setManagementLayout(committedLayout) }
                     },
-                    // topInset 走 contentPadding：首行让出顶栏、网格仍穿过顶栏供模糊采样
                     topInset = paddingValues.calculateTopPadding(),
                     modifier = Modifier
-                        .weight(1f)
+                        .fillMaxSize()
                         .nestedScroll(scrollBehavior.nestedScrollConnection),
                 )
             } else LazyColumn(
                 state = listState,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxSize()
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
                     .scrollEndHaptic(),
-                // top：内容从屏幕顶布局、首项让出顶栏高度；滚动时列表穿过顶栏供模糊采样
                 contentPadding = PaddingValues(
                     top = paddingValues.calculateTopPadding(),
                     bottom = contentBottomPadding(),
@@ -209,7 +209,7 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                 }
 
                 if (!loading && error == null) {
-                    // 分区只剩整体概况（赞助者管理已独立成页面），直接渲染数据卡布局
+                    // 数据卡布局
                     item {
                         ManagementDataLayout(
                             cards = cardItems,
@@ -219,11 +219,11 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                         )
                     }
                 }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
+            }
             }
         }
     }
-    ManagementAddCardSheet(
+    ManagementAddCardSheet( // 添加卡片 Sheet
         layout = editableLayout,
         cards = cardItems,
         charts = charts,

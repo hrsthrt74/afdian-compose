@@ -46,6 +46,7 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.IncomeDetailScreen
+import com.hrsthrt74.afdian.ui.screens.main.management.ManagementScreen
 import com.hrsthrt74.afdian.ui.screens.main.tabs.ProfileScreen
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
