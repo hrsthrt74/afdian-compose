@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- miuix-blur AAR 声明 minSdk=33（依赖 RuntimeShader API），与 legacy 变体的 minSdk=29 冲突。
+         legacy 上模糊全部由数据源兜底关闭（ThemeRepository.settings），永不触发该库代码，放行安全。
+         对 minSdk>=34 的其他变体无任何影响（仅发生冲突时才生效）。 -->
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
     <uses-permission android:name="android.permission.INTERNET" />
 

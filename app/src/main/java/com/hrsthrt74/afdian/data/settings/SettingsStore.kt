@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
@@ -87,9 +88,12 @@ class SettingsStore(private val context: Context) {
     val gestureBack: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.GESTURE_BACK] ?: true }
 
-    /** 系统预测性返回，默认开启。 */
+    /** 系统预测性返回，默认开启；legacy 低配版（SUPPORT_PREDICTIVE_BACK=false）在数据源层
+     *  强制关闭，MainScreen 的 PredictiveBackGuard 据此拦截系统返回事件、降级为普通返回。 */
     val predictiveBack: Flow<Boolean> =
-        context.settingsDataStore.data.map { it[Keys.PREDICTIVE_BACK] ?: true }
+        context.settingsDataStore.data.map {
+            (it[Keys.PREDICTIVE_BACK] ?: true) && BuildConfig.SUPPORT_PREDICTIVE_BACK
+        }
 
     /**
      * 调试日志开关，默认关闭。

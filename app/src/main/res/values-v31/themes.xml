@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 31+（production/internal 的 minSdk 34 必然命中）：原生 SplashScreen 完整定义。
+     android:windowSplashScreenAnimatedIcon 需要 API 31，拆到这里让 legacy(minSdk 29)
+     不触发 lint NewApi；API 29/30 由 core-splashscreen compat 退化为应用图标启动画面 -->
+<resources>
+
+    <style name="Theme.Afdian.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.Afdian</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/icon_splash</item>
+    </style>
+</resources>

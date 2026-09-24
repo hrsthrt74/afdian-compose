@@ -1,3 +1,5 @@
+import com.android.build.api.variant.BuildConfigField
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -38,20 +40,46 @@ android {
         // 不同变体的 BuildConfig 结构不一致。
         buildConfigField("long", "BUILD_TIMESTAMP_MS", "${System.currentTimeMillis()}L")
         buildConfigField("boolean", "INTERNAL_BUILD", "false")
+        // 是否支持模糊效果：完整版恒为 true；legacy 低配版在自身 flavor 里覆盖为 false，
+        // ThemeRepository 据此在数据源层关闭全部模糊。三处显式声明保持 BuildConfig 结构一致。
+        buildConfigField("boolean", "SUPPORT_BLUR", "true")
+        // 是否支持系统预测性返回：legacy 低配版强制关闭（PredictiveBackGuard 拦截系统返回
+        // 事件、降级为普通返回）。同样三处显式声明保持 BuildConfig 结构一致。
+        buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "true")
     }
 
+    // 维度声明顺序决定变体名拼接顺序：distribution 在前，edition 在后。
     flavorDimensions += "distribution"
+    // edition 维度：standard=完整版，legacy=低配兼容版（minSdk 29、无模糊）
+    flavorDimensions += "edition"
     productFlavors {
-        // 保留正式渠道的无后缀包名；加入 flavor 维度后，正式变体名称为 productionRelease。
+        // 保留正式渠道的无后缀包名；加入 flavor 维度后，正式变体名称为 productionStandardRelease。
         create("production") {
             dimension = "distribution"
             buildConfigField("boolean", "INTERNAL_BUILD", "false")
+            isDefault = true
         }
         create("internal") {
             dimension = "distribution"
             // 内测版与正式版并存安装，登录态和缓存也自然隔离。
             applicationIdSuffix = ".internal"
             buildConfigField("boolean", "INTERNAL_BUILD", "true")
+        }
+        // 完整版：显式创建以固定变体命名（若缺失 standard，distribution 维度会直接与
+        // legacy 拼接，变体名错位）。
+        create("standard") {
+            dimension = "edition"
+            buildConfigField("boolean", "SUPPORT_BLUR", "true")
+            buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "true")
+            isDefault = true
+        }
+        // 低配兼容版：minSdk 降到 29、不启用任何模糊效果，与完整版并存安装。
+        create("legacy") {
+            dimension = "edition"
+            applicationIdSuffix = ".legacy"
+            minSdk = 29
+            buildConfigField("boolean", "SUPPORT_BLUR", "false")
+            buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "false")
         }
     }
 
@@ -92,6 +120,19 @@ android {
 // AboutLibraries：离线模式，构建期不访问网络（远程 license/funding 本就默认关闭，显式锁死更稳）
 aboutLibraries {
     offlineMode = true
+}
+
+// 每个变体写入自己的完整变体名（如 productionStandardDebug / internalLegacyDebug），
+// 供设置页底部居中小字提示当前打包类型
+androidComponents {
+    onVariants { variant ->
+        // AGP 9 的 BuildConfigField(type, value, comment)：value 即字面值，
+        // String 类型必须自带引号（KDoc 明确要求），comment 传 null 无注释
+        variant.buildConfigFields?.put(
+            "APP_VARIANT_NAME",
+            BuildConfigField("String", "\"${variant.name}\"", null)
+        )
+    }
 }
 
 dependencies {

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
@@ -61,6 +62,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 // 「启动」页 下拉菜单选项
@@ -204,17 +206,21 @@ private fun SettingsScreenContent(
                             onCheckedChange = viewModel::setUseAfdianColor,
                             title = "使用爱发电主题色",
                         )
-                        SwitchPreference(
-                            checked = themeSettings.enableBlur,
-                            onCheckedChange = viewModel::setEnableBlur,
-                            title = "模糊效果",
-                            summary = "顶栏、底栏、动画中的模糊效果",
-                        )
-                        SwitchPreference(
-                            checked = themeSettings.progressiveBlur,
-                            onCheckedChange = viewModel::setProgressiveBlur,
-                            title = "渐进模糊",
-                        )
+                        // legacy 低配版不支持模糊（SUPPORT_BLUR=false），开关直接隐藏，
+                        // 避免用户打开一个永远不会生效的选项
+                        if (BuildConfig.SUPPORT_BLUR) {
+                            SwitchPreference(
+                                checked = themeSettings.enableBlur,
+                                onCheckedChange = viewModel::setEnableBlur,
+                                title = "模糊效果",
+                                summary = "顶栏、底栏、动画中的模糊效果",
+                            )
+                            SwitchPreference(
+                                checked = themeSettings.progressiveBlur,
+                                onCheckedChange = viewModel::setProgressiveBlur,
+                                title = "渐进模糊",
+                            )
+                        }
                     }
                 }
 
@@ -233,11 +239,15 @@ private fun SettingsScreenContent(
                             title = "手势返回",
                             summary = "向右滑动即可返回（退出设置后生效）",
                         )
-                        SwitchPreference(
-                            checked = predictiveBack,
-                            onCheckedChange = viewModel::setPredictiveBack,
-                            title = "预测性返回",
-                        )
+                        // legacy 低配版不支持系统预测性返回（SUPPORT_PREDICTIVE_BACK=false），
+                        // 开关直接隐藏，避免出现永不生效的选项
+                        if (BuildConfig.SUPPORT_PREDICTIVE_BACK) {
+                            SwitchPreference(
+                                checked = predictiveBack,
+                                onCheckedChange = viewModel::setPredictiveBack,
+                                title = "预测性返回",
+                            )
+                        }
                     }
                 }
 
@@ -345,6 +355,18 @@ private fun SettingsScreenContent(
                             onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
                         )
                     }
+                }
+
+                // 构建类型提示：居中小字显示当前打包变体（如 productionStandardDebug），
+                // 便于区分测试包来源；样式沿用 DESIGN.md「列表内小字」的统一约定
+                item {
+                    Text(
+                        text = "构建类型：" + BuildConfig.APP_VARIANT_NAME,
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    )
                 }
             }
             // 右侧滚动条

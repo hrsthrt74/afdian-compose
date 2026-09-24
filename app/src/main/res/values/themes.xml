@@ -3,11 +3,11 @@
 
     <style name="Theme.Afdian" parent="android:Theme.Material.Light.NoActionBar" />
 
-    <!-- Android 12+ 原生 SplashScreen：图标默认取应用 Launcher 图标，
-         背景随明暗模式取 @color/splash_background；退出后切回常规主题 -->
+    <!-- 基础版 SplashScreen：背景与退出主题均为 compat 属性，全版本可用。
+         android:windowSplashScreenAnimatedIcon 需要 API 31+，拆到 values-v31；
+         API 29/30（legacy）由 core-splashscreen compat 退化为应用图标启动画面 -->
     <style name="Theme.Afdian.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="postSplashScreenTheme">@style/Theme.Afdian</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/icon_splash</item>
     </style>
 </resources>
