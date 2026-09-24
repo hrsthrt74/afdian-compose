@@ -74,6 +74,7 @@ import androidx.compose.ui.zIndex
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.ui.components.CreatorLargeCard
@@ -311,6 +312,17 @@ fun DiscoverScreen(
 
 private enum class SearchPhase { COLLAPSED, EXPANDING, EXPANDED, COLLAPSING }
 
+/**
+ * 假搜索栏仍允许点击的折叠进度上限（0 = 完整展示，1 = 高度收归 0）。
+ *
+ * 取 0.05f 而不是 0f 的原因：
+ * 1. `searchFraction` 由 nestedScroll 里 `+=` / `-=` 累加，完全展开时可能残留 1e-7 级浮点尾数，
+ *    用 `== 0f` 判定会出现「明明完整展开却点不动」；
+ * 2. 0.05 对应的实测高度约 49dp，仍 ≥ 48dp 最小触摸目标，天然不落在会外扩 24dp 的区间里，
+ *    所以这个阈值内的点击都是「真实落在可见胶囊上」的，不会误放行。
+ */
+private const val SearchFakeTapFractionThreshold = 0.05f
+
 private data class DiscoverSearchStatus(
     val text: String = "",
     val current: SearchPhase = SearchPhase.COLLAPSED,
@@ -338,7 +350,24 @@ private fun SearchFake(
             .alpha(if (visible) 1f else 0f)
             .fillMaxWidth()
             .onGloballyPositioned(onPositioned)
-            .pointerInput(visible) { if (visible) detectTapGestures { onClick() } }
+            // 注意：能否点击只能由这里的 key 决定，而 key 只含搜索面板相位（COLLAPSED/…），
+            // 不含滚动折叠进度——所以「折叠到 0 高度后仍可点」的问题不能靠 key 解决：
+            // 折叠是用下面的 .layout{} 把高度压成 0 实现的，而高度为 0 时 Compose 的
+            // 最小触摸目标仍会把命中区向上/下各外扩 (48dp - 0) / 2 = 24dp 并记入命中路径，
+            // 于是这个 pointerInput 照样收得到事件。因此把「折叠进度」判定搬进手势回调内。
+            .pointerInput(visible) {
+                if (visible) detectTapGestures {
+                    // fraction 是生产者 lambda（读的 MutableFloatState.value），
+                    // 在事件里调用即取最新进度，滚动过程不重组也拿得到准数。
+                    if (fraction() > SearchFakeTapFractionThreshold) {
+                        // 胶囊已被滚动压小（含完全折叠）：拦掉这次点击。
+                        // 否则折叠后点「发现」小标题附近也会误弹搜索面板
+                        AppLog.d("DiscoverScreen", "SearchFake 折叠中，忽略点击 fraction=${fraction()}")
+                    } else {
+                        onClick()
+                    }
+                }
+            }
             .padding(horizontal = 16.dp)
             // 对齐 miuix 大标题 offset{} 的写法：布局阶段读收缩进度，直接把组件
             // 高度量成「自然高度 × (1 - 进度)」——最矮精确到 0、改的是真实布局高度，
