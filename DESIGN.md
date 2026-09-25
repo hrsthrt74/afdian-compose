@@ -177,6 +177,9 @@ Box(modifier = Modifier.weight(1f).fillMaxSize()) {
   颜色形状被模糊斜坡绑死且强端出现平台期，观感就是一块纯色板。
 - 底栏若沿用渐进模糊（`PostDetailScreen` / `MessageConversationScreen` 手写的那两处），方向是
   下浓上淡，用 `barTintBrush(topHeavy = false)` 即可；它们目前仍走旧的 `progressiveBlurBarColors()`。
+- 模糊不可用时（legacy 包体 / 用户关闭模糊 / 设备不支持 runtime shader），`BlurredBar` 会给整条栏
+  铺一层 `surface` 底色兜底：`TopAppBar` 只会给自己上背景，往顶栏里塞它之外的内容（TabRow、表头等）
+  不会自动获得底色，靠的就是这层。所以**别把顶栏内容拆到 `BlurredBar` 外面**。
 
 ### 状态管理
 

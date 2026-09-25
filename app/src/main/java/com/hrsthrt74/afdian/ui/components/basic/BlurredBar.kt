@@ -121,14 +121,22 @@ fun BlurredBar(
 ) {
     val active = blurEnabled && backdrop != null
     Box(
-        modifier = if (active && !progressive) {
-            Modifier.textureBlur(
+        modifier = when {
+            // 普通模糊：整条栏交给 textureBlur。
+            // 栏体自身（TopAppBar 用 blurBarColor 置透明）会透出这层模糊
+            active && !progressive -> Modifier.textureBlur(
                 backdrop = backdrop,
                 shape = RectangleShape,
                 blurRadius = AppBlurRadius,
-                 colors = blurBarColors(),
+                colors = blurBarColors(),
             )
-        } else Modifier,
+            // 渐进模糊：由内部两层 matchParentSize 子 Box 负责，外层不加 modifier
+            active -> Modifier
+            // 模糊不可用（legacy 包体 / 用户关闭模糊效果 / 设备不支持 runtime shader）：
+            // 整条栏铺一层不透明底色兜底。TopAppBar 只会给自己的节点上 surface，
+            // 额外挂在它下面的内容（TabRow、表头等兄弟节点）无人上色，会纯透明、滚动内容从背后穿过。
+            else -> Modifier.background(MiuixTheme.colorScheme.surface)
+        },
     ) {
         if (active && progressive) {
             Box(
