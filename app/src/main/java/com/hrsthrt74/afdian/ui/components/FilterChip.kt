@@ -102,7 +102,7 @@ fun FilterChip(
                         contentDescription = null,
                         tint = contentColor,
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(18.dp)
                             .padding(start = 6.dp)
                             .then(
                                 if (onTrailingIconClick != null) {
