@@ -67,9 +67,9 @@ import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -592,7 +592,8 @@ private fun ReceivedSponsorFilterSheet(
 
             SmallTitle(text = "时间", insideMargin = PaddingValues(16.dp, 12.dp, 8.dp, 0.dp))
             Card(
-                colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                colors = AfdianCardDefaults.overlayColors(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -816,7 +817,8 @@ private fun ReceivedSponsorDetailSheet(
                     // 用户信息
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                        // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                        colors = AfdianCardDefaults.overlayColors(),
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
@@ -861,9 +863,8 @@ private fun ReceivedSponsorDetailSheet(
                             // 金额为占位符时不挂单位，避免出现「-- 元」
                             unit = current.totalAmountWithShipping.takeIf { it.isNotBlank() }?.let { "元" },
                             modifier = Modifier.weight(1f),
-                            colors = CardDefaults.defaultColors(
-                                color = MiuixTheme.colorScheme.surface,
-                            ),
+                            // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                            colors = AfdianCardDefaults.overlayColors(),
                         )
                         DataCard(
                             title = "月份",
@@ -871,16 +872,16 @@ private fun ReceivedSponsorDetailSheet(
                             // 同上，无有效月数时不显示「个月」
                             unit = if (current.monthCount > 0) "个月" else null,
                             modifier = Modifier.weight(1f),
-                            colors = CardDefaults.defaultColors(
-                                color = MiuixTheme.colorScheme.surface,
-                            ),
+                            // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                            colors = AfdianCardDefaults.overlayColors(),
                         )
                     }
                 }
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                        // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                        colors = AfdianCardDefaults.overlayColors(),
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),

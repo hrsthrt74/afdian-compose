@@ -72,10 +72,10 @@ import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.relativeTime
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.SponsorManageViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -1082,7 +1082,8 @@ private fun SponsorDetailSheet(
         ) {
             // 头部：头像 + 昵称 + 当前方案
             Card(
-                colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface)
+                // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                colors = AfdianCardDefaults.overlayColors()
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1136,15 +1137,15 @@ private fun SponsorDetailSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
-                // 卡片背景：surface
-                colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                // 卡片背景：弹层内 Card 统一配色
+                colors = AfdianCardDefaults.overlayColors(),
             )
 
             // 两次赞助时间：左标签右值
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                // 卡片背景：surface
-                colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                // 卡片背景：弹层内 Card 统一配色
+                colors = AfdianCardDefaults.overlayColors(),
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                     DetailTimeRow(label = "初次赞助", seconds = item.createTime)
@@ -1161,8 +1162,8 @@ private fun SponsorDetailSheet(
                 )
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    // 卡片背景：surface
-                    colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                    // 卡片背景：弹层内 Card 统一配色
+                    colors = AfdianCardDefaults.overlayColors(),
                 ) {
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                         item.plans.forEachIndexed { index, plan ->

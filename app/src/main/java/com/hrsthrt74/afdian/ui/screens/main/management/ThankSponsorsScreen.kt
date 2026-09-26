@@ -39,7 +39,6 @@ import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
-import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
@@ -47,10 +46,10 @@ import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -164,7 +163,8 @@ fun ThankSponsorsScreen(
                                         SmallTitle("月份跳转", insideMargin = PaddingValues(start = 12.dp, bottom = 8.dp))
                                         // 左边年份（2017~今年）、右边月份（今年则本月不可选）
                                         Card(
-                                            colors = CardDefaults.defaultColors(MiuixTheme.colorScheme.surface)
+                                            // 弹层（Popup）内 Card 统一配色：与弹层背景拉开层次
+                                            colors = AfdianCardDefaults.overlayColors(),
                                         ) {
                                             // 横排：年选择器 + 「年」 + 月选择器 + 「月」，文字与滚轮垂直居中；
                                             // picker 用固定宽度，避免选中值位数不同导致宽度抖动

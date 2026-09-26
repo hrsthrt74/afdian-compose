@@ -35,11 +35,11 @@ import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.HtmlContent
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
+import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.PlanDetailViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
@@ -184,10 +184,8 @@ private fun PlanDetailContent(
                 }
                 item(key = "html") {
                     Card(
-                        colors = CardColors(
-                            MiuixTheme.colorScheme.secondaryContainer,
-                            MiuixTheme.colorScheme.onSurfaceContainerHighest,
-                        )
+                        // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                        colors = AfdianCardDefaults.overlayColors(),
                     ) {
                         HtmlContent(
                             html = plan.desc,
@@ -247,7 +245,8 @@ private fun SkuItem(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        colors = CardColors(MiuixTheme.colorScheme.secondaryContainer, MiuixTheme.colorScheme.onSurfaceContainerHighest),
+        // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+        colors = AfdianCardDefaults.overlayColors(),
         modifier = modifier.fillMaxWidth()
     ) {
         Row(

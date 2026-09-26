@@ -14,6 +14,26 @@
 
 对于 Card 的边距，请不要给 Card 加边距，而是让 Card 只做好自己的职能，padding 由内部的 Box / Column / … 负责。
 
+#### 弹层内的 Card 必须显式指定颜色
+
+弹层（Dialog / BottomSheet / Popup）的容器背景取的是 `colorScheme.background`，
+而 Card 默认色是 `surfaceContainer`，两者在 Miuix 默认色板下**数值完全相同**
+（浅色都是纯白 `#FFFFFF`、深色都是 `#242424`），所以默认 Card 放进弹层会与背景融为一体、直接看不见。
+
+因此**弹层内部的 Card 一律用统一 util 指定颜色**，不要各写各的：
+
+```kotlin
+import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
+
+Card(colors = AfdianCardDefaults.overlayColors()) { ... }
+```
+
+`AfdianCardDefaults.overlayColors()` = `secondaryContainer` 作底 + `onSurfaceContainerHighest` 作内容色
+（浅 `#F0F0F0` / 深 `#434343`），明暗两种模式下都能与弹层背景分离。
+
+注意：**只有弹层内部的 Card 需要它**。页面（Screen）内的 Card 背景本就与页面底不同，保持 Miuix 默认色即可，
+不要全项目无脑替换。
+
 ### Dialog
 
 所有 Dialog 统一用 `AppDialog` + `DialogState`，不再自写 `WindowDialog`。

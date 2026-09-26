@@ -46,11 +46,11 @@ import com.hrsthrt74.afdian.ui.components.DateTimeField
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
+import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -574,11 +574,12 @@ fun AffiliateCreateSheet(
     )
 }
 
-/** 表单分区内容卡片：surface 底色，占满 sheet 内容宽度 */
+/** 表单分区内容卡片：弹层内统一配色，占满 sheet 内容宽度 */
 @Composable
 private fun SheetCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+        // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+        colors = AfdianCardDefaults.overlayColors(),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(content = content)

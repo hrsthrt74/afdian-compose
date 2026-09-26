@@ -19,18 +19,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutEntry
 import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
+import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardColors
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
@@ -119,7 +117,8 @@ fun ManagementAddCardSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SmallTitle("分割线", insideMargin = PaddingValues(16.dp, 12.dp, 8.dp, 0.dp))
                     Card(
-                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surface),
+                        // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                        colors = AfdianCardDefaults.overlayColors(),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Box(modifier = Modifier
@@ -168,10 +167,8 @@ fun ManagementAddCardSheet(
                             onAdd(ManagementLayoutEntry(ManagementLayoutType.CHART, chart.storageValue))
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardColors(
-                            color = MiuixTheme.colorScheme.surface,
-                            contentColor = MiuixTheme.colorScheme.onSurfaceContainerHighest,
-                        )
+                        // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+                        colors = AfdianCardDefaults.overlayColors(),
                     )
                 }
             }
@@ -197,10 +194,7 @@ fun ManagementAddCardSheet(
                                     onAdd(ManagementLayoutEntry(ManagementLayoutType.CARD, card.key.storageValue))
                                 }
                             },
-                            cardColors = CardColors(
-                                color = MiuixTheme.colorScheme.surface,
-                                contentColor = MiuixTheme.colorScheme.onSurfaceContainerHighest,
-                            ),
+                            cardColors = AfdianCardDefaults.overlayColors(),
                         )
                     }
                 }

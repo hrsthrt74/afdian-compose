@@ -25,11 +25,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
@@ -103,7 +103,8 @@ fun HomeCustomizationSheet(settingsStore: SettingsStore, show: Boolean, onDismis
 @Composable
 private fun HomeModuleSettingRow(module: HomeModule, checked: Boolean, onCheckedChange: (Boolean) -> Unit, dragModifier: Modifier) {
     Card(
-        colors = CardColors(MiuixTheme.colorScheme.secondaryContainer, MiuixTheme.colorScheme.onSurfaceContainerHighest),
+        // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
+        colors = AfdianCardDefaults.overlayColors(),
         modifier = Modifier.padding(bottom = 8.dp),
     ) {
         CheckboxPreference(
