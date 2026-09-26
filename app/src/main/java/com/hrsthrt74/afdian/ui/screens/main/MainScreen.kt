@@ -45,6 +45,7 @@ import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.StorageScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.IncomeDetailScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.ManagementScreen
 import com.hrsthrt74.afdian.ui.screens.main.tabs.ProfileScreen
@@ -408,6 +409,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 开源许可页：设置页「退出登录」上方入口进入
             OssLicensesScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
+        entry<Route.Storage> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 存储空间管理页：设置页「存储」分组入口进入
+            StorageScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.History> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }

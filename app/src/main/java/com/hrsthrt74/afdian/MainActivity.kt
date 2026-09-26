@@ -24,6 +24,8 @@ import coil3.request.crossfade
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
+import com.hrsthrt74.afdian.data.storage.buildImageDiskCache
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerDialog
 import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
@@ -83,12 +85,22 @@ private fun AfdianApp(
     val settingsStore = remember { SettingsStore(context) }
     val scope = rememberCoroutineScope()
 
-    // 全局 ImageLoader：开启 crossfade，全应用图片（封面/正文/历史缩略图等）加载完成后统一淡入。
+    // 图片缓存上限：null = DataStore 还没读出来。
+    // 它是 ImageLoader 的「构建期」配置（见下），所以必须先读到真实值再放行 UI ——
+    // 否则首页可能先用默认值触发首次图片加载、把 ImageLoader 定型，用户设的上限要等下次启动才生效。
+    val imageCacheLimitState = settingsStore.imageCacheLimit.collectAsState(initial = null)
+
+    // 全局 ImageLoader：开启 crossfade，并给磁盘缓存套上用户设置的体积上限。
     // 必须在任何 AsyncImage 首次组合前调用（setSafe 要求早于 Coil 首次 get），
     // 放在根组合 AfdianApp 顶部即满足；各调用点无需再单独包 ImageRequest。
     setSingletonImageLoaderFactory { loaderContext ->
+        // 工厂是懒执行的（Coil 首次取 ImageLoader 时才调用），此时上限一定已读出（见上面的门）。
+        // 这里读 State 对象的 .value 而不是直接捕获值：setSafe 只在首次记下这个工厂，
+        // 直接捕获会把它永久钉在初始的 null 上。
+        val limit = imageCacheLimitState.value ?: ImageCacheLimit.Default
         ImageLoader.Builder(loaderContext)
             .crossfade(true)
+            .diskCache { buildImageDiskCache(limit) }
             .build()
     }
 
@@ -110,40 +122,44 @@ private fun AfdianApp(
     AfdianTheme(primaryColor = if (useAfdianColor) AfdianBrandColor else null, colorMode = colorMode) {
         // 登录态：Loading 期间不渲染任何界面，读完 token 才放行，避免登录页闪烁
         val authState by session.state.collectAsState()
-        when (authState) {
-            AuthState.Loading -> Unit
+        // 缓存上限读出来之前也不渲染：一旦有图片开始加载，Coil 的 ImageLoader 就被定型了
+        // （磁盘缓存上限是构建期配置，之后改不了），见上方 imageCacheLimitState 的说明。
+        if (imageCacheLimitState.value != null) {
+            when (authState) {
+                AuthState.Loading -> Unit
 
-            is AuthState.LoggedIn -> {
-                // 主页首帧布局就绪前，继续把登录页（「登录中…」转圈态）盖在上面，
-                // 避免切屏瞬间露出空白背景闪一下；MainScreen 两帧后回调 onReady 再撤掉。
-                // 注意组合顺序：先 MainScreen 后 LoginScreen，后者才能绘制在上层。
-                var mainReady by rememberSaveable { mutableStateOf(false) }
-                if (mainReady) appReady.value = true
-                MainScreen(onReady = { mainReady = true }, onLogout = session::logout)
-                if (!mainReady) {
-                    LoginScreen(onLogin = session::login, isLoggingIn = true, errorMessage = null)
+                is AuthState.LoggedIn -> {
+                    // 主页首帧布局就绪前，继续把登录页（「登录中…」转圈态）盖在上面，
+                    // 避免切屏瞬间露出空白背景闪一下；MainScreen 两帧后回调 onReady 再撤掉。
+                    // 注意组合顺序：先 MainScreen 后 LoginScreen，后者才能绘制在上层。
+                    var mainReady by rememberSaveable { mutableStateOf(false) }
+                    if (mainReady) appReady.value = true
+                    MainScreen(onReady = { mainReady = true }, onLogout = session::logout)
+                    if (!mainReady) {
+                        LoginScreen(onLogin = session::login, isLoggingIn = true, errorMessage = null)
+                    }
                 }
-            }
 
-            // 未登录：先确认免责声明（读取未完成前按未同意处理）
-            AuthState.LoggedOut -> {
-                // 登录页/免责声明本身就是首个界面，组合即放行 SplashScreen
-                SideEffect { appReady.value = true }
-                val accepted by settingsStore.disclaimerAccepted.collectAsState(initial = false)
-                if (!accepted) {
-                    DisclaimerDialog(
-                        onAgree = { scope.launch { settingsStore.acceptDisclaimer() } },
-                        onDisagree = { (context as? Activity)?.finishAndRemoveTask() },
-                    )
-                } else {
-                    val isLoggingIn by session.isLoggingIn.collectAsState()
-                    val error by session.error.collectAsState()
-                    LoginScreen(
-                        onLogin = session::login,
-                        isLoggingIn = isLoggingIn,
-                        errorMessage = error,
-                        buildExpiresAtMs = expiresAtMs,
-                    )
+                // 未登录：先确认免责声明（读取未完成前按未同意处理）
+                AuthState.LoggedOut -> {
+                    // 登录页/免责声明本身就是首个界面，组合即放行 SplashScreen
+                    SideEffect { appReady.value = true }
+                    val accepted by settingsStore.disclaimerAccepted.collectAsState(initial = false)
+                    if (!accepted) {
+                        DisclaimerDialog(
+                            onAgree = { scope.launch { settingsStore.acceptDisclaimer() } },
+                            onDisagree = { (context as? Activity)?.finishAndRemoveTask() },
+                        )
+                    } else {
+                        val isLoggingIn by session.isLoggingIn.collectAsState()
+                        val error by session.error.collectAsState()
+                        LoginScreen(
+                            onLogin = session::login,
+                            isLoggingIn = isLoggingIn,
+                            errorMessage = error,
+                            buildExpiresAtMs = expiresAtMs,
+                        )
+                    }
                 }
             }
         }

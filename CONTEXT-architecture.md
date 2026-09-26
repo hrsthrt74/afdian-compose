@@ -55,7 +55,7 @@ app/src/main/java/com/hrsthrt74/afdian/
 
 二级路由（覆盖全屏，由外层 NavBackStack 管理）：
 - `CreatorDetail` / `PostDetail` / `PostDetailById` / `MessageConversation`
-- `Favorites` / `Sponsoring` / `Orders` / `Management` / `IncomeDetail` / `MonthlySummary` / `ReceivedSponsors` / `SponsorManage` / `ThankSponsors` / `Settings` / `History`
+- `Favorites` / `Sponsoring` / `Orders` / `Management` / `IncomeDetail` / `MonthlySummary` / `ReceivedSponsors` / `SponsorManage` / `ThankSponsors` / `Settings` / `History` / `OssLicenses` / `Storage`
 
 带参路由：`ThankSponsors(year, month)` —— 年月由「每月汇总」页按行带入；miuix-nav 的 ViewModelStore 按 entry 的 contentKey（默认取路由对象）隔离，不同年月互不串数据。
 

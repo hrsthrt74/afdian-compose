@@ -5,7 +5,6 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
-import com.hrsthrt74.afdian.data.history.HistoryStore
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,7 +14,6 @@ import kotlinx.coroutines.launch
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val store = SettingsStore(application)
-    private val historyStore = HistoryStore(application)
 
     // 直接把 DataStore 的 flow 转成 StateFlow，写入后自动回推 UI
     val startupPage: StateFlow<Int> = store.startupPage
@@ -70,13 +68,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setShowCountUnit(enabled: Boolean) {
         viewModelScope.launch { store.setShowCountUnit(enabled) }
-    }
-
-    fun clearHistoryAll() {
-        viewModelScope.launch {
-            runCatching { historyStore.clearAll() }
-                .onSuccess { Toast.makeText(getApplication(), "已清除浏览历史", Toast.LENGTH_SHORT).show() }
-        }
     }
 
     /** 重置管理页卡片布局为默认顺序；成功/失败都给 Toast 反馈，失败额外记警告日志。 */

@@ -12,6 +12,7 @@ import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
+import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
@@ -66,6 +67,8 @@ class SettingsStore(private val context: Context) {
         val MONTHLY_SUMMARY_AMOUNT_MODE = androidx.datastore.preferences.core.stringPreferencesKey("monthly_summary_amount_mode")
         // 消息页「发电明细」开关
         val MSG_SHOW_SPONSOR_DETAIL = booleanPreferencesKey("msg_show_sponsor_detail")
+        // 图片缓存（Coil 全局磁盘缓存）的体积上限，存 ImageCacheLimit.storageValue
+        val IMAGE_CACHE_LIMIT = androidx.datastore.preferences.core.stringPreferencesKey("image_cache_limit")
     }
 
     /** 启动页索引，未设置时默认第 0 页 */
@@ -212,6 +215,20 @@ class SettingsStore(private val context: Context) {
         context.settingsDataStore.edit { it[Keys.MONTHLY_SUMMARY_AMOUNT_MODE] = mode.storageValue }
     }
 
+    /**
+     * 图片缓存（Coil 全局磁盘缓存）的体积上限。
+     *
+     * 注意这里是**构建期**配置：上限只能交给 `DiskCache.Builder.maxSizeBytes`，
+     * 由 Coil 自己的 LRU 在写入时淘汰最早的条目；改档位要重建 ImageLoader 才生效，
+     * 所以界面上标注「重启后生效」（见 MainActivity 里 ImageLoader 的构建）。
+     */
+    val imageCacheLimit: Flow<ImageCacheLimit> =
+        context.settingsDataStore.data.map { ImageCacheLimit.fromStorage(it[Keys.IMAGE_CACHE_LIMIT]) }
+
+    suspend fun setImageCacheLimit(limit: ImageCacheLimit) {
+        AppLog.d("Settings", "保存图片缓存上限，limit=${limit.storageValue}（重启后生效）")
+        context.settingsDataStore.edit { it[Keys.IMAGE_CACHE_LIMIT] = limit.storageValue }
+    }
 
     suspend fun setDebugLogging(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.DEBUG_LOGGING] = enabled }

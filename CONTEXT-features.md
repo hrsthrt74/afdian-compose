@@ -216,6 +216,95 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   开 edge-to-edge 后系统只按「系统深浅色」给图标，App 手动切深色时必须自己覆盖，
   否则黑图标压在深色背景上看不见。状态栏与导航栏一起处理，且是瞬间切换、不参与渐变。
 - 退出登录。
+- 「其他」分组：`存储空间管理` 入口，进入 `StorageScreen`（原「清除浏览历史」入口已移除，清理统一收敛到该页）。
+
+## 存储空间管理页（StorageScreen）
+
+- 入口在设置页「其他」分组；浏览历史的清理**只在这里**提供（设置页原「清除浏览历史」入口已移除）。
+- 扫描器 `data/storage/StorageScanner`：以 `context.dataDir` 为根遍历一次，只累加文件字节数，按相对路径前缀归入 `StorageCategory`。
+  - 遍历时跳过 `code_cache/`（编译产物）与软链接（`dataDir/lib` 指向 `/data/app/.../lib`，跟进会把 APK 原生库算进来）。
+  - `Other` 分类用 `total - 其它分类之和` 兜底覆写，从构造上保证「应用总占用 == 各分类之和」。
+  - `categorizeStoragePath` 用**前缀**匹配而非文件名全等：DataStore 先写 `<name>.preferences_pb.tmp` 再原子 rename，可能残留 `.tmp`。
+  - `formatBytes` / `categorizeStoragePath` 是顶层 `internal` 纯函数，见 `StorageScannerTest`。
+- 分类与清理动作一一对应：图片缓存 → Coil `diskCache.clear()`（同步阻塞，必须在 IO 线程，且**不能**直接删目录，目录内有 LRU journal）；
+  历史记录 → 按勾选的子项分别走 `HistoryStore.clearAll()` / `SearchHistoryStore.clear()`；
+  快照缓存（`Snapshot`）→ `HomeCache.clear()` + `ProfileCache.clear()` 一起清。
+- 共 5 个分类：图片缓存、历史记录、快照缓存、设置与登录数据、其他。
+- 两处「合并展示」的取舍不同，区别就在要不要让用户选子项：
+  - 浏览记录 + 搜索关键词 → **「历史记录」**（`History`）。两者都是本地历史、都能自动重建，
+    但**保留分别清理的能力**：`StorageCategory.selectableParts` 声明可勾选子项（`HistoryPart`），
+    点击该行弹的是勾选弹窗（`CheckboxPreference`，每次打开默认全选、可以全不选）而不是整类确认框，
+    确认按钮在「一项都没勾」时 `confirmEnabled = false` 置灰。勾选项整体包在一张
+    `Card(colors = CardColors(secondaryContainer, onSurfaceContainerHighest))` 里，与页面上的设置项观感一致；
+    Card 自身不加 padding，缩进交给勾选行自带的 16dp 内边距。
+    `StorageViewModel.clearHistoryParts` 只清勾中的那几项；`clearCategory` 与一键清理等同「子项全选」。
+    清理完成的 Toast 会按子项分别措辞（只清一项时说「已清理浏览历史」，全清才说「已清理历史记录」）。
+  - 首页快照 + 资料快照 → **「快照缓存」**（`Snapshot`）。两者都是「冷启动先回填、网络回来再覆盖」的临时快照，
+    体积小、能自动重建，分开列出只会让明细列表变长、清理时还得选两次，所以**整类一起清、不带子项**。
+- `selectableParts` 的约定：**非空才会弹勾选窗**，为空（默认）走原来的破坏性确认框；新增分类不用管它。
+- 「设置与登录数据」（`auth` / `settings` / `theme_settings`）与「其他」恒为 `cleanable = false`：不可点、无箭头，一键清理也**绝不**包含——清掉 `auth` 等于静默登出。
+- 可清理项按占用降序排列，不可清理项固定置底；清理中对应行置灰并显示「清理中…」，完成后自动重扫。
+- 总览卡片顶部是环形占比图，其下一行是「占用设备」：summary 为「应用占用 / 设备总容量」，
+  endActions 是百分比文案 + Miuix `CircularProgressIndicator`（`progress` = 应用占用 / 设备总容量）。
+  - 占比与文案由 `deviceUsageFraction` / `formatPercent`（`data/storage/StorageScanner.kt` 顶层 `internal` 纯函数）算，
+    见 `StorageScannerTest`。**设备容量读到 0 时必须回落成 0f**：`CircularProgressIndicator` 内部是
+    `progress.coerceIn(0f, 1f)`，对 NaN 两个比较都为假会原样透传，最后画出 NaN 扫过角度的乱图像。
+  - 百分比小于 0.1% 显示「<0.1%」而不是「0.0%」（应用占用对设备容量通常极小，显示 0.0% 像是没占空间）。
+  - `snapshot.usableBytes` 仍由扫描器测量并写入调试日志，只是不再在 UI 上展示。
+
+### 存储总览环形图（DonutChart）
+
+- 通用组件 `ui/components/data/DonutChart.kt`：Vico `PieChart` + `PieSize.Inner`（挖内孔）实现，圆心支持自定义内容插槽。
+- 存储页用法：扇区按占用降序、只保留 `bytes > 0` 的分类，圆心显示「应用总占用 + 数值」。
+  原先独立的「应用总占用」总览行已合并进圆心，避免同一个数字出现两次。
+- 分类配色 `StorageCategory.chartColor`（`StorageScreen.kt` 私有扩展）：**按分类绑定**而不是按扇区下标轮转，
+  这样某类清零、排序变化时同一分类的颜色不会跳变。自定义固定色而非主题色 —— Miuix 没有分类调色板，
+  而 primary / error 是语义色不能挪用；颜色本身就是这套图的图例，跟着主题色变会破坏「颜色 ↔ 分类」的记忆。
+- 明细行左侧的圆点用同一个 `chartColor`，靠颜色而不是文字图例把图表和列表对应起来。
+- Vico 饼图的两个要点（与 `CartesianChartHost` 不同，别照抄）：
+  - 没有 `initialAnimationSpec` 参数，禁用进场动画要传 `animateIn = false`；
+    这里**只关 `animateIn`、保留默认 `animationSpec`** —— 图表在 `LazyColumn` item 里，
+    滚出再滚回会重新进入组合，关掉 `animateIn` 才不会重播闪烁，而数据变化（清理完某类）仍有平滑过渡。
+  - `LocalVicoTheme` 默认值是 `null` 并会回退到 Light/Dark，因此不套 `ProvideVicoTheme` 也不会崩；
+    本组件自行传入 sliceProvider 且不从主题取色，所以完全不需要主题包裹。
+- 圆心数字是「大数值 + 小单位」排版：`formatBytesParts` 把字节数拆成两段，
+  `Row(spacedBy(4.dp, CenterHorizontally))` 里数值用 `title2`、单位用 `footnote1` + 次级灰，两者 `alignByBaseline()`
+  （与 `DataCard` 的数值/单位排版同一套做法，整串同字号会又宽又让单位喧宾夺主）。
+- 宽度两层兜底：外层 `Column` 锁在圆孔直径内（`DonutHoleWidth - 12.dp`），
+  数值再单独 `widthIn(max = DonutHoleWidth - 36.dp)`。后者是必要的 —— `Row` 里无 `weight` 的子项按顺序吃剩余宽度，
+  字号极大时数值会把单位挤成 0 宽；给它一个宽度上限后是数值自己省略号收尾，单位始终完整。
+- **最小扇区角度 `minSweepDegrees`（默认 5 度）**：解决「占比极低的分类在图上彻底看不见」。
+  Vico 只按 `value / sum * 360` 画，没有任何最小角度参数，所以由 `enforceMinimumSweep`（同文件顶层 `internal` 纯函数，
+  见 `DonutChartTest`）先把权重换算成角度再喂给图表。一趟解出、不做迭代：
+  先按**真实占比**挑出低于下限的扇区抬到下限，剩余预算按原比例分给其余扇区；
+  数据健康（无扇区低于下限）时退化为等比缩放，占比一点不变，因此可无条件调用。
+- 下限为什么是 5 度而不是 2~3 度：扇区之间还有 `gap` 缝隙，库会把每段圆弧两端各削掉约 1 度，
+  3 度的扇区被啃掉两头就只剩一丝，等于没解决问题。
+- 代价：被抬过的分类视觉占比会略大于真实占比（例：图片缓存 332° → 313°，肉眼几乎无感）。
+  真实数值始终由下方明细列表如实展示，图上不标注。
+
+### 图片缓存上限（存储页「缓存策略」分组）
+
+- UI：一个 4 档滑块（128MB / 256MB / 1GB / 无限制）+ 滑块下方一行刻度标签（`Row` + `SpaceBetween`）+ Card 下方的说明文字（交代「只作用于图片缓存」「重启后生效」）。
+  不设 `valueText`（右上角不再显示当前档位名），当前档位由对应刻度的高亮（`primary` 色 + Medium 字重）表达。
+- **为什么只能这么做**：Coil 没有任何「运行时按大小裁剪」的入口 —— `DiskCache.maxSize` 是不可变 `val`、
+  `DiskLruCache.trimToSize()` 是 `private`、公开 API 里只有 `evictAll()`（整体清空）。
+  所以「超出上限就删掉最早的」只能把上限在**构建期**交给 `DiskCache.Builder.maxSizeBytes`，
+  由 Coil 自己的 LRU 在每次写入后执行 `while (size > maxSize) removeOldestEntry()` —— 正好就是想要的效果。
+- 代价：上限属于构建期配置，改档位必须重建 ImageLoader；而 Coil 明确要求「同一目录不允许两个 DiskCache
+  实例同时存活」，运行时热替换有损坏缓存的风险，所以**标注为「重启后生效」**（与设置页「调试日志」同一个取舍）。
+- `MainActivity` 的装配有两个坑：
+  - **ImageLoader 的工厂要读 `State.value`，不能直接捕获值**：`setSafe` 只在首次记下这个工厂，
+    直接捕获会把它永久钉在初始的 `null` 上。
+  - 工厂本身是懒执行的（Coil 首次取 ImageLoader 时才调用），但为了不让首次图片加载赶在 DataStore 读出之前
+    把 ImageLoader 定型，**上限读出来之前不渲染任何 UI**。
+- 目录名常量 `IMAGE_CACHE_DIRECTORY_NAME` 与存储页的 `categorizeStoragePath` 共用
+  （旧写法是在两处各写一份 `"coil3_disk_cache"`）。
+- 「无限制」用 `Long.MAX_VALUE` 而不是「跳过 `maxSizeBytes`」：后者会退回 Coil 默认策略
+  （可用空间的 2%，钳制 10~250MB），比 1GB 档还小，滑块档位就不单调了。`ImageCacheTest` 钉住了这条不变式。
+- **没做「自动清理缓存（1d / 1w / 1m / 从不）」**：Coil 既不能枚举缓存条目、也没有按时间淘汰的 API，
+  「只删 N 天前的图片」实现不了。真要做只能给所有图片请求显式指定 `diskCacheKey` + 自己记访问时间，
+  改动面很大，暂不做。
 
 ## 内容 URL 拦截
 
@@ -235,13 +324,14 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 - `MainActivity.kt`：应用入口、免责声明、认证分流。
 - `AppLog.kt`：全局日志门面。
-- `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History）。
+- `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage）。
 - `ui/screens/auth/`：登录、免责声明。
-- `ui/components/`：通用组件；`ui/components/data/`：数据卡片组件；`ui/components/home/`：首页模块组件。
+- `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件。
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
 - `data/auth/`：认证状态、Token 存储、登录请求和加密载荷。
 - `data/content/`：领域接口服务（AccountService、MessageService、AffiliateService、FeedService、CreatorService、ReceivedSponsorService、ThankSponsorsService、OrderService、ManagementService），`AfadianContentService` 为兼容门面；消息解析集中在 `MessageParser`，模型见 `ContentModels` / `MessageModels`；缓存 `ProfileCache` / `HomeCache`。
 - `data/network/`：`AfdianHttpClient`（域名优先与回退）、`requireAfdianSuccess`（业务码校验）、`sharedAfdianHttpClient`（全应用共享客户端）。
 - `data/history/`：浏览历史（HistoryStore、HistoryModels）。
 - `data/stats/`：数据卡片和图表模型（CardModel、ChartModel、CreatorStatsRepository、WithdrawalSchedule）。
+- `data/storage/`：本地存储占用扫描（StorageScanner、StorageCategory、formatBytes）。
 - `data/settings/SettingsStore.kt`：DataStore 设置存储。

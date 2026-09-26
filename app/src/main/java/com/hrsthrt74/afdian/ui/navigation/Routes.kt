@@ -39,4 +39,6 @@ sealed interface Route : NavKey {
     @Serializable data object Settings : Route
     // 开源许可页：AboutLibraries 收集的第三方依赖与许可证，入口在设置页「退出登录」上方
     @Serializable data object OssLicenses : Route
+    // 存储空间管理页：本地缓存/数据占用总览与分类清理，入口在设置页「其他」分组
+    @Serializable data object Storage : Route
 }

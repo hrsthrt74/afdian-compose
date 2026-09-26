@@ -281,13 +281,13 @@ private fun SettingsScreenContent(
                             checked = showIncomeUnit,
                             onCheckedChange = viewModel::setShowIncomeUnit,
                             title = "显示收入单位",
-                            summary = "收入、可提现等金额卡片在数值后显示「元」",
+//                            summary = "收入、可提现等金额卡片在数值后显示「元」",
                         )
                         SwitchPreference(
                             checked = showCountUnit,
                             onCheckedChange = viewModel::setShowCountUnit,
                             title = "显示人次单位",
-                            summary = "发电人数、发电次数、访问人次等卡片显示「人」「次」",
+//                            summary = "发电人数、发电次数、访问人次等卡片显示「人」「次」",
                         )
                     }
                 }
@@ -295,11 +295,9 @@ private fun SettingsScreenContent(
                 item { SmallTitle(text = "其他", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                        SwitchPreference(
-                            checked = debugLogging,
-                            onCheckedChange = viewModel::setDebugLogging,
-                            title = "调试日志",
-                            summary = "日常使用建议关闭，重启应用后生效",
+                        ArrowPreference(
+                            title = "存储空间管理",
+                            onClick = { if (backStack.none { it == Route.Storage }) backStack.add(Route.Storage) },
                         )
                     }
                 }
@@ -312,10 +310,6 @@ private fun SettingsScreenContent(
                             title = "记录历史",
                             summary = "最近访问、最近搜索等" +
                                     "（仅保存在本地）",
-                        )
-                        ArrowPreference(
-                            title = "清除浏览历史",
-                            onClick = viewModel::clearHistoryAll,
                         )
                     }
                 }
@@ -353,6 +347,12 @@ private fun SettingsScreenContent(
                         ArrowPreference(
                             title = "开源许可",
                             onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
+                        )
+                        SwitchPreference(
+                            checked = debugLogging,
+                            onCheckedChange = viewModel::setDebugLogging,
+                            title = "调试日志",
+                            summary = "日常使用建议关闭，重启应用后生效",
                         )
                     }
                 }
