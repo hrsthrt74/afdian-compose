@@ -33,7 +33,13 @@
 
 ## 每次提交前的验证
 
+flavor 有 distribution（production / internal）与 edition（standard / legacy）两个维度，
+任务名必须写全变体名——缩写成 `:app:testInternalDebugUnitTest` 之类会报 `Ambiguous matches`。
+
 ```text
-./gradlew.bat :app:testInternalDebugUnitTest
-./gradlew.bat :app:assembleInternalDebug
+./gradlew.bat :app:testInternalStandardDebugUnitTest
+./gradlew.bat :app:assembleInternalStandardDebug
+./gradlew.bat :app:assembleInternalLegacyDebug
 ```
+
+两个 edition 都要打包：legacy 的 minSdk 与模糊开关不同，只编 standard 会漏掉低配分支。
