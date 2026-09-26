@@ -20,8 +20,8 @@ private val messageJson = Json {
 
 private const val SHIPMENT_PREFIX = "你购买的商品已发货"
 private const val TYPE_REDEEM_CODE = 5
-private const val TYPE_FAQ_REPLY = 7
-private const val TYPE_PURCHASE_REPLY = 4
+private const val TYPE_PURCHASE_REPLY = 4  // 购买成功后对方系统自动回复
+private const val TYPE_AUTO_SENT = 7       // 系统自动发出的消息（FAQ 等场景）
 private const val COMPLAINT_MARKER = "该笔订单会暂时冻结"
 
 /** 将发货系统文本转换成结构化通知；未命中固定前缀时返回 null。 */
@@ -51,12 +51,19 @@ private fun extractShipmentValue(line: String, label: String): String? {
     return rest.takeIf { it.isNotEmpty() }
 }
 
-/** 统一解析文本消息，保留兑换码、系统通知和自动回复的既有映射。 */
+/** 统一解析文本消息，保留兑换码、系统通知和自动消息标注的既有映射。 */
 internal fun resolveTextContent(text: String, messageType: Int): MessageContent = when {
     messageType == TYPE_REDEEM_CODE -> MessageContent.Code(text)
     else -> tryParseComplaintNotice(text)?.let { MessageContent.Complaint(it) }
         ?: tryParseShipmentNotice(text)?.let { MessageContent.Shipment(it) }
-        ?: MessageContent.Text(text, isAutoReply = messageType == TYPE_FAQ_REPLY || messageType == TYPE_PURCHASE_REPLY)
+        ?: MessageContent.Text(text, autoKind = resolveAutoMessageKind(messageType))
+}
+
+/** 把接口消息类型映射为自动消息标注；type4（购买成功自动回复）与 type7（自动发出）以外的类型返回 null。 */
+private fun resolveAutoMessageKind(messageType: Int): AutoMessageKind? = when (messageType) {
+    TYPE_PURCHASE_REPLY -> AutoMessageKind.PURCHASE_REPLY
+    TYPE_AUTO_SENT -> AutoMessageKind.AUTO_SENT
+    else -> null
 }
 
 /** 解析普通投诉和升级投诉两种固定文本模板。 */

@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian
 
+import com.hrsthrt74.afdian.data.content.AutoMessageKind
 import com.hrsthrt74.afdian.data.content.MessageContent
 import com.hrsthrt74.afdian.data.content.MessageOrderAddress
 import com.hrsthrt74.afdian.data.content.parseMessageDialog
@@ -10,6 +11,7 @@ import com.hrsthrt74.afdian.data.content.resolveTextContent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,9 +36,16 @@ class MessageParserTest {
     fun specialTextTypesKeepTheirOriginalMeaning() {
         assertTrue(resolveTextContent("code-1", messageType = 5) is MessageContent.Code)
 
-        val autoReply = resolveTextContent("欢迎", messageType = 7)
-        assertTrue(autoReply is MessageContent.Text)
-        assertTrue((autoReply as MessageContent.Text).isAutoReply)
+        // type7 是系统自动发出的消息，type4 是购买成功后的自动回复，普通 type 不带标注
+        assertEquals(
+            AutoMessageKind.AUTO_SENT,
+            (resolveTextContent("欢迎", messageType = 7) as MessageContent.Text).autoKind,
+        )
+        assertEquals(
+            AutoMessageKind.PURCHASE_REPLY,
+            (resolveTextContent("感谢支持", messageType = 4) as MessageContent.Text).autoKind,
+        )
+        assertNull((resolveTextContent("在吗", messageType = 1) as MessageContent.Text).autoKind)
     }
 
     @Test
@@ -92,7 +101,7 @@ class MessageParserTest {
     }
 
     @Test
-    fun textMessageBecomesAutoReplyText() {
+    fun textMessageBecomesAutoSentText() {
         val item = parseMessageItem(
             Json.parseToJsonElement(
                 """
@@ -116,7 +125,7 @@ class MessageParserTest {
         assertEquals(12, item.message.msg_id)
         val text = item.message.content as MessageContent.Text
         assertEquals("欢迎光临", text.text)
-        assertTrue(text.isAutoReply)
+        assertEquals(AutoMessageKind.AUTO_SENT, text.autoKind)
     }
 
     @Test

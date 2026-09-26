@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.hrsthrt74.afdian.data.content.AutoMessageKind
 import com.hrsthrt74.afdian.data.content.MessageContent
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
@@ -166,12 +167,18 @@ fun MessageContentBubble(
                         },
                         modifier = Modifier.widthIn(max = 270.dp)
                     )
-                    // type4(购买成功自动回复)/type7(FAQ 自动回复) 在正文下方加一条说明；
-                    // 自己发出去的 type7 不算自动回复，不显示该标注
-                    if (content.isAutoReply && !isSentByMe) {
+                    // 自动消息在正文下方追加一条来源说明：
+                    // type7（系统自动发出）双方都显示「此消息为自动发出」——我方点 FAQ 时由服务端代发的也是 type7；
+                    // type4（购买成功自动回复）只会由对方发出，自己发出去的不显示该标注
+                    val autoMessageLabel = when (content.autoKind) {
+                        AutoMessageKind.AUTO_SENT -> "此消息为自动发出"
+                        AutoMessageKind.PURCHASE_REPLY -> if (isSentByMe) null else "此消息为自动回复"
+                        null -> null
+                    }
+                    if (autoMessageLabel != null) {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
                         Text(
-                            text = "此消息为自动回复",
+                            text = autoMessageLabel,
                             style = MiuixTheme.textStyles.footnote2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)

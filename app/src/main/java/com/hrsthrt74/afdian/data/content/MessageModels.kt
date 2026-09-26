@@ -76,9 +76,21 @@ data class MessageRecord(
     val send_time: Double? = null,
 )
 
+/**
+ * 自动消息的来源类型，对应接口 message.type 的两个特殊取值，
+ * 仅用于对方气泡底部的来源标注；普通消息为 null。
+ */
+enum class AutoMessageKind {
+    /** type4：对方购买成功后系统自动回复的消息 → 标注「此消息为自动回复」。 */
+    PURCHASE_REPLY,
+
+    /** type7：系统自动发出的消息（如 FAQ 相关内容）→ 标注「此消息为自动发出」。 */
+    AUTO_SENT,
+}
+
 /** 私信正文的领域模型，屏蔽接口 content 字段的多种 JSON 形态。 */
 sealed class MessageContent {
-    data class Text(val text: String, val isAutoReply: Boolean = false) : MessageContent()
+    data class Text(val text: String, val autoKind: AutoMessageKind? = null) : MessageContent()
     data class Object(val content: MessageObjectContent) : MessageContent()
     data class Shipment(val notice: ShipmentNotice) : MessageContent()
     data class Complaint(val notice: ComplaintNotice) : MessageContent()
