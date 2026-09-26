@@ -21,11 +21,17 @@ import kotlinx.serialization.json.Json
 
 private val Context.historyDataStore: DataStore<Preferences> by preferencesDataStore(name = "history")
 
-/** 浏览历史本地仓库：记录与头像缓存都不依赖远程服务。 */
+/**
+ * 浏览历史本地仓库。
+ *
+ * 只保存浏览过的目标（文字与头像**链接**），**不下载头像**：
+ * 头像由 UI 层带着链接交给 Coil 按需加载，磁盘缓存落在 Coil 的全局缓存里，
+ * 因此这里不再维护任何图片文件。旧版本曾把头像预下载到专属目录
+ * （[FilePaths.legacyAvatarCacheDirectory]），那批残留由 [clearLegacyAvatarCache] 负责回收。
+ */
 class HistoryStore(context: Context) {
     private val context = context.applicationContext
     private val settingsStore = SettingsStore(this.context)
-    private val avatarCache = HistoryAvatarCache(FilePaths.historyCacheDirectory(this.context))
     private val mutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true; isLenient = true }
     private val entriesKey = stringPreferencesKey("entries_json")
@@ -54,12 +60,10 @@ class HistoryStore(context: Context) {
                     AppLog.d("HistoryStore", "已记录浏览历史: ${keyOf(target)}")
                 }
             }
-            // 缓存下载与记录写入分开，头像服务异常不会阻塞历史记录本身。
-            withContext(Dispatchers.IO) { avatarCache.ensureCached(target.avatarUrl) }
         }
     }
 
-    /** 用详情接口返回的数据补全标题和头像，但不改变原始访问时间。 */
+    /** 用详情接口返回的数据补全标题与头像链接，但不改变原始访问时间。 */
     suspend fun updateSnapshot(target: HistoryTarget) {
         if (target.targetId.isBlank() || !settingsStore.historyEnabled.first()) return
         runHistoryOperation("更新浏览历史失败: ${keyOf(target)}") {
@@ -73,28 +77,43 @@ class HistoryStore(context: Context) {
                     AppLog.d("HistoryStore", "已更新浏览历史快照: ${keyOf(target)}")
                 }
             }
-            withContext(Dispatchers.IO) { avatarCache.ensureCached(target.avatarUrl) }
         }
     }
 
-    /** 只删除历史记录头像，不删除历史条目和其他应用缓存。 */
-    suspend fun clearAvatarCache() = withContext(Dispatchers.IO) {
-        mutex.withLock { avatarCache.clear() }
+    /**
+     * 回收旧版本「历史专属头像缓存」目录里遗留的图片文件。
+     *
+     * 新版本不再往这个目录写任何东西，所以它只可能装着升级前留下的残留。
+     * 由 [HistoryViewModel] 在启动时调用一次，让老用户不必手动清理就能拿回这部分空间。
+     */
+    suspend fun clearLegacyAvatarCache() = withContext(Dispatchers.IO) {
+        mutex.withLock { deleteLegacyAvatarCache() }
     }
 
-    /** 清空所有浏览历史条目并同步删除头像缓存。 */
+    /** 清空所有浏览历史条目，并顺带回收旧版遗留的头像缓存目录。 */
     suspend fun clearAll() = withContext(Dispatchers.IO) {
         mutex.withLock {
             writeEntries(emptyList())
-            avatarCache.clear()
+            deleteLegacyAvatarCache()
             AppLog.d("HistoryStore", "已清空浏览历史")
         }
     }
 
-    fun avatarModel(url: String?): Any? = avatarCache.modelFor(url)
+    /**
+     * 删除旧版遗留的头像缓存目录。
+     *
+     * 目录不存在时直接返回 —— 对绝大多数（新安装的）用户来说这就是一次 `exists()` 判断，开销可忽略。
+     */
+    private fun deleteLegacyAvatarCache() {
+        val directory = FilePaths.legacyAvatarCacheDirectory(context)
+        if (!directory.exists()) return
+        runCatching {
+            if (!directory.deleteRecursively()) error("目录删除失败")
+            AppLog.d("HistoryStore", "已回收旧版历史头像缓存目录")
+        }.onFailure { AppLog.w("HistoryStore", "回收旧版历史头像缓存目录失败", it) }
+    }
 
-    private suspend fun readEntries(): List<HistoryEntry> = context.historyDataStore.data.first()[entriesKey]
-        ?.let { runCatching { json.decodeFromString(ListSerializer(HistoryEntry.serializer()), it) }.getOrDefault(emptyList()) }
+    private suspend fun readEntries(): List<HistoryEntry> = context.historyDataStore.data.first()[entriesKey]        ?.let { runCatching { json.decodeFromString(ListSerializer(HistoryEntry.serializer()), it) }.getOrDefault(emptyList()) }
         .orEmpty()
 
     private suspend fun writeEntries(entries: List<HistoryEntry>) {
@@ -145,7 +164,13 @@ class HistoryStore(context: Context) {
     )
 
     private object FilePaths {
-        fun historyCacheDirectory(context: Context) = context.filesDir.resolve("history_record_cache")
+        /**
+         * 旧版本「历史专属头像缓存」目录。
+         *
+         * 旧设计把头像预下载到这里、刻意不用 Coil 全局缓存，为的是在设置页里能精确删除。
+         * 现在改为只存链接、按需加载，本目录不会再被写入，保留这个路径只为回收升级前的残留。
+         */
+        fun legacyAvatarCacheDirectory(context: Context) = context.filesDir.resolve("history_record_cache")
     }
 
     private companion object { const val MAX_ENTRIES = 100 }

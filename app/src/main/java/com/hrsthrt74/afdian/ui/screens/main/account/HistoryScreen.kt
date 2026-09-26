@@ -127,7 +127,6 @@ fun HistoryScreen(
                             group.entries.forEach { entry ->
                                 HistoryEntryOption(
                                     entry = entry,
-                                    avatarModel = viewModel.avatarModel(entry.target.avatarUrl),
                                     onClick = {
                                         when (val target = entry.target) {
                                             is HistoryTarget.CreatorDetailTarget -> onOpenCreator(target.toAfadianUser())

@@ -140,7 +140,6 @@ fun HomeScreen(
         onOpenCreator = onOpenCreator, onOpenManagement = onOpenManagement, onOpenFavorites = onOpenFavorites,
         onOpenSponsoring = onOpenSponsoring,
         historyEntries = historyEntries,
-        historyAvatarModel = historyViewModel::avatarModel,
         onOpenHistory = onOpenHistory,
         onOpenHistoryEntry = onOpenHistoryEntry,
         onEditCreatorData = { editingCreatorData = true },

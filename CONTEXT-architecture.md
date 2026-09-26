@@ -7,7 +7,7 @@ app/src/main/java/com/hrsthrt74/afdian/
 ├── data/
 │   ├── auth/          # 认证（Token 存储、登录加密）
 │   ├── content/       # 内容接口（账号、消息、动态、创作者、收藏、优惠码、订单、管理、感谢页）
-│   ├── history/       # 浏览历史（本地存储、头像缓存）
+│   ├── history/       # 浏览历史（本地存储）
 │   ├── network/       # 统一 HTTP 入口（域名回退、业务码校验、共享 OkHttpClient）
 │   ├── settings/      # DataStore 设置（首页模块、管理布局、主题等）
 │   └── stats/         # 数据卡片模型、图表模型、提现日程

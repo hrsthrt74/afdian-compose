@@ -172,8 +172,12 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 条目用 `HistoryEntryOption` 组件（复用头像 + 名称 + 操作按钮）。
 - 清空历史确认弹窗。
 - 可在设置中开关。
-- `HistoryAvatarCache` 本地缓存头像。
-- `HistoryStore` DataStore 持久化。
+- `HistoryStore` DataStore 持久化：**只存文本与头像链接，不下载头像**。头像在渲染时由
+  `HistoryEntryOption` 直接把 `entry.target.avatarUrl` 交给 Coil 按需加载，磁盘缓存归 Coil 全局缓存
+  （存储页里因此算在「图片缓存」而不是「浏览历史」）。
+- 旧版本曾用 `HistoryAvatarCache` 把头像预下载到 `files/history_record_cache`（为了在设置页能精确删除），
+  该目录现在不再写入；`HistoryViewModel` 启动时调一次 `HistoryStore.clearLegacyAvatarCache()` 回收老用户的残留，
+  存储页的「浏览历史」清理也仍然涵盖这个目录。
 - 空状态用 `EmptyStateView`（`fillParentMaxSize` 撑满视口居中）。
 
 ## 每月汇总（MonthlySummaryScreen）
@@ -238,6 +242,6 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `data/auth/`：认证状态、Token 存储、登录请求和加密载荷。
 - `data/content/`：领域接口服务（AccountService、MessageService、AffiliateService、FeedService、CreatorService、ReceivedSponsorService、ThankSponsorsService、OrderService、ManagementService），`AfadianContentService` 为兼容门面；消息解析集中在 `MessageParser`，模型见 `ContentModels` / `MessageModels`；缓存 `ProfileCache` / `HomeCache`。
 - `data/network/`：`AfdianHttpClient`（域名优先与回退）、`requireAfdianSuccess`（业务码校验）、`sharedAfdianHttpClient`（全应用共享客户端）。
-- `data/history/`：浏览历史（HistoryStore、HistoryModels、HistoryAvatarCache）。
+- `data/history/`：浏览历史（HistoryStore、HistoryModels）。
 - `data/stats/`：数据卡片和图表模型（CardModel、ChartModel、CreatorStatsRepository、WithdrawalSchedule）。
 - `data/settings/SettingsStore.kt`：DataStore 设置存储。

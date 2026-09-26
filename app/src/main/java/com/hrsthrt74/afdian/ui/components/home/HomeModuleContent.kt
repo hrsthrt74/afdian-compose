@@ -23,7 +23,6 @@ data class HomeModuleContentContext(
     val onOpenFavorites: () -> Unit,
     val onOpenSponsoring: () -> Unit,
     val historyEntries: List<HistoryEntry>,
-    val historyAvatarModel: (String?) -> Any?,
     val onOpenHistory: () -> Unit,
     val onOpenHistoryEntry: (HistoryEntry) -> Unit,
     /** 请求进入“创作者数据”整页编辑（首页会隐藏其它模块）。 */

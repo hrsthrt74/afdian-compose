@@ -18,17 +18,17 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
     val entries: StateFlow<List<HistoryEntry>> = store.entries
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    fun avatarModel(url: String?): Any? = store.avatarModel(url)
-
-    fun clearAvatarCache() {
+    init {
+        // 一次性回收旧版本预下载的历史头像缓存目录（新版本只存链接，不会再写这个目录）。
+        // 放在这里而不是 HistoryStore 构造函数里：构造函数不该有磁盘副作用，
+        // 而本 ViewModel 挂在 MainScreen 上、进程内只创建一次，正好是合适的迁移时机。
         viewModelScope.launch {
-            runCatching { store.clearAvatarCache() }
-                .onSuccess { AppLog.d("History", "设置页已清除历史记录头像缓存") }
-                .onFailure { AppLog.w("History", "设置页清除历史记录头像缓存失败", it) }
+            runCatching { store.clearLegacyAvatarCache() }
+                .onFailure { AppLog.w("History", "回收旧版历史头像缓存失败", it) }
         }
     }
 
-    /** 清空所有浏览历史条目和头像缓存。 */
+    /** 清空所有浏览历史条目，并顺带回收旧版遗留的头像缓存目录。 */
     fun clearAll() {
         viewModelScope.launch {
             runCatching { store.clearAll() }

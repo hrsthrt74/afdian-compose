@@ -17,7 +17,6 @@ fun HistoryModule(context: HomeModuleContentContext) {
         )
         HistoryPreviewCard(
             entries = context.historyEntries,
-            avatarModel = context.historyAvatarModel,
             onOpenHistory = context.onOpenHistory,
             onOpenEntry = context.onOpenHistoryEntry,
             modifier = Modifier.padding(horizontal = 16.dp),

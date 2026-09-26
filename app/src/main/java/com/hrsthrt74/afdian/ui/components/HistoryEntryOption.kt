@@ -33,11 +33,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  *
  * 该组件不包裹 Card，只负责一条可点击内容，因此既能放入外显预览卡片，
  * 也能放入完整历史页面的分组卡片，避免两处出现两套稍有差异的点击逻辑。
+ * 头像只存链接、按需从网络加载，磁盘缓存交给 Coil 全局管理。
  */
 @Composable
 fun HistoryEntryOption(
     entry: HistoryEntry,
-    avatarModel: Any?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -59,7 +59,8 @@ fun HistoryEntryOption(
                 .background(MiuixTheme.colorScheme.disabledSecondary),
         ) {
             AsyncImage(
-                model = avatarModel,
+                // 头像链接直接作为加载模型；Coil 会自己走内存 / 磁盘缓存，不再有历史专属缓存
+                model = entry.target.avatarUrl,
                 contentDescription = "${entry.title}的头像",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(64.dp),
@@ -99,7 +100,6 @@ fun HistoryEntryOption(
 @Composable
 fun HistoryPreviewCard(
     entries: List<HistoryEntry>,
-    avatarModel: (String?) -> Any?,
     onOpenHistory: () -> Unit,
     onOpenEntry: (HistoryEntry) -> Unit,
     modifier: Modifier = Modifier,
@@ -108,7 +108,6 @@ fun HistoryPreviewCard(
         entries.take(5).forEach { entry ->
             HistoryEntryOption(
                 entry = entry,
-                avatarModel = avatarModel(entry.target.avatarUrl),
                 onClick = { onOpenEntry(entry) },
             )
         }
