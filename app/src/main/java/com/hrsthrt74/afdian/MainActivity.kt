@@ -23,6 +23,7 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.crossfade
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
+import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
 import com.hrsthrt74.afdian.data.storage.buildImageDiskCache
@@ -108,6 +109,10 @@ private fun AfdianApp(
     val useAfdianColor by settingsStore.useAfdianColor.collectAsState(initial = true)
     // 配色模式：0=跟随系统 1=浅色 2=深色
     val colorMode by settingsStore.colorMode.collectAsState(initial = 0)
+    // Monet 配色总开关；开启后 colorMode 的三档改用 Monet 色板
+    val monetEnabled by settingsStore.monetEnabled.collectAsState(initial = false)
+    // Monet 种子色预设；仅在 monetEnabled 为 true 时参与主题
+    val keyColor by settingsStore.keyColor.collectAsState(initial = KeyColorPreset.Default)
     // 调试日志开关：订阅 DataStore 并写入全局 AppLog，切换后即时生效、无需重启。
     // SideEffect 在每次组合成功后执行，赋值幂等，重复执行无副作用
     val debugLogging by settingsStore.debugLogging.collectAsState(initial = false)
@@ -119,7 +124,12 @@ private fun AfdianApp(
         }
     }
 
-    AfdianTheme(primaryColor = if (useAfdianColor) AfdianBrandColor else null, colorMode = colorMode) {
+    AfdianTheme(
+        primaryColor = if (useAfdianColor) AfdianBrandColor else null,
+        colorMode = colorMode,
+        monetEnabled = monetEnabled,
+        keyColor = keyColor,
+    ) {
         // 登录态：Loading 期间不渲染任何界面，读完 token 才放行，避免登录页闪烁
         val authState by session.state.collectAsState()
         // 缓存上限读出来之前也不渲染：一旦有图片开始加载，Coil 的 ImageLoader 就被定型了

@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,6 +26,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /** 配色模式：0=跟随系统 1=浅色 2=深色 */
     val colorMode: StateFlow<Int> = store.colorMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    /** Monet 种子色预设，默认跟随系统壁纸 */
+    val keyColor: StateFlow<KeyColorPreset> = store.keyColor
+        .stateIn(viewModelScope, SharingStarted.Eagerly, KeyColorPreset.Default)
 
     /** 高级过渡动画总开关，默认开启 */
     val advancedTransition: StateFlow<Boolean> = store.advancedTransition
@@ -109,6 +114,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setColorMode(mode: Int) {
         viewModelScope.launch { store.setColorMode(mode) }
+    }
+
+    /**
+     * 写入 Monet 配色开关。
+     *
+     * 这里刻意只提供写入方、不提供读取的 StateFlow：开关的勾选态由全局主题的
+     * `MiuixTheme.isDynamicColor` 驱动。因为本 VM 是进入设置页时才创建的，
+     * 读 StateFlow 的初值会先按「关闭」渲染一帧，导致「使用爱发电主题色」闪一下。
+     */
+    fun setMonetEnabled(enabled: Boolean) {
+        viewModelScope.launch { store.setMonetEnabled(enabled) }
+    }
+
+    fun setKeyColor(preset: KeyColorPreset) {
+        viewModelScope.launch { store.setKeyColor(preset) }
     }
 
     fun setStartupPage(index: Int) {

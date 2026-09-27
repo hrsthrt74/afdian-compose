@@ -4,7 +4,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 应用基础
 
-- 单一 `MiuixTheme`，使用 `ThemeController(ColorSchemeMode.System)`，支持跟随系统/浅色/深色三模式。
+- 单一 `MiuixTheme`，支持跟随系统/浅色/深色三模式，并可切换成 Monet 色板（见设置页）。
 - 根页面使用 Miuix `Scaffold`。
 - 使用 Miuix `NavigationBar` 展示 4 个 Tab：首页、发现、消息、我的。
 - 使用 `miuix-nav` 的 `NavKey`、`rememberNavBackStack`、`NavDisplay` 和 `entry<T>`。
@@ -203,10 +203,27 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 设置页（SettingsScreen）
 
-- `SwitchPreference`（爱发电主题色开关）、`OverlayDropdownPreference`（启动默认页）等。
+- `SwitchPreference`（爱发电主题色开关、Monet 配色开关）、`OverlayDropdownPreference`（启动默认页、配色模式）、
+  `OverlaySpinnerPreference`（Key Color）等。
 - 开关项：高级过渡动画、手势返回、系统预测性返回、调试日志、浏览历史、
   显示收入单位、显示人次单位（后两项在「数据卡片」分区，默认关闭）。
 - 配色模式选择：跟随系统 / 浅色 / 深色。
+- Monet 配色（「外观」分区，默认关闭）：打开后色板改由 Miuix 用种子色生成，
+  与配色模式正交 —— 跟随系统/浅色/深色分别映射到 `MonetSystem`/`MonetLight`/`MonetDark`。
+  开启时隐藏「使用爱发电主题色」（其持久化值不清除，关闭后自动恢复），并显示 `Key Color`。
+- `Key Color` 用 `OverlaySpinnerPreference` 而非普通 Dropdown，因为只有 Spinner 的
+  `DropdownItem` 带 `icon` 槽位，能在选项文字前插颜色球。展示顺序：跟随系统壁纸 → 爱发电主题色 →
+  官方 demo 的 6 色（预设见 `data/settings/KeyColorPreset.kt`，官方那 7 色里的「紫色」因与品牌紫太像已剔除）。
+  「跟随系统壁纸」没有固定色值，球用 `Brush.sweepGradient` 色环区分；Miuix 传给 icon 的 Modifier
+  已含「最小 26dp 图标格 + 末尾 12dp 间距」，不要再自己补间距。
+  注意折叠态那一行只显示选项**文字**（Spinner 的取值区只渲染 `DropdownItem.text`，不渲染 icon）。
+  系统壁纸取色要 API 31+，低版本下拉里会过滤掉该项、并把已选中的它解析成蓝色
+  （`KeyColorPreset.resolveForSdk`），保证下拉显示色与主题实际用色一致。
+  模式映射集中在 `AfdianTheme`（`ui/theme/Theme.kt`），是「明暗」与「是否 Monet」两个维度的唯一权威出处。
+- Monet 相关 UI 的显隐/勾选态读 `MiuixTheme.isDynamicColor`（全局主题真实生效的模式），**不要**读
+  `SettingsViewModel` 的流：设置页的 VM 是进入页面时才创建的，初值固定为「Monet 关闭」，
+  会让「使用爱发电主题色」先渲染出来再被隐藏（闪一下）。这也是 `ThemeColorTransition` 里
+  「抄全局主题的结果最稳」的同一套思路。
 - 切配色时的平滑过渡：整页包在 `ThemeColorTransition`（`ui/theme/ThemeColorTransition.kt`）里，
   改动配色模式或主题色时逐帧插值到新色板（时长见文件内 `ColorTransitionDurationMillis`），不再瞬间换色。只设置页有，其他页面不参与。
 - 过渡只作用于中性色；主色家族（primary 及派生色：禁用态、强调容器、下拉选中项、Slider 刻度点）

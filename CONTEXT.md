@@ -9,13 +9,13 @@
 
 ## 当前 Android 基线
 
-- Kotlin：`2.4.10`
-- AGP：`9.3.2`
+- Kotlin：`2.4.20`
+- AGP：`9.3.3`
 - compileSdk：`37`
 - targetSdk：`36`
 - minSdk：`34`
 - Java source/target：`21`
-- Miuix：`0.9.4-rc01`
+- Miuix：`0.9.4`
 - Miuix Android 依赖：`miuix-ui-android`、`miuix-preference-android`、`miuix-icons-android`、`miuix-nav-android`、`miuix-blur-android`
 - 其他主要依赖：Kotlin Serialization、OkHttp 5.x、Coil 3.x、Jsoup（HTML 解析）、Vico（图表）、reorderable（拖拽排序）、DataStore Preferences、Lifecycle ViewModel Compose。
 

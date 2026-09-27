@@ -41,6 +41,10 @@ class SettingsStore(private val context: Context) {
         val DISCLAIMER = booleanPreferencesKey("disclaimer")
         // 配色模式：0=跟随系统 1=浅色 2=深色
         val COLOR_MODE = intPreferencesKey("color_mode")
+        // Monet 配色总开关：开启后改用系统壁纸 / 指定种子色生成整套色板
+        val MONET_ENABLED = booleanPreferencesKey("monet_enabled")
+        // Monet 种子色预设，存 KeyColorPreset.storageValue（不存下标，避免档位增删后错位）
+        val KEY_COLOR = androidx.datastore.preferences.core.stringPreferencesKey("key_color")
         // 高级过渡动画总开关（卡片展开等）
         val ADVANCED_TRANSITION = booleanPreferencesKey("advanced_transition")
         // 页面内边缘滑动返回手势总开关
@@ -82,6 +86,18 @@ class SettingsStore(private val context: Context) {
 
     /** 配色模式：0=跟随系统 1=浅色 2=深色，默认跟随系统 */
     val colorMode: Flow<Int> = context.settingsDataStore.data.map { it[Keys.COLOR_MODE] ?: 0 }
+
+    /**
+     * Monet 配色总开关，默认关闭。
+     * 关闭时外观与改动前完全一致；开启后 [colorMode] 的三档语义不变，
+     * 只是背后换成 Monet 色板（详见 AfdianTheme 里的模式映射）。
+     */
+    val monetEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.MONET_ENABLED] ?: false }
+
+    /** Monet 种子色预设，默认「跟随系统壁纸」；未开启 Monet 时该值不参与主题。 */
+    val keyColor: Flow<KeyColorPreset> =
+        context.settingsDataStore.data.map { KeyColorPreset.fromStorage(it[Keys.KEY_COLOR]) }
 
     /** 高级过渡动画总开关（卡片展开等），默认开启 */
     val advancedTransition: Flow<Boolean> =
@@ -260,6 +276,16 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setColorMode(mode: Int) {
         context.settingsDataStore.edit { it[Keys.COLOR_MODE] = mode }
+    }
+
+    suspend fun setMonetEnabled(enabled: Boolean) {
+        AppLog.d("Settings", "Monet 配色已${if (enabled) "开启" else "关闭"}")
+        context.settingsDataStore.edit { it[Keys.MONET_ENABLED] = enabled }
+    }
+
+    suspend fun setKeyColor(preset: KeyColorPreset) {
+        AppLog.d("Settings", "保存 Monet 种子色，preset=${preset.storageValue}")
+        context.settingsDataStore.edit { it[Keys.KEY_COLOR] = preset.storageValue }
     }
 
     suspend fun setStartupPage(index: Int) {
