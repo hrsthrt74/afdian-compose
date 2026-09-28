@@ -70,6 +70,7 @@ import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -532,9 +533,7 @@ private fun ImageCacheLimitCard(
     var sliderValue by remember(limit) { mutableFloatStateOf(limit.ordinal.toFloat()) }
 
     Card(modifier = Modifier.padding(horizontal = 16.dp)) {
-        Column(
-
-        ) {
+        Column{
             SliderPreference(
                 title = "缓存大小限制",
                 value = sliderValue,
@@ -547,17 +546,20 @@ private fun ImageCacheLimitCard(
                 valueRange = 0f..3f,
                 // coerceAtLeast(0) 是防御：日后档位砍到 2 个以下时 steps 会变负，而它要求 >= 0
                 steps = (ImageCacheLimit.entries.size - 2).coerceAtLeast(0),
-                keyPoints = ImageCacheLimit.entries.indices.map { it.toFloat() },
+                // 故意不传 keyPoints：miuix 的 Step 震动在传了 keyPoints 时走"边沿触发"逻辑
+                // （只在滑块从"不在关键点"进入"关键点"的那一帧震动）。这里 4 个关键点恰好
+                // 覆盖了全部可吸附刻度，吸附后的值每一帧都精确停在关键点上，边沿永远不会
+                // 出现，导致 Step 失效只剩 Edge。不传 keyPoints 则走"值每变一档震一次"的
+                // 分支，才是想要的逐档震动。showKeyPoints = true 时库内部改用 steps 算出的
+                // 均匀刻度画点，视觉与之前传 keyPoints 完全一致。
                 showKeyPoints = true,
+                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
                 insideMargin = PaddingValues(16.dp, 12.dp, 16.dp, 8.dp)
             )
 
-            // 刻度标签：当前档位高亮，其余为次级灰
+            // 刻度标签
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 ImageCacheLimit.entries.forEachIndexed { index, entry ->
@@ -575,7 +577,6 @@ private fun ImageCacheLimitCard(
                     )
                 }
             }
-
         }
     }
     Text(
