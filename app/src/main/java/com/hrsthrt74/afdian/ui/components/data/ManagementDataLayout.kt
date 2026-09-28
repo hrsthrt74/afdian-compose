@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -50,7 +51,6 @@ import com.hrsthrt74.afdian.ui.components.DataCard
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -327,25 +327,16 @@ internal fun EditableLayoutEntryContent(
     onRemove: () -> Unit,
     charts: Map<String, ChartDataItem> = emptyMap(),
 ) {
-    // 删除 badge 按钮
-    BadgedBox(
-        badge = {
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .size(22.dp)
-                    .background(MiuixTheme.colorScheme.error)
-                    .clickable(onClick = onRemove),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Remove,
-                    contentDescription = "删除布局元素",
-                    tint = MiuixTheme.colorScheme.onError,
-                )
-            }
-        },
-    ) {
+    // ⚠️ 规避闪退：这里原先用 miuix 的 BadgedBox 包裹拖拽卡片。
+    // miuix BadgedBox 在 measure 阶段会读取内容 Placeable 的 FirstBaseline/LastBaseline
+    // （Badge.kt:79），而读取 alignment line 会强制整个子树立刻完成 layout + placement。
+    // 在「拖拽排序 + 惯性滚动」场景下，LazyGrid 每帧都会强制 remeasure 新进入的 item，
+    // 恰好撞上 Compose UI 1.12 RectManager/RectList 的内部竞态（节点被移出 RectList 后
+    // 仍被标记为脏），抛出 IllegalArgumentException: LayoutNode xxx not found in RectList。
+    // 这里只是需要一个 22dp 的删除按钮，用不上 baseline 对齐，因此改用普通 Box +
+    // align/offset 手动把按钮钉在右上角：measure 中不再读 alignment line，
+    // 「measure 内强制提前布局」的触发链就此断开。
+    Box {
         // 编辑态的各元素的特殊样式，
         // 如分割线显示边框，便于拖动/识别
         when (entry.type) {
@@ -399,6 +390,27 @@ internal fun EditableLayoutEntryContent(
                     HorizontalDivider(modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                 }
             }
+        }
+
+        // 删除按钮：悬浮在内容右上角。
+        // 偏移量对齐 miuix BadgedBox 0.9.4 对 22dp badge 的摆放结果：
+        // badgeX = anchorWidth - 12.dp → 右缘出界 12 - 22 = 10dp；
+        // badgeY = -badgeHeight + 14.dp → 上缘出界 22 - 14 = 8dp。
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 10.dp, y = (-8).dp)
+                .clip(CircleShape)
+                .size(22.dp)
+                .background(MiuixTheme.colorScheme.error)
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Remove,
+                contentDescription = "删除布局元素",
+                tint = MiuixTheme.colorScheme.onError,
+            )
         }
     }
 }
