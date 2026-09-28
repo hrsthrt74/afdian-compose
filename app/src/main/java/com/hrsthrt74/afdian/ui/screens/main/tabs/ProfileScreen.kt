@@ -326,6 +326,7 @@ private fun ProfileQuickEntry(
             text = title,
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            textAlign = TextAlign.Center
             )
     }
 }
