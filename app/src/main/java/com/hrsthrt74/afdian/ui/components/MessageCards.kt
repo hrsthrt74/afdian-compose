@@ -165,15 +165,14 @@ fun OrderCard(
                         .padding(16.dp, 8.dp),
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-
+                ) {1
                     // 金额：￥
                     Text(
                         text = "¥",
                         style = MiuixTheme.textStyles.body1,
                         color = if (usedRedeem) { MiuixTheme.colorScheme.onPrimary.copy(0.8f) }
                                 else            { MiuixTheme.colorScheme.onPrimary },
-                        modifier = Modifier.padding(end = 2.dp, bottom = 4.dp)
+                        modifier = Modifier.padding(end = 2.dp).alignByBaseline()
                     )
                     // 金额：数字
                     Text(
@@ -182,7 +181,8 @@ fun OrderCard(
                                 else            { MiuixTheme.colorScheme.onPrimary },
                         // 使用兑换码时对发电金额加删除线，表示非实付
                         style = if (usedRedeem) { MiuixTheme.textStyles.title1.copy(textDecoration = TextDecoration.LineThrough) }
-                                else            { MiuixTheme.textStyles.title1 }
+                                else            { MiuixTheme.textStyles.title1 },
+                        modifier = Modifier.alignByBaseline()
                     )
 
                     // n个月
@@ -192,7 +192,7 @@ fun OrderCard(
                             style = MiuixTheme.textStyles.body2,
                             color = if (usedRedeem) { MiuixTheme.colorScheme.onPrimary.copy(0.8f) }
                                     else            { MiuixTheme.colorScheme.onPrimary },
-                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                            modifier = Modifier.padding(start = 4.dp).alignByBaseline()
                         )
                     }
 
@@ -203,7 +203,7 @@ fun OrderCard(
                             text = "使用兑换码",
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                            modifier = Modifier.padding(start = 4.dp).alignByBaseline()
                         )
                     } else if (usedAffiliate) {
                         Spacer(modifier = Modifier.weight(1f))
@@ -212,7 +212,7 @@ fun OrderCard(
                             text = "优惠了￥${content.affiliateReduction}",
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                            modifier = Modifier.padding(start = 4.dp).alignByBaseline()
                         )
                     }
                 }
