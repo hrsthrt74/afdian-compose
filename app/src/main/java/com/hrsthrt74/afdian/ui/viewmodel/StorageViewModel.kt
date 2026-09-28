@@ -9,6 +9,7 @@ import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.HomeCache
 import com.hrsthrt74.afdian.data.content.ProfileCache
 import com.hrsthrt74.afdian.data.history.HistoryStore
+import com.hrsthrt74.afdian.data.log.LogStore
 import com.hrsthrt74.afdian.data.search.SearchHistoryStore
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.storage.HistoryPart
@@ -51,6 +52,8 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
     private val searchHistoryStore = SearchHistoryStore(application)
     private val homeCache = HomeCache(application)
     private val profileCache = ProfileCache(application)
+    // 日志清理走 LogStore 统一入口：它持有 writer 线程的文件句柄，直接删文件会删不掉
+    private val logStore = LogStore.get(application)
 
     /**
      * 图片缓存的体积上限。
@@ -212,6 +215,11 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
             StorageCategory.Snapshot -> {
                 homeCache.clear()
                 profileCache.clear()
+            }
+            // 日志：LogStore.clear() 内部提交到 writer 线程（先关句柄再删文件），
+            // 带 3 秒超时；这里包 IO 线程，避免阻塞主线程等待
+            StorageCategory.Logs -> withContext(Dispatchers.IO) {
+                logStore.clear()
             }
             // 不可清理的分类本方法不会被调用；这里显式留空，保证 when 穷尽
             StorageCategory.AppData, StorageCategory.Other -> Unit

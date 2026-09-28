@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+    FileProvider 路径白名单：仅供「日志导出」分享使用。
+
+    安全红线：只暴露 files/logs/ 子目录。绝不能把 path 写成 "."——
+    那会把 files/datastore/ 下的登录凭证、设置项一并暴露给分享面板里的任意 App。
+-->
+<paths>
+    <!-- 日志目录：运行日志 app-*.log、崩溃报告 crash-*.log、导出合并文件 export-*.log -->
+    <files-path
+        name="logs"
+        path="logs/" />
+</paths>

@@ -203,7 +203,6 @@ private fun SettingsScreenContent(
     val advancedTransition by viewModel.advancedTransition.collectAsState()
     val gestureBack by viewModel.gestureBack.collectAsState()
     val predictiveBack by viewModel.predictiveBack.collectAsState()
-    val debugLogging by viewModel.debugLogging.collectAsState()
     val historyEnabled by viewModel.historyEnabled.collectAsState()
     val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
     val showCountUnit by viewModel.showCountUnit.collectAsState()
@@ -400,15 +399,6 @@ private fun SettingsScreenContent(
 
                 item { SmallTitle(text = "其他", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                        ArrowPreference(
-                            title = "存储空间管理",
-                            onClick = { if (backStack.none { it == Route.Storage }) backStack.add(Route.Storage) },
-                        )
-                    }
-                }
-
-                item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
                         SwitchPreference(
                             checked = historyEnabled,
@@ -416,6 +406,20 @@ private fun SettingsScreenContent(
                             title = "记录历史",
                             summary = "最近访问、最近搜索等" +
                                     "（仅保存在本地）",
+                        )
+                    }
+                }
+
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        ArrowPreference(
+                            title = "存储空间管理",
+                            onClick = { if (backStack.none { it == Route.Storage }) backStack.add(Route.Storage) },
+                        )
+                        // 日志页：运行日志与崩溃报告的记录开关、占用、导出与清空
+                        ArrowPreference(
+                            title = "日志管理",
+                            onClick = { if (backStack.none { it == Route.Log }) backStack.add(Route.Log) },
                         )
                     }
                 }
@@ -454,12 +458,8 @@ private fun SettingsScreenContent(
                             title = "开源许可",
                             onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
                         )
-                        SwitchPreference(
-                            checked = debugLogging,
-                            onCheckedChange = viewModel::setDebugLogging,
-                            title = "调试日志",
-                            summary = "日常使用建议关闭，重启应用后生效",
-                        )
+                        // 「调试日志」开关已迁移至「其他 → 日志」页：它与日志落盘/导出
+                        // 是同一套排查工作流，放一起才有完整的心智模型
                     }
                 }
 

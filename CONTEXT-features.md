@@ -205,8 +205,9 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 - `SwitchPreference`（爱发电主题色开关、Monet 配色开关）、`OverlayDropdownPreference`（启动默认页、配色模式）、
   `OverlaySpinnerPreference`（Key Color）等。
-- 开关项：高级过渡动画、手势返回、系统预测性返回、调试日志、浏览历史、
+- 开关项：高级过渡动画、手势返回、系统预测性返回、浏览历史、
   显示收入单位、显示人次单位（后两项在「数据卡片」分区，默认关闭）。
+  「调试日志」开关已迁移到「其他 → 日志」页（与日志落盘/导出同属一套排查工作流）。
 - 配色模式选择：跟随系统 / 浅色 / 深色。
 - Monet 配色（「外观」分区，默认关闭）：打开后色板改由 Miuix 用种子色生成，
   与配色模式正交 —— 跟随系统/浅色/深色分别映射到 `MonetSystem`/`MonetLight`/`MonetDark`。
@@ -233,7 +234,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   开 edge-to-edge 后系统只按「系统深浅色」给图标，App 手动切深色时必须自己覆盖，
   否则黑图标压在深色背景上看不见。状态栏与导航栏一起处理，且是瞬间切换、不参与渐变。
 - 退出登录。
-- 「其他」分组：`存储空间管理` 入口，进入 `StorageScreen`（原「清除浏览历史」入口已移除，清理统一收敛到该页）。
+- 「其他」分组：`存储空间管理` 与 `日志` 两个入口（原「清除浏览历史」入口已移除，清理统一收敛到存储页）。
 
 ## 存储空间管理页（StorageScreen）
 
@@ -246,7 +247,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 分类与清理动作一一对应：图片缓存 → Coil `diskCache.clear()`（同步阻塞，必须在 IO 线程，且**不能**直接删目录，目录内有 LRU journal）；
   历史记录 → 按勾选的子项分别走 `HistoryStore.clearAll()` / `SearchHistoryStore.clear()`；
   快照缓存（`Snapshot`）→ `HomeCache.clear()` + `ProfileCache.clear()` 一起清。
-- 共 5 个分类：图片缓存、历史记录、快照缓存、设置与登录数据、其他。
+- 共 6 个分类：图片缓存、历史记录、快照缓存、日志、设置与登录数据、其他。
 - 两处「合并展示」的取舍不同，区别就在要不要让用户选子项：
   - 浏览记录 + 搜索关键词 → **「历史记录」**（`History`）。两者都是本地历史、都能自动重建，
     但**保留分别清理的能力**：`StorageCategory.selectableParts` 声明可勾选子项（`HistoryPart`），
@@ -309,7 +310,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   所以「超出上限就删掉最早的」只能把上限在**构建期**交给 `DiskCache.Builder.maxSizeBytes`，
   由 Coil 自己的 LRU 在每次写入后执行 `while (size > maxSize) removeOldestEntry()` —— 正好就是想要的效果。
 - 代价：上限属于构建期配置，改档位必须重建 ImageLoader；而 Coil 明确要求「同一目录不允许两个 DiskCache
-  实例同时存活」，运行时热替换有损坏缓存的风险，所以**标注为「重启后生效」**（与设置页「调试日志」同一个取舍）。
+  实例同时存活」，运行时热替换有损坏缓存的风险，所以**标注为「重启后生效」**（与日志页「调试日志」同一个取舍）。
 - `MainActivity` 的装配有两个坑：
   - **ImageLoader 的工厂要读 `State.value`，不能直接捕获值**：`setSafe` 只在首次记下这个工厂，
     直接捕获会把它永久钉在初始的 `null` 上。
@@ -322,6 +323,49 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - **没做「自动清理缓存（1d / 1w / 1m / 从不）」**：Coil 既不能枚举缓存条目、也没有按时间淘汰的 API，
   「只删 N 天前的图片」实现不了。真要做只能给所有图片请求显式指定 `diskCacheKey` + 自己记访问时间，
   改动面很大，暂不做。
+
+## 日志页（LogScreen）
+
+- 入口在设置页「其他」分组。页面结构：记录（两个开关）→ 状态（占用 / 文件数）→ 导出（分享 / 保存到本地）→ 清空日志 + 说明小字。
+- **职责与动机**：内测用户遇到闪退时只有 Logcat 可看，无法向开发者提供任何线索。日志页补齐三件事：
+  运行日志落盘、崩溃捕获、导出。所有文件操作集中在 `data/log/LogStore.kt`，纯函数（命名 / 淘汰 / 行格式化 / 合并）
+  在 `data/log/LogFileNaming.kt`（见 `LogFileNamingTest`）。
+- **写入管线**（`LogStore`）：
+  - `AppLog` 保持零依赖：只多了一个 `sink` 回调注入点（`AfdianApplication.onCreate` 里接通 `LogStore::enqueue`）；
+    sink 为 null（Application 之前）时只走 Logcat，不丢不崩。
+  - D 级日志只在「调试日志」开关开启时落盘（与 Logcat 行为一致）；**W/E 始终落盘**——内测用户没开调试日志也能导出报错。
+  - 「写入日志文件」开关（DataStore 键 `log_to_file`）只控制运行日志；**崩溃报告不受它控制，始终记录**——这是本功能存在的意义。
+  - **两个开关（写入日志文件 / 调试日志）的默认值都是 `BuildConfig.INTERNAL_BUILD`**：internal 内测版默认全开、
+    正式版默认关闭；用户手动改过后以存储值为准（默认值只在键缺失时兜底）。
+    `AppLog.debugEnabled` / `LogStore.fileLoggingEnabled` 的**字段初值**也取 `INTERNAL_BUILD`，
+    保证 DataStore 读取完成前的启动初期（崩溃多发段）日志不缺席，读出后由订阅方按真实设置校正；
+    `MainActivity` / `LogViewModel` 的 collect 初值同步取 `INTERNAL_BUILD`，避免 internal 版首帧「先误关再读回」的闪烁。
+  - 命令队列模型：写 / flush / 清空 / 淘汰统一建模成 `LogCommand`，全部在唯一 writer 线程串行执行（文件句柄免锁）；
+    `LinkedBlockingQueue(4096)` 满时丢最旧并记账，flush 时补一条「日志队列已满，丢弃 N 条」标记。
+    flush / clear 用 `CountDownLatch` + 超时（1s / 3s）转同步。
+  - **writer 线程内部绝不调用 `AppLog`**（会递归入队），全部 `runCatching` 静默兜底。
+- **文件策略**：目录 `filesDir/logs/`（**不用 cacheDir**——存储紧张时系统会无提示清空它，崩溃证据会丢）；
+  运行日志 `app-yyyy-MM-dd.log` 按天一个、保留 3 个自然日（`selectExpiredLogs` 纯函数，启动与跨天时清理）；
+  崩溃报告 `crash-yyyy-MM-dd_HHmmss.log` 不参与天数淘汰、只保留最近 10 份；导出文件 `export-*.log` 保留最近 3 份。
+- **崩溃捕获**（`CrashHandler`）：**包装**而不是替换默认 handler——先 `flush()` 冲队列再同步写崩溃报告
+  （`writeCrashReportSync`，崩溃线程上**必须同步**写，进程随时被杀），最后**必须交还系统 handler**，否则崩溃对话框不弹。
+  报告含时间 / 线程 / 变体名 / 版本 / 构建时间 / 系统版本 / 设备型号 / 完整堆栈（`stackTraceToString` 保留 `Caused by` 链；
+  release 混淆后类名要靠变体名找对应 mapping.txt 还原）。
+  安装位置在 `AfdianApplication.onCreate` **最先**执行——项目此前没有自定义 Application，为此新增了 `AfdianApplication`
+  （挂在 MainActivity 会漏掉启动阶段的崩溃）。
+- **导出**：合并为**单个 log 文件**（崩溃报告置顶 + 运行日志按日期升序，末尾半截行裁掉），
+  分享（`ACTION_SEND` + FileProvider，mimeType `text/plain`）与保存到本地（`CreateDocument`，对齐 `IncomeDetailScreen` 的 CSV 导出）共用一份合并逻辑。
+  FileProvider 的 authority 用 `${applicationId}.fileprovider` 动态拼接（internal / legacy 有 `applicationIdSuffix`，硬编码包名会崩）；
+  `file_paths.xml` 白名单**只暴露 `logs/`**（绝不能 `path="."`，会把 DataStore 登录凭证暴露给接收方）；
+  分享 Intent 带 `ClipData` + `FLAG_GRANT_READ_URI_PERMISSION` 双保险（chooser 场景缺 ClipData 会 Permission Denial）。
+- **敏感信息**：`sanitizeSensitive`（`LogFileNaming`）在落盘与导出前把 `auth_token=` / `Cookie:` / `"token":` 替换为 `***`，
+  是「调用方不得拼敏感字段」红线之外的第二道防线。
+- **存储页联动**：`StorageCategory.Logs`（可清理，紫色 `0xFF8B5CF6`）归类 `files/logs/`；
+  清理走 `LogStore.clear()`（writer 线程内先关句柄再删，直接删文件会因句柄占用失败）；「清理全部缓存」也会清掉日志。
+- **备份排除**：`backup_rules.xml` / `data_extraction_rules.xml` 排除 `file` domain 的 `logs`——调试产物不占云备份配额，
+  崩溃现场要「当下」的，跨设备恢复旧日志反而误导排查。
+- 调试开关：AfdianApplication 还订阅 `logToFile` 写入 `LogStore.fileLoggingEnabled`（进程内即时生效）；
+  `debugLogging` 的订阅仍在 `MainActivity.AfdianApp` 的 `SideEffect`，未动。
 
 ## 内容 URL 拦截
 
@@ -340,8 +384,10 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 关键文件
 
 - `MainActivity.kt`：应用入口、免责声明、认证分流。
-- `AppLog.kt`：全局日志门面。
-- `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage）。
+- `AfdianApplication.kt`：自定义 Application，日志管线（LogStore / sink / CrashHandler）与「写入日志文件」开关订阅的唯一装配点。
+- `CrashHandler.kt`：全局未捕获异常捕获，崩溃报告落盘后交还系统 handler。
+- `AppLog.kt`：全局日志门面（Logcat + 落盘 sink 注入点）。
+- `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage、Log）。
 - `ui/screens/auth/`：登录、免责声明。
 - `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件。
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
@@ -349,6 +395,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `data/content/`：领域接口服务（AccountService、MessageService、AffiliateService、FeedService、CreatorService、ReceivedSponsorService、ThankSponsorsService、OrderService、ManagementService），`AfadianContentService` 为兼容门面；消息解析集中在 `MessageParser`，模型见 `ContentModels` / `MessageModels`；缓存 `ProfileCache` / `HomeCache`。
 - `data/network/`：`AfdianHttpClient`（域名优先与回退）、`requireAfdianSuccess`（业务码校验）、`sharedAfdianHttpClient`（全应用共享客户端）。
 - `data/history/`：浏览历史（HistoryStore、HistoryModels）。
+- `data/log/`：本地日志（LogStore 写入管线、LogFileNaming 纯函数：命名 / 淘汰 / 行格式化 / 合并 / 脱敏）。
 - `data/stats/`：数据卡片和图表模型（CardModel、ChartModel、CreatorStatsRepository、WithdrawalSchedule）。
 - `data/storage/`：本地存储占用扫描（StorageScanner、StorageCategory、formatBytes）。
 - `data/settings/SettingsStore.kt`：DataStore 设置存储。

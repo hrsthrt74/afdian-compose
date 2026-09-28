@@ -68,6 +68,13 @@ enum class StorageCategory(
     Snapshot("snapshot", "快照", "首页与我的页的快照，用于冷启动秒显", true),
 
     /**
+     * 本地日志文件（files/logs/）：运行日志 app-*.log、崩溃报告 crash-*.log 与导出文件。
+     * 可清理：清理不丢任何登录态与设置；但它是排查闪退问题的关键证据，
+     * 按天自动保留 3 天，崩溃报告只做数量上限不做天数淘汰（见 LogStore）。
+     */
+    Logs("logs", "日志", "运行日志与崩溃记录，保留 3 天", true),
+
+    /**
      * 登录凭证与全部设置项。
      * 这是红线分类：清了 auth 等于静默登出，因此恒为不可清理，一键清理也绝不包含。
      */
@@ -116,6 +123,8 @@ internal fun categorizeStoragePath(relativePath: String): StorageCategory = when
     // 首页与「我的」资料快照：两个 DataStore 合成一类展示与清理
     relativePath.startsWith("files/datastore/home.") -> StorageCategory.Snapshot
     relativePath.startsWith("files/datastore/profile.") -> StorageCategory.Snapshot
+    // 本地日志：运行日志 + 崩溃报告 + 导出文件，可清理（走 LogStore.clear()，先关句柄再删）
+    relativePath.startsWith("files/logs/") -> StorageCategory.Logs
     // 红线：登录凭证与全部设置项，统一归入不可清理的 AppData
     relativePath.startsWith("files/datastore/auth.") -> StorageCategory.AppData
     relativePath.startsWith("files/datastore/settings.") -> StorageCategory.AppData

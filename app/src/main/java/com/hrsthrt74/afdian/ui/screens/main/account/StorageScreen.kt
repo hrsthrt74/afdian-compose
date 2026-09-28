@@ -339,6 +339,7 @@ private val StorageCategory.chartColor: Color
         StorageCategory.ImageCache -> Color(0xFF3B82F6)      // 蓝
         StorageCategory.History -> Color(0xFF22C55E)         // 绿
         StorageCategory.Snapshot -> Color(0xFFFFAB02)        // 橙
+        StorageCategory.Logs -> Color(0xFF8B5CF6)            // 紫（日志，与蓝/绿/橙/灰都不撞色）
         StorageCategory.AppData -> Color(0xFF64748B)         // 石板灰蓝
         StorageCategory.Other -> Color(0xFF94A3B8)           // 中性灰
     }

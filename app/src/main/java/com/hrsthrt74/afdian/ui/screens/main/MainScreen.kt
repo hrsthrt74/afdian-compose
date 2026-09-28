@@ -44,6 +44,7 @@ import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.StorageScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.IncomeDetailScreen
@@ -414,6 +415,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 存储空间管理页：设置页「存储」分组入口进入
             StorageScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
+        entry<Route.Log> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 日志页：设置页「其他」分组入口进入，管理运行日志与崩溃报告的记录 / 导出 / 清空
+            LogScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.History> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }

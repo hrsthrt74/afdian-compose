@@ -43,10 +43,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val predictiveBack: StateFlow<Boolean> = store.predictiveBack
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
-    /** 调试日志总开关，默认关闭（关闭时 AppLog 只输出警告/错误） */
-    val debugLogging: StateFlow<Boolean> = store.debugLogging
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
     /** 浏览历史记录开关，默认开启。 */
     val historyEnabled: StateFlow<Boolean> = store.historyEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -58,10 +54,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /** 人数/次数类数据卡显示「人」「次」单位，默认关闭。 */
     val showCountUnit: StateFlow<Boolean> = store.showCountUnit
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    fun setDebugLogging(enabled: Boolean) {
-        viewModelScope.launch { store.setDebugLogging(enabled) }
-    }
 
     fun setHistoryEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setHistoryEnabled(enabled) }

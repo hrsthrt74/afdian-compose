@@ -114,8 +114,8 @@ private fun AfdianApp(
     // Monet 种子色预设；仅在 monetEnabled 为 true 时参与主题
     val keyColor by settingsStore.keyColor.collectAsState(initial = KeyColorPreset.Default)
     // 调试日志开关：订阅 DataStore 并写入全局 AppLog，切换后即时生效、无需重启。
-    // SideEffect 在每次组合成功后执行，赋值幂等，重复执行无副作用
-    val debugLogging by settingsStore.debugLogging.collectAsState(initial = false)
+    // initial 跟随构建类型默认值，避免 internal 版首帧先按 false 误关一次再被 DataStore 读回 true
+    val debugLogging by settingsStore.debugLogging.collectAsState(initial = BuildConfig.INTERNAL_BUILD)
     SideEffect {
         if (AppLog.debugEnabled != debugLogging) {
             AppLog.debugEnabled = debugLogging

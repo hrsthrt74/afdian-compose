@@ -53,6 +53,8 @@ class SettingsStore(private val context: Context) {
         val PREDICTIVE_BACK = booleanPreferencesKey("predictive_back")
     // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
     val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
+    // 日志落盘开关：开启后运行日志（D/W/E）追加写入 files/logs/ 按天文件（崩溃报告不受此开关控制）
+    val LOG_TO_FILE = booleanPreferencesKey("log_to_file")
     // 数据卡单位：金额类（收入、可提现）是否显示「元」
     val SHOW_INCOME_UNIT = booleanPreferencesKey("show_income_unit")
     // 数据卡单位：人数/次数类（发电人数、发电次数、访问人数、访问次数）是否显示「人」「次」
@@ -115,11 +117,21 @@ class SettingsStore(private val context: Context) {
         }
 
     /**
-     * 调试日志开关，默认关闭。
-     * 关闭 = 普通用户模式（AppLog 只输出警告/错误）；开启 = 排查问题模式（额外输出 D 级详细日志）。
+     * 调试日志开关，默认值按构建类型：internal 内测版默认开启（内测重在收集排查信息），
+     * 正式版默认关闭。关闭 = 普通用户模式（AppLog 只输出警告/错误）；
+     * 开启 = 排查问题模式（额外输出 D 级详细日志）。
+     * 用户手动改过后写入 DataStore，之后始终以存储值为准（默认值只在键缺失时兜底）。
      */
     val debugLogging: Flow<Boolean> =
-        context.settingsDataStore.data.map { it[Keys.DEBUG_LOGGING] ?: false }
+        context.settingsDataStore.data.map { it[Keys.DEBUG_LOGGING] ?: BuildConfig.INTERNAL_BUILD }
+
+    /**
+     * 日志落盘开关，默认值同 [debugLogging]：internal 内测版默认开启、正式版默认关闭。
+     * 关闭时不写任何运行日志文件（崩溃报告始终记录）；开启后 D/W/E 追加写入 `files/logs/`，
+     * 按天一个文件、保留 3 天。由 AfdianApplication 订阅后写入 LogStore，进程内即时生效。
+     */
+    val logToFile: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.LOG_TO_FILE] ?: BuildConfig.INTERNAL_BUILD }
 
     /** 是否记录浏览历史，默认开启；关闭只暂停新增，不删除已有记录。 */
     val historyEnabled: Flow<Boolean> =
@@ -248,6 +260,12 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setDebugLogging(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.DEBUG_LOGGING] = enabled }
+    }
+
+    /** 写入「日志落盘」开关；生效链路见 [logToFile] 注释。 */
+    suspend fun setLogToFile(enabled: Boolean) {
+        AppLog.d("Settings", "日志落盘已${if (enabled) "开启" else "关闭"}")
+        context.settingsDataStore.edit { it[Keys.LOG_TO_FILE] = enabled }
     }
 
     suspend fun setHistoryEnabled(enabled: Boolean) {

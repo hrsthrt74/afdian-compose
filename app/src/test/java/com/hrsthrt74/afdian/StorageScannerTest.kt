@@ -102,6 +102,18 @@ class StorageScannerTest {
     }
 
     @Test
+    fun logsDirectoryIsClassifiedAsCleanableLogs() {
+        // 日志目录若不显式归类会掉进 Other 兜底，导致存储页「总占用 == 各分类之和」口径外泄
+        assertEquals(StorageCategory.Logs, categorizeStoragePath("files/logs/app-2026-09-28.log"))
+        assertEquals(StorageCategory.Logs, categorizeStoragePath("files/logs/crash-2026-09-28_140321.log"))
+        assertEquals(StorageCategory.Logs, categorizeStoragePath("files/logs/export-2026-09-28_140321.log"))
+        // 可清理：一键清理与单类清理都能回收日志空间
+        assertEquals(true, StorageCategory.Logs.cleanable)
+        // 不该有可勾选子项（上方测试断言：除 History 外其余分类一律为空）
+        assertEquals(emptyList<HistoryPart>(), StorageCategory.Logs.selectableParts)
+    }
+
+    @Test
     fun authAndSettingsAreUncleanableAppData() {
         // 登录凭证是红线：必须落在不可清理的分类里
         assertEquals(StorageCategory.AppData, categorizeStoragePath("files/datastore/auth.preferences_pb"))
