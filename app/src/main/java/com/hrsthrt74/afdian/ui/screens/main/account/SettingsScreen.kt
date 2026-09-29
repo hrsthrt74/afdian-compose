@@ -421,6 +421,11 @@ private fun SettingsScreenContent(
                             title = "日志管理",
                             onClick = { if (backStack.none { it == Route.Log }) backStack.add(Route.Log) },
                         )
+                        // 接口调试页：主动探针逐个运行核心接口，用于肉眼核对各接口当前的返回值
+                        ArrowPreference(
+                            title = "接口调试",
+                            onClick = { if (backStack.none { it == Route.ApiProbe }) backStack.add(Route.ApiProbe) },
+                        )
                     }
                 }
 

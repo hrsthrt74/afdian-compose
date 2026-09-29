@@ -43,6 +43,7 @@ import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
@@ -420,6 +421,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 日志页：设置页「其他」分组入口进入，管理运行日志与崩溃报告的记录 / 导出 / 清空
             LogScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
+        entry<Route.ApiProbe> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 接口调试页：设置页「其他」分组入口进入，逐个运行核心无参接口并查看原始返回
+            ApiProbeScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.History> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }

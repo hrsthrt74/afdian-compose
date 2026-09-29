@@ -367,6 +367,72 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 调试开关：AfdianApplication 还订阅 `logToFile` 写入 `LogStore.fileLoggingEnabled`（进程内即时生效）；
   `debugLogging` 的订阅仍在 `MainActivity.AfdianApp` 的 `SideEffect`，未动。
 
+## 接口调试页（ApiProbeScreen）
+
+- 入口在设置页「其他」分组（与「存储空间管理」「日志管理」同卡），**所有变体常驻**（含 production）。
+  页面结构：环境（构建变体 / 探针有效期 / 登录态）→ 操作（一键全跑 / 清空结果 / 重新读取登录态）→ 说明小字 → 探针卡片列表。
+- **职责与动机**：排查「数据卡片上的数字对不上」时，需要绕过 Repository 的解析与聚合，直接看接口原文。
+  典型诉求是「`/api/my/dashboard` 的 `summary.month_amount` 现在到底是多少」。因此做的是**主动探针**（点一下跑一次），
+  而不是在 OkHttp 上挂拦截器自动抓包——探针可控、可复现，想查哪个查哪个。
+- **清单**（`data/probe/ApiProbeModels.kt` 的 `ApiProbeCatalog.all`）：14 个**无参核心接口**，全部 GET、只需 `auth_token`。
+  **分页接口一律把 `page=1` 写死，只取单页快照**——绝不复用 `CreatorStatsRepository` 的翻页聚合
+  （`/api/my/sponsored-bill-filter` 会翻几十页、`/api/my/stat` 有 100 页上限），否则探针会长时间卡住。
+  需要 `user_id` / `plan_id` / `post_id` 等参数的接口暂不收录，留待后续支持参数输入。
+- **不解析业务模型**：探针只负责把接口原文拿回来（`ApiProbeExecutor` 用宽松 `Json` 解析），
+  所以新增一个接口只需往 `ApiProbeCatalog.all` 加一条 `ApiProbeSpec`，不必再写一份 `@Serializable` 模型。
+- **摘要提取**（`data/probe/ApiProbeJson.kt`，全为纯函数，见 `ApiProbeJsonTest`）：
+  - `ApiProbeSpec.highlights` 写的是**相对路径**（如 `summary.month_amount`、`list[0].uv`）。
+    `buildHighlights` 的解析顺序是「先按响应根试，失败再把根当 `{ec, data}` 信封取 `data` 基点重试」，
+    所以写 `summary.month_amount` 能直接穿透信封命中 `{ec:200, data:{summary:{...}}}`；
+    写 `data.xxx` 或根级字段（如 `balance`）也能命中。
+  - `highlights` 留空时自动折叠取叶子字段前 6 条兜底（折叠后跳过 `ec` / `em` 等信封字段）。
+  - 字段**不存在** → `Highlight.value == null`，UI 显示灰色「（缺失）」；字段存在但是 JSON `null` → 显示 `null`。
+    两者刻意可区分（`JsonNull` 是 `JsonPrimitive` 的子类，判断顺序必须先 `JsonNull`）。
+- **原始 JSON 展示**：`prettyPrintAndCap` 先美化，再按「400 行 / 8 万字符」双重截断并标注「完整响应 N 字符」。
+  上屏放在**详情 Sheet**（`WindowBottomSheet`）里：Sheet 内容区自带纵向滚动，长 JSON 直接交给它；
+  代码块本身只做横向滚动（`softWrap = false` + `horizontalScroll`），长行不折行、一个字段一眼看完，
+  也让每行只测量一次；外层再包 `SelectionContainer` 支持长按选中。
+- **列表 / 详情分工**：「一眼要看的数字」留在列表卡片（状态徽章 + 元信息 + 关键字段摘要），
+  完整信息（请求元信息 + 全部关键字段 + 原始 JSON）放进点开的详情 Sheet。
+  这样列表更短、更好扫视，也不存在超长 JSON 把卡片撑开的观感问题。
+  Sheet 顶部右侧放复制原始 JSON 的按钮（滚动时始终可达），路径行带「重新运行」（结果实时回填 Sheet）。
+- **凭据脱敏**：`maskSecrets()` 把 URL / 文本里的 `auth_token`、`access_token`、`token`、`cookie` 查询值换成 `***`，
+  用于**展示与日志**（请求本身仍带真实 token）。卡片上展示的请求 URL 一定是 `auth_token=***`，
+  `AppLog` 只打 id / HTTP 码 / 业务码 / 耗时 / 字节数 / 命中域名，绝不打完整 URL。
+  「登录态」只显示「已登录 / 未登录」，**任何情况下都不展示 token 内容**。
+- **失败即数据**：`ApiProbeResult` 显式四态（Idle / Running / Success / Failure），失败细分为
+  未登录 / HTTP 异常 / 业务失败（`ec != 200`，文案取 `em`→`msg`→`message`）/ 解析失败 / 网络异常。
+  执行器把所有异常兜成 `Failure`（只有 `CancellationException` 原样抛出以遵循结构化并发），
+  失败时也尽量附上响应体，UI 侧无需 try/catch。**`ec` 缺失（旧接口）不算失败**，与 `requireAfdianSuccess(requireEc = false)` 语义一致。
+- **并发与竞态**（`ApiProbeViewModel`）：
+  - 每张卡状态完全独立，一个接口失败不影响其他；`runningIds` 做重入保护（单卡点击与全跑共用）。
+  - 一键全跑用 `Semaphore(3)` 限流（纯串行会被一个慢接口堵死，放飞又容易触发限流）。
+  - 用**批次号 `runEpoch`** 丢弃过期的在飞结果：`runAll` / `clearAll` 会自增批次号并取消旧作业，
+    旧协程回来时批次对不上就直接丢弃，避免「取消后旧结果把新一轮的『请求中』覆盖掉」；
+    协程被取消时还会把该卡拉回 `Idle`，不留「请求中」僵尸态。
+- **UI 细节**：
+  - 列表页结构：环境（3 行 `BasicComponent`）→ 操作（`Button` 实心「一键全跑」+ 并排的「清空结果」「刷新登录态」）→ 说明小字 → 探针卡片列表。
+  - 整张卡片可点即运行（`Card(onClick = ...)` + `pressable(SinkFeedback())`，与 `CreatorCard` 一致）；
+    卡片底部的「查看完整返回」行长独立可点（同样叠了 pressable + clickable），不会冒泡到整卡的运行动作。
+  - 卡片排版分四段，三种运行状态共用同一套骨架（标题 → 路径 → 分隔线 → 内容），结构稳定不会跳动。
+  - **卡片内的视觉层次是「字号 + 颜色」双维度拉开的**（只靠颜色会糊成一片小字墙）：
+    标题 `body1` + Medium；**字段值 `body1` + 等宽 + Medium（全卡焦点，调试页看的就是这个数字）**；
+    字段名 `footnote1` + 等宽 + 次要色；技术元信息 `footnote2` + 三级次色；入口 `body2` + `primary`。
+  - 字段名带 `weight(1f)` + `maxLines = 1` + `Ellipsis`，值不参与权重分配：
+    长路径（如 `list[0].paid_order_real_amount`）只会截尾，不会挤走值或把卡片撑高，
+    而每行值的右边缘天然对齐成一列。
+  - 卡片上不写「GET 」前缀（清单里全是 GET，前缀只挤占宽度；方法在详情 Sheet 里保留）；
+    分隔符统一用中点 `·` 而不是全角空格，读起来才像一组并列指标。
+  - 状态标签用「6dp 彩色圆点 + 主题色文字」自绘，**不用 `Badge`**——miuix 的 `Badge` 带 content 时是
+    16dp 小圆点（为数字角标设计），装不下「业务失败」这类状态词；也**不套胶囊底色**——
+    `primaryContainer` 是高饱和纯蓝（浅色 0xFF5D9BFF），14 张卡各顶一个会很吵，
+    而中性底的 `surfaceContainerHighest` 在深色下（0xFF2D2D2D）与卡片底（0xFF242424）几乎同色、白做一层底。
+  - 失败态把「失败类型 + 原因」单独成行、用错误色（它比任何字段都重要，不该埋在元信息小字里）。
+  - Sheet 内所有 `Card` 必须用 `AfdianCardDefaults.overlayColors()`（弹层背景与 Card 默认色在默认色板下数值相同，
+    不显式指定会「看不见」）；小节标题的 `insideMargin` 补 16dp，与卡片内容的 40dp 左边缘对齐。
+  - 详情 Sheet 的可见性状态放在页面的 `remember` 里（临时 UI 状态），并额外记住「最后一次展示的卡片」，
+    让 Sheet 关闭动画期间仍能渲染内容、不会闪空。列表数据仍由 ViewModel 持有。
+
 ## 内容 URL 拦截
 
 - 拦截 `afdian.com` 和 `ifdian.net` 的公开链接：
@@ -387,7 +453,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `AfdianApplication.kt`：自定义 Application，日志管线（LogStore / sink / CrashHandler）与「写入日志文件」开关订阅的唯一装配点。
 - `CrashHandler.kt`：全局未捕获异常捕获，崩溃报告落盘后交还系统 handler。
 - `AppLog.kt`：全局日志门面（Logcat + 落盘 sink 注入点）。
-- `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage、Log）。
+- `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage、Log、ApiProbe）。
 - `ui/screens/auth/`：登录、免责声明。
 - `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件。
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
@@ -398,4 +464,5 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `data/log/`：本地日志（LogStore 写入管线、LogFileNaming 纯函数：命名 / 淘汰 / 行格式化 / 合并 / 脱敏）。
 - `data/stats/`：数据卡片和图表模型（CardModel、ChartModel、CreatorStatsRepository、WithdrawalSchedule）。
 - `data/storage/`：本地存储占用扫描（StorageScanner、StorageCategory、formatBytes）。
+- `data/probe/`：接口调试页的探针清单、JSON 摘要纯函数与执行器（ApiProbeModels、ApiProbeJson、ApiProbeExecutor）。
 - `data/settings/SettingsStore.kt`：DataStore 设置存储。

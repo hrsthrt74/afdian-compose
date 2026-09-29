@@ -43,4 +43,6 @@ sealed interface Route : NavKey {
     @Serializable data object Storage : Route
     // 日志页：运行日志与崩溃报告的记录开关、占用查看、导出与清空，入口在设置页「其他」分组
     @Serializable data object Log : Route
+    // 接口调试页：主动探针逐个运行核心无参接口并查看原始返回，入口在设置页「其他」分组
+    @Serializable data object ApiProbe : Route
 }
