@@ -205,7 +205,7 @@ fun ApiProbeScreen(
                                     "• 探针只取单页快照\n" +
                                     "• 原始 JSON 超长会自动截断\n" +
                                     "• 一键全跑并发 3，避免触发服务端限流\n" +
-                                    "• 数据不会保存被追踪",
+                                    "• 数据不会保存或被追踪",
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.padding(12.dp, 12.dp),
