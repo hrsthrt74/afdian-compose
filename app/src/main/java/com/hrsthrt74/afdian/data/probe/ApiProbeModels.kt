@@ -40,16 +40,30 @@ object ApiProbeCatalog {
             id = "my_dashboard",
             title = "创作者看板",
             path = "/api/my/dashboard",
-            summary = "历史/本月收入、发电人数、访问量、可提现余额",
-            // 数据卡里的「本月收入」就来自 summary.month_amount，这里原样暴露出来便于核对
+            summary = "历史/本月收入、发电人数、访问量、可提现余额、我的赞助",
+            // 数据卡里的「本月收入」就来自 summary.month_amount，这里原样暴露出来便于核对。
+            // 刻意不暴露：bill_amount / sum_bill_amount（与 confirmed / all_sum 恒等，冗余）、
+            // transfer_fee_detail（提现手续费，仅提现场景有意义）、has_rn（技术标志位）、
+            // monthly_bill 明细（已有专门的「月度账单」探针覆盖）。
             highlights = listOf(
-                "summary.month_amount",
-                "summary.all_sum_amount",
-                "summary.all_sponsor_count",
-                "summary.uv",
-                "summary.pv",
-                "balance",
-                "balance_after_tax",
+                // —— 收入概览 ——
+                "summary.month_amount",          // 本月收入
+                "summary.next_month_amount",     // 下月待结算
+                "summary.all_sum_amount",        // 累计收入
+                "summary.confirmed_amount",      // 已确认金额
+                "summary.unconfirmed_amount",    // 未确认金额
+                // —— 发电与流量 ——
+                "summary.all_sponsor_count",     // 累计发电人数
+                "summary.month_sponsor_count",   // 本月发电人数
+                "summary.uv",                    // 访问人数
+                "summary.pv",                    // 访问次数
+                // —— 可提现余额 ——
+                "balance",                       // 可提现余额
+                "balance_after_tax",             // 税后余额
+                // —— 赞助规模 ——
+                "sponsored_history_total_count", // 赞助记录总数（响应只带单页，此为全量计数）
+                "sponsoring",                    // 我在赞助的创作者（数组，展示 [N 项]）
+                "sponsoring_expired",            // 已过期的赞助（数组，展示 [N 项]）
             ),
         ),
         ApiProbeSpec(

@@ -338,4 +338,36 @@ class ApiProbeJsonTest {
                 )
             }
     }
+
+    @Test
+    fun catalogDashboardHighlightsCoverFullSummary() {
+        // 创作者看板的摘要字段清单是按真实 /api/my/dashboard 返回值定的关键决策，用测试锁住：
+        // 改动这组字段（增删、调序）时必须意识到会同时影响列表卡片与详情 Sheet 的展示。
+        val dashboard = ApiProbeCatalog.all.single { it.id == "my_dashboard" }
+
+        // 无重复路径（重复会让同一字段在卡片上出现两行）
+        assertEquals(dashboard.highlights.size, dashboard.highlights.toSet().size)
+
+        // 必须覆盖的路径：收入五项 + 发电两项 + 流量两项 + 余额两项 + 赞助规模三项
+        val expected = setOf(
+            "summary.month_amount",
+            "summary.next_month_amount",
+            "summary.all_sum_amount",
+            "summary.confirmed_amount",
+            "summary.unconfirmed_amount",
+            "summary.all_sponsor_count",
+            "summary.month_sponsor_count",
+            "summary.uv",
+            "summary.pv",
+            "balance",
+            "balance_after_tax",
+            "sponsored_history_total_count",
+            "sponsoring",
+            "sponsoring_expired",
+        )
+        assertEquals(expected, dashboard.highlights.toSet())
+
+        // 首行固定是「本月收入」——这是这张卡的答案，不能被挤走
+        assertEquals("summary.month_amount", dashboard.highlights.first())
+    }
 }
