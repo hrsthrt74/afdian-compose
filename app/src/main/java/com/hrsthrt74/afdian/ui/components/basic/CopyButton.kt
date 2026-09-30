@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.animateDp
@@ -36,6 +37,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.time.Duration.Companion.milliseconds
 
 /** 日志 TAG */
@@ -134,6 +136,18 @@ fun CopyButton(
     // 是否处于「复制成功」态：驱动 Copy → Ok 的图标切换，同时也是自动复位的计时开关
     var copied by remember { mutableStateOf(false) }
 
+    // 图标着色：可用态用 onSurface（等同 Miuix Icon 默认色），禁用态置灰；
+    // 用 Compose 预设 animateColorAsState 在两色之间做渐变过渡，时长复用图标切换动效的 200ms 保持同步
+    val iconTint by animateColorAsState(
+        targetValue = if (enabled) {
+            MiuixTheme.colorScheme.onSurface
+        } else {
+            MiuixTheme.colorScheme.disabledOnSecondaryVariant
+        },
+        animationSpec = tween(CopyButtonTransitionDurationMs),
+        label = "copyButtonIconTint",
+    )
+
     // 成功图标只停留一小段时间：key 用 copied，连点时旧协程会被取消并重新计时
     LaunchedEffect(copied) {
         if (copied) {
@@ -199,6 +213,8 @@ fun CopyButton(
             Icon(
                 // Copy 与 Ok 都按 iconWeight 取同一档字重，切换时不会出现粗细跳变
                 imageVector = if (isCopied) iconWeight.okIcon else iconWeight.copyIcon,
+                // 可用/禁用两态间渐变过渡的着色（禁用时置灰）
+                tint = iconTint,
                 contentDescription = if (isCopied) "$contentDescription（成功）" else contentDescription,
                 // Unbounded：图标带透明像素，模糊结果不裁切、边缘自然淡出
                 modifier = Modifier.blur(blurRadius, BlurredEdgeTreatment.Unbounded),
