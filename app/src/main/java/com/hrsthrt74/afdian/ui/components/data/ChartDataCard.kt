@@ -212,6 +212,8 @@ fun ChartDataCard(
     colors: CardColors = CardDefaults.defaultColors(),
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** 是否启用图表手势（点按 marker、水平滑动拦截）。编辑态传 false，避免吞掉网格滚动/拖拽。 */
+    interactive: Boolean = true,
 ) {
     val chartType = ChartCatalog.find(key)
     val title = data?.title ?: ChartCatalog.titleFor(key)
@@ -225,8 +227,9 @@ fun ChartDataCard(
     }
 
     Card(
-        // 这是按压下沉
-        modifier = modifier.fillMaxWidth().pressable(interactionSource = null, indication = SinkFeedback()),
+        // 这是按压下沉；编辑态（interactive=false）关闭，拖拽时保持“静”的视觉
+        modifier = modifier.fillMaxWidth()
+            .then(if (interactive) Modifier.pressable(interactionSource = null, indication = SinkFeedback()) else Modifier),
         colors = colors,
     ) {
         Box(
@@ -246,14 +249,15 @@ fun ChartDataCard(
                     ChartCanvas(
                         chartType = chartType,
                         data = data!!,
-                        markerEnabled = onClick == null,
+                        // 编辑态（interactive=false）不挂 marker 手势，图表完全不参与触摸消费
+                        markerEnabled = interactive && onClick == null,
                         modifier = Modifier
                             .fillMaxWidth()
                             .pointerInput(Unit) {
                                 awaitPointerEventScope {
                                     var downOffset: Offset? = null
                                     var isHorizontalScrolling = false
-                                    val scrollThreshold = 8.dp.toPx()
+                                    val scrollThreshold = 12.dp.toPx()
                                     while (true) {
                                         val event = awaitPointerEvent()
                                         val pressedChange = event.changes.firstOrNull { it.pressed }

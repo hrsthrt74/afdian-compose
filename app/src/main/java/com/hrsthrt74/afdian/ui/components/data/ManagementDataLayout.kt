@@ -357,6 +357,8 @@ internal fun EditableLayoutEntryContent(
                 key = entry.value,
                 data = charts[entry.value],
                 modifier = dragModifier,
+                // 编辑态关闭图表手势：否则图表的水平滑动拦截会吞掉网格滚动，影响拖拽体验
+                interactive = false,
             )
 
             // 小标题
