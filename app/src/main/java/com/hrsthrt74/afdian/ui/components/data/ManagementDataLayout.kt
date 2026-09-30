@@ -154,6 +154,11 @@ fun ManagementEditableDataGrid(
             maxWidth >= 600.dp -> 3
             else -> 2
         }
+        // 卡片总数（数据卡 + 图表卡）：编辑态必须至少保留一张，
+        // 总数仅剩 1 时该卡片的删除按钮不再显示。
+        val cardEntryCount = layout.count {
+            it.type == ManagementLayoutType.CARD || it.type == ManagementLayoutType.CHART
+        }
         val renderItems = buildList<EditableGridItem> {
             var cardCount = 0
             var lastCardGroupCount = 0
@@ -282,10 +287,16 @@ fun ManagementEditableDataGrid(
                         )
                         .scale(dragScale.value)
                 }
+                // 该元素是否允许删除：数据卡 + 图表卡总数至少保留一张
+                val removable = when (entry.type) {
+                    ManagementLayoutType.CARD, ManagementLayoutType.CHART -> cardEntryCount > 1
+                    else -> true
+                }
                 EditableLayoutEntryContent(
                     entry = entry,
                     cards = cards,
                     charts = charts,
+                    showRemoveBadge = removable,
                     dragModifier = dragModifier.shadow(
                         elevation = dragElevation.value,
                         shape = RoundedCornerShape(16.dp),
@@ -325,6 +336,8 @@ internal fun EditableLayoutEntryContent(
     cards: Map<String, DataCardItem>,
     dragModifier: Modifier,
     onRemove: () -> Unit,
+    /** 是否显示删除按钮：数据卡 + 图表卡总数仅剩一张时强制隐藏，保证布局至少保留一张卡片。 */
+    showRemoveBadge: Boolean = true,
     charts: Map<String, ChartDataItem> = emptyMap(),
 ) {
     // ⚠️ 规避闪退：这里原先用 miuix 的 BadgedBox 包裹拖拽卡片。
@@ -395,24 +408,27 @@ internal fun EditableLayoutEntryContent(
         }
 
         // 删除按钮：悬浮在内容右上角。
-        // 偏移量对齐 miuix BadgedBox 0.9.4 对 22dp badge 的摆放结果：
-        // badgeX = anchorWidth - 12.dp → 右缘出界 12 - 22 = 10dp；
-        // badgeY = -badgeHeight + 14.dp → 上缘出界 22 - 14 = 8dp。
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 10.dp, y = (-8).dp)
-                .clip(CircleShape)
-                .size(22.dp)
-                .background(MiuixTheme.colorScheme.error)
-                .clickable(onClick = onRemove),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Remove,
-                contentDescription = "删除布局元素",
-                tint = MiuixTheme.colorScheme.onError,
-            )
+        // 仅剩一张的 DataCard / ChartCard 不渲染，保证编辑态至少保留一张卡片。
+        if (showRemoveBadge) {
+            // 偏移量对齐 miuix BadgedBox 0.9.4 对 22dp badge 的摆放结果：
+            // badgeX = anchorWidth - 12.dp → 右缘出界 12 - 22 = 10dp；
+            // badgeY = -badgeHeight + 14.dp → 上缘出界 22 - 14 = 8dp。
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 10.dp, y = (-8).dp)
+                    .clip(CircleShape)
+                    .size(22.dp)
+                    .background(MiuixTheme.colorScheme.error)
+                    .clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Remove,
+                    contentDescription = "删除布局元素",
+                    tint = MiuixTheme.colorScheme.onError,
+                )
+            }
         }
     }
 }

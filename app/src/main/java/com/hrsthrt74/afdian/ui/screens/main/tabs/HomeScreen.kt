@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -170,7 +171,14 @@ fun HomeScreen(
         },
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-            if (editingCreatorData) {
+            // 首页内容 ↔ 创作者数据整页编辑的切换：用 AnimatedContent 默认预设
+            // （淡入 + 轻微缩放）过渡，与管理页编辑态切换的观感保持一致，不再硬切。
+            AnimatedContent(
+                targetState = editingCreatorData,
+                modifier = Modifier.fillMaxSize(),
+                label = "home_creator_data_edit_switch",
+            ) { isEditing ->
+                if (isEditing) {
                 // 整页编辑：隐藏其它模块，编辑网格作为唯一滚动层，避免“双层滚动”。
                 CreatorDataEditPage(
                     context = moduleContext,
@@ -211,6 +219,7 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
             }
         }
     }
