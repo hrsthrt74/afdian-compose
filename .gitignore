@@ -22,10 +22,11 @@ local.properties
 # adb，不过这文件是咋来的
 adb
 
-# vsc
+# ai
 .vscode
 .agents
 .workbuddy
+.zcode
 
 # 签名文件
 *.jks
