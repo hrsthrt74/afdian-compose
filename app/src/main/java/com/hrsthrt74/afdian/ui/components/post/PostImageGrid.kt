@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -90,20 +91,20 @@ fun PostImageGrid(images: List<String>) {
                                         .background(MiuixTheme.colorScheme.disabledSecondary, bgShape)
                                         .clip(bgShape),
                                 )
-                                // 叠层：onSurface 半透明 + 居中「+n」文字
+                                // 叠层：固定半透明黑底（不随主题变化，深浅色下始终压在图片上）+ 居中「+n」文字
                                 if (isNinth && remaining > 0) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .background(
-                                                MiuixTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                                Color.Black.copy(alpha = 0.5f),
                                                 bgShape,
                                             ),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
                                             text = "+$remaining",
-                                            color = MiuixTheme.colorScheme.onPrimary,
+                                            color = Color.White,
                                             style = MiuixTheme.textStyles.title2,
                                         )
                                     }
