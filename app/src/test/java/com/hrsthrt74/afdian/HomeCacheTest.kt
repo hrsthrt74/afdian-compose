@@ -39,6 +39,8 @@ class HomeCacheTest {
                 series = listOf(ChartSeries("访问人数", listOf(3.0, 7.0))),
             ),
         ),
+        // 结算窗口内冷启动时缓存帧的提现提醒要用到这个值
+        unconfirmedAmount = "3021.68",
     )
 
     @Test
@@ -51,6 +53,8 @@ class HomeCacheTest {
         )
 
         assertEquals(original, restored)
+        // 未确认金额的文本往返也要无损：结算窗口内缓存帧的提现提醒依赖它
+        assertEquals("3021.68", restored.unconfirmedAmount)
         // 图表键与横轴标签也要原样保留，否则 Vico 画出来会错位
         assertEquals(
             listOf("9/1", "9/2", "9/3"),
@@ -79,6 +83,8 @@ class HomeCacheTest {
         assertEquals("user-1", restored.ownerUserId)
         assertEquals(1, restored.creatorCards.size)
         assertTrue(restored.creatorCharts.isEmpty())
+        // 旧快照没有 unconfirmedAmount 字段，应解析为 null 而不是失败
+        assertEquals(null, restored.unconfirmedAmount)
     }
 
     @Test

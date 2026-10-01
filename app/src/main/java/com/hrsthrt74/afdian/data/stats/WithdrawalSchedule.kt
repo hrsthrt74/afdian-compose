@@ -11,6 +11,12 @@ data class WithdrawalStatus(
     val withdrawalTime: LocalDateTime,
     val remainingDays: Long,
     val remainingText: String,
+    /**
+     * 是否处于每月 1 日 0:00–10:00 的结算窗口。
+     * 此区间 dashboard 的「本月」口径已翻篇成新月份，提现提醒卡需要切换为「上月」口径，
+     * 与 shouldShowReminder 的 1 日分支共用同一判断，避免两处时间逻辑漂移。
+     */
+    val isSettlementWindow: Boolean,
 )
 
 /**
@@ -25,7 +31,10 @@ object WithdrawalSchedule {
         val month = YearMonth.from(today)
         val todayWithdrawalTime = month.atDay(1).atTime(10, 0)
         val nextWithdrawalTime = month.plusMonths(1).atDay(1).atTime(10, 0)
-        val withdrawalTime = if (today.dayOfMonth == 1 && now.isBefore(todayWithdrawalTime)) {
+        // 结算窗口：每月 1 日 0:00（自然月翻篇）到 10:00（结算完成）之间。
+        // 提现倒计时指向今天、提醒继续展示、口径切换上月，三个行为共用这一个判断。
+        val isSettlementWindow = today.dayOfMonth == 1 && now.isBefore(todayWithdrawalTime)
+        val withdrawalTime = if (isSettlementWindow) {
             todayWithdrawalTime
         } else {
             nextWithdrawalTime
@@ -37,13 +46,13 @@ object WithdrawalSchedule {
             duration.toDays() == 0L && duration.toHours() == 0L -> "不足一小时"
             else -> "${duration.toDays()} 天 ${duration.toHours() % 24} 小时"
         }
-        val shouldShowReminder = today.dayOfMonth >= month.lengthOfMonth() - 6 ||
-            (today.dayOfMonth == 1 && now.isBefore(todayWithdrawalTime))
+        val shouldShowReminder = today.dayOfMonth >= month.lengthOfMonth() - 6 || isSettlementWindow
         return WithdrawalStatus(
             shouldShowReminder = shouldShowReminder,
             withdrawalTime = withdrawalTime,
             remainingDays = remainingDays,
             remainingText = remainingText,
+            isSettlementWindow = isSettlementWindow,
         )
     }
 }

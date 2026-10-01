@@ -85,6 +85,9 @@ class CreatorStatsRepository(
             .associate { it.key.storageValue to (CardValue.Unavailable as CardValue) }
             .toMutableMap()
         val charts = mutableMapOf<String, ChartDataItem>()
+        // dashboard.summary.unconfirmed_amount（未确认金额）。只由 dashboard 帧写入一次；
+        // 结算窗口（每月 1 日 0:00–10:00）内它等于上月收入，供首页提现提醒切换口径使用。
+        var unconfirmedAmount: BigDecimal? = null
 
         // 以下三个写入函数都只能在 [publish] 的锁内调用。
         fun set(metric: CardMetric, period: CardPeriod, value: CardValue) {
@@ -116,7 +119,7 @@ class CreatorStatsRepository(
                 val id = definition.key.storageValue
                 id to DataCardModel(id = id, title = definition.title, value = values[id] ?: CardValue.Unavailable)
             }
-            return OverviewData(cards = cards, charts = charts.toMap())
+            return OverviewData(cards = cards, charts = charts.toMap(), unconfirmedAmount = unconfirmedAmount)
         }
 
         /** 在锁内执行 [block] 的写入并发射一帧；所有数据源阶段的写入都必须经由这个入口。 */
@@ -184,6 +187,9 @@ class CreatorStatsRepository(
                 // month_amount 缺失：本月卡先保持不可用，等账单阶段用聚合值兜底。
                 AppLog.d(TAG, "dashboard.summary 缺少 month_amount，本月收入将由账单聚合兜底")
             }
+
+            // 未确认金额：已发电但尚未结算进余额的钱。窗口外不参与任何卡片展示。
+            unconfirmedAmount = summary?.money("unconfirmed_amount")
 
             dashboard.money("balance")?.let { setSnapshot(CardMetric.Balance, CardValue.Money(it)) }
             dashboard.money("balance_after_tax")?.let { setSnapshot(CardMetric.BalanceAfterTax, CardValue.Money(it)) }
@@ -414,16 +420,6 @@ class CreatorStatsRepository(
         const val TAG = "CreatorStatsRepository"
         const val AFDIAN_HOST = "https://afdian.com"
         const val MAX_PAGE_COUNT = 100
-
-        /**
-         * 创作者到手比例：爱发电平台抽成 6%。
-         *
-         * 当月月度账单尚未出账，取不到官方的 creator_amount，因此用这个比例把
-         * 「本月收入」（抽成前）折算成「本月收入（抽成后）」。
-         * 平台调整抽成比例时只需改这里；若哪天改成按上月账单实测费率推算，
-         * 也应替换本常量而不是在别处再写一个系数。
-         */
-        private val CREATOR_SHARE_RATIO = BigDecimal("0.94")
 
         /** 金额保留到分；估算值按 [RoundingMode.FLOOR] 向下取整，与卡片展示的小数位保持一致。 */
         const val MONEY_SCALE = 2

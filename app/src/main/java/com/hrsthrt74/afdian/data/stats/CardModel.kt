@@ -180,6 +180,14 @@ object DataCardCatalog {
     }
 }
 
+/**
+ * 创作者到手比例：爱发电平台抽成 6%。
+ *
+ * 当月与结算窗口内的「抽成后」金额取不到官方月度账单时，用该比例折算；
+ * CreatorStatsRepository 与首页提现提醒卡共用，平台调整抽成比例时只需改这里。
+ */
+val CREATOR_SHARE_RATIO = BigDecimal("0.94")
+
 /** 卡片值保留业务类型，最终展示文本只在 UI 边界格式化。 */
 sealed interface CardValue {
     data class Money(val amount: BigDecimal) : CardValue

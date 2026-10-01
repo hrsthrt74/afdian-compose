@@ -30,6 +30,11 @@ data class HomeCacheSnapshot(
     val creatorCards: List<HomeCacheCard> = emptyList(),
     /** 创作者图表数据，key 为 ChartType.storageValue；旧快照没有该字段时反序列化为空 Map。 */
     val creatorCharts: Map<String, ChartDataItem> = emptyMap(),
+    /**
+     * dashboard 的未确认金额（抽成前），以 toPlainString() 文本存储；旧快照没有该字段时为 null。
+     * 结算窗口内冷启动时，缓存帧的提现提醒卡也能立即按「上月收入」口径显示。
+     */
+    val unconfirmedAmount: String? = null,
 )
 
 @Serializable

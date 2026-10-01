@@ -193,4 +193,10 @@ fun buildMonthlyIncomeChart(monthly: List<MonthlyBillRecord>): ChartDataItem {
 data class OverviewData(
     val cards: Map<String, DataCardModel>,
     val charts: Map<String, ChartDataItem>,
+    /**
+     * dashboard.summary.unconfirmed_amount（未确认金额）。
+     * 平时无展示用途；每月 1 日结算窗口内它等于「上月收入」，供首页提现提醒切换上月口径。
+     * dashboard 未返回该字段或尚未到达时为 null。
+     */
+    val unconfirmedAmount: BigDecimal? = null,
 )

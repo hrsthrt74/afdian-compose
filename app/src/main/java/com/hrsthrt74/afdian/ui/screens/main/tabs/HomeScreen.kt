@@ -86,6 +86,8 @@ fun HomeScreen(
         creatorCards.mapValues { (_, card) -> card.toDataCardItem(showIncomeUnit, showCountUnit) }
     }
     val charts by viewModel.creatorCharts.collectAsState()
+    // dashboard 的未确认金额：结算窗口内作为「上月收入」供提现提醒卡展示
+    val unconfirmedAmount by viewModel.unconfirmedAmount.collectAsState()
     val markedCreators by viewModel.markedCreators.collectAsState()
     val historyEntries by historyViewModel.entries.collectAsState()
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
@@ -115,6 +117,7 @@ fun HomeScreen(
     val moduleContext = HomeModuleContentContext(
         sponsoring = sponsoring, loading = loading, creatorCards = creatorCardItems,
         creatorCharts = charts,
+        unconfirmedAmount = unconfirmedAmount,
         markedCreators = markedCreators,
         settingsStore = settingsStore,
         onOpenCreator = onOpenCreator, onOpenManagement = onOpenManagement, onOpenFavorites = onOpenFavorites,

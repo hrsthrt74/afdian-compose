@@ -9,6 +9,7 @@ import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.ui.components.data.DataCardItem
+import java.math.BigDecimal
 
 /** 首页模块渲染上下文。模块之间通过明确的数据和回调通信，避免直接依赖 HomeScreen。 */
 data class HomeModuleContentContext(
@@ -16,6 +17,11 @@ data class HomeModuleContentContext(
     val loading: Boolean,
     val creatorCards: Map<String, DataCardItem>,
     val creatorCharts: Map<String, ChartDataItem>,
+    /**
+     * dashboard 的未确认金额；每月 1 日结算窗口内等于「上月收入」，供提现提醒卡切换口径。
+     * null 表示尚未拿到（缓存无该数据或 dashboard 未返回），由模块自行兜底。
+     */
+    val unconfirmedAmount: BigDecimal? = null,
     val markedCreators: List<FavoriteItem>,
     val settingsStore: SettingsStore,
     val onOpenCreator: (AfadianUser) -> Unit,

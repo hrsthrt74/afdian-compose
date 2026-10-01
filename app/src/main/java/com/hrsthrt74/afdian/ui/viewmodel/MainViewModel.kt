@@ -37,6 +37,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import java.math.BigDecimal
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
@@ -59,6 +60,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // 首页和管理页共用的类型化创作者卡片；ID 使用稳定的 CardKey.storageValue。
     private val _creatorCards = MutableStateFlow<Map<String, DataCardModel>>(emptyMap())
     val creatorCards = _creatorCards.asStateFlow()
+    // dashboard 的未确认金额：结算窗口（每月 1 日 0:00–10:00）内等于上月收入，
+    // 供首页提现提醒卡切换「上月」口径；窗口外不参与任何展示。
+    private val _unconfirmedAmount = MutableStateFlow<BigDecimal?>(null)
+    val unconfirmedAmount = _unconfirmedAmount.asStateFlow()
     // 创作者图表卡数据；key 使用 ChartType.storageValue。写入首页快照缓存，
     // 冷启动先用旧图秒显，失败时保留缓存（首次失败才显示加载占位）。
     private val _creatorCharts = MutableStateFlow<Map<String, ChartDataItem>>(emptyMap())
@@ -246,6 +251,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val overview = withContext(Dispatchers.IO) {
                 statsRepository.loadOverviewStreaming { partial ->
                     _creatorCards.value = partial.cards
+                    // 未确认金额随帧写入：dashboard 帧之后就有值，后续帧重复同值无副作用。
+                    // dashboard 失败时整个流式加载抛异常，回调不执行，旧值得以保留（与卡片容错口径一致）。
+                    _unconfirmedAmount.value = partial.unconfirmedAmount
                     // 图表按「本次成功返回的图覆盖、本次缺键的图保留旧值」合并：
                     // 单个数据源临时失败时不会把已拿到过的图抹掉（否则坏数据还会被写进缓存）。
                     // 与卡片的容错口径一致：加载失败保留旧值，而不是退回加载占位。
@@ -272,6 +280,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _markedCreators.value = emptyList()
             _creatorCards.value = emptyMap()
             _creatorCharts.value = emptyMap()
+            _unconfirmedAmount.value = null
         }
     }
 
@@ -290,6 +299,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         },
                         // 图表数据整体可序列化，直接落盘；刷新成功后才能覆盖旧图
                         creatorCharts = _creatorCharts.value,
+                        // 未确认金额以纯文本落盘（BigDecimal 不参与序列化），供缓存帧的提现提醒使用
+                        unconfirmedAmount = _unconfirmedAmount.value?.toPlainString(),
                     )
                 )
             }
@@ -314,6 +325,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             // 图表卡同样是「有则秒显」：先用缓存画出上一轮的图，网络结果回来后再覆盖
             _creatorCharts.value = snapshot.creatorCharts
+            // 未确认金额文本回填为数值；旧快照无该字段或格式异常时保持 null，走实时帧兜底
+            _unconfirmedAmount.value = snapshot.unconfirmedAmount?.toBigDecimalOrNull()
             AppLog.d("Home", "已用缓存回填首页首屏（图表=${snapshot.creatorCharts.size}）")
         }
     }
