@@ -24,6 +24,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
@@ -90,6 +93,16 @@ fun HomeScreen(
     var showCustomizeSheet by remember { mutableStateOf(false) }
     // 创作者数据是否处于整页编辑：为 true 时隐藏其它模块，只渲染可拖拽的编辑页。
     var editingCreatorData by remember { mutableStateOf(false) }
+
+    // 编辑态拦截系统返回：编辑页只是页内状态而非导航栈页面，不拦截的话
+    // 返回键会穿透到 NavDisplay 把根页面弹掉、直接退出应用。
+    // 与发现页搜索层同款 NavigationBackHandler，预测性返回手势提交后才退出编辑。
+    val editBackState = rememberNavigationEventState(NavigationEventInfo.None)
+    NavigationBackHandler(
+        state = editBackState,
+        isBackEnabled = editingCreatorData,
+        onBackCompleted = { editingCreatorData = false },
+    )
 
     // 首页是根页面：首次进入时清掉 Compose 可能恢复的旧滚动位置，确保顶部模块可见。
     // 只执行一次，返回创作者详情页后不会因为重组而把用户滚动位置拉回顶部。
