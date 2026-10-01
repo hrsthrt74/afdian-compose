@@ -512,7 +512,7 @@ private fun MainTabsContent(
                         icon = tab.icon,
                         label = tab.title,
                         badge = if (index == 2 && hasUnreadMessages) {
-                            { Badge( containerColor = MiuixTheme.colorScheme.primary ) { Text("$unreadCount") } }
+                            { Badge( containerColor = MiuixTheme.colorScheme.primary, contentColor = MiuixTheme.colorScheme.onPrimary ) { Text("$unreadCount") } }
                         } else {
                             null
                         }
