@@ -55,6 +55,7 @@ import com.hrsthrt74.afdian.ui.components.basic.CopyButton
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.basic.RefreshButton
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
@@ -68,7 +69,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -714,13 +714,11 @@ private fun ApiProbeDetailSheet(
         title = card?.spec?.title ?: "接口详情",
         onDismissRequest = onDismiss,
         startAction = {
-            // 就地重跑：结果会实时回填到本 Sheet
-            IconButton(
+            // 就地重跑：结果会实时回填到本 Sheet；请求中图标转圈（转圈时组件内部吞重复点击）
+            RefreshButton(
+                refreshing = result == ApiProbeResult.Running,
                 onClick = onRerun,
-                enabled = result != ApiProbeResult.Running,
-            ) {
-                Icon(MiuixIcons.Refresh, null)
-            }
+            )
         },
         endAction = {
             // 复制完整原始 JSON；请求中或没有响应体时禁用

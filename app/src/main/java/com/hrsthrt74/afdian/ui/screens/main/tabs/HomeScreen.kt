@@ -1,12 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -26,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +31,7 @@ import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
+import com.hrsthrt74.afdian.ui.components.basic.RefreshButton
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.components.home.CreatorDataEditPage
@@ -48,17 +42,12 @@ import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.kyant.shapes.Capsule
-import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.SinkFeedback
 import top.yukonga.miuix.kmp.utils.pressable
@@ -99,31 +88,8 @@ fun HomeScreen(
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
     val moduleOrder by settingsStore.homeModuleOrder.collectAsState(initial = HomeModule.entries)
     var showCustomizeSheet by remember { mutableStateOf(false) }
-    var showRefreshAnimation by remember { mutableStateOf(false) }
     // 创作者数据是否处于整页编辑：为 true 时隐藏其它模块，只渲染可拖拽的编辑页。
     var editingCreatorData by remember { mutableStateOf(false) }
-    var refreshStartedAt by remember { mutableStateOf(0L) }
-    val refreshAnimation = rememberInfiniteTransition(label = "home_refresh_animation")
-    val refreshRotation by refreshAnimation.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 900, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "home_refresh_rotation",
-    )
-    // 即使网络请求瞬间完成，刷新动画也至少保持 1 秒，避免图标一闪而过。
-    LaunchedEffect(loading) {
-        if (loading) {
-            refreshStartedAt = System.currentTimeMillis()
-            showRefreshAnimation = true
-        } else if (showRefreshAnimation) {
-            val elapsed = System.currentTimeMillis() - refreshStartedAt
-            delay((1000L - elapsed).coerceAtLeast(0L))
-            showRefreshAnimation = false
-        }
-    }
 
     // 首页是根页面：首次进入时清掉 Compose 可能恢复的旧滚动位置，确保顶部模块可见。
     // 只执行一次，返回创作者详情页后不会因为重组而把用户滚动位置拉回顶部。
@@ -156,13 +122,8 @@ fun HomeScreen(
                         color = blurBarColor(backdrop), scrollBehavior = scrollBehavior,
                         actions = {
                             if (!editingCreatorData) {
-                                IconButton(onClick = viewModel::refresh) {
-                                    Icon(
-                                        MiuixIcons.Refresh,
-                                        contentDescription = null,
-                                        modifier = Modifier.rotate(if (showRefreshAnimation) refreshRotation else 0f),
-                                    )
-                                }
+                                // 顶栏刷新按钮：转圈动画与最短转圈时长均内聚在 RefreshButton 内
+                                RefreshButton(refreshing = loading, onClick = viewModel::refresh)
                             }
                         },
                     )
