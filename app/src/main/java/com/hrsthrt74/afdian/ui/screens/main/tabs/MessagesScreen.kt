@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,7 +51,11 @@ import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import top.yukonga.miuix.kmp.basic.Badge
+import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -64,17 +69,26 @@ import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Community
+import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
+import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Redo
 import top.yukonga.miuix.kmp.icon.extended.Reply
 import top.yukonga.miuix.kmp.icon.extended.Undo
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
+import top.yukonga.miuix.kmp.menu.WindowIconDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+// 爱发电官方客服音酱的信息
+private const val AFDIAN_CUSTOMER_SERVICE_ID = "27f7cea2370d11e8ae8852540025c377"
+private  const val AFDIAN_CUSTOMER_SERVICE_AVATAR = "https://pic1.afdiancdn.com/user/27f7cea2370d11e8ae8852540025c377/avatar/2d9659585fc4798068efbb652e56c08a.jpg"
 
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
@@ -90,6 +104,9 @@ fun MessagesScreen(
     val showUnreadOnly by viewModel.showUnreadOnly.collectAsState()
     val showRecentOnly by viewModel.showRecentOnly.collectAsState()
     val showSponsorDetail by viewModel.showSponsorDetail.collectAsState()
+    // 未读评论/喜欢数（来自 /api/my/check），显示在三点菜单对应项的图标徽标上
+    val unreadCommentCount by viewModel.unreadCommentCount.collectAsState()
+    val unreadLikeCount by viewModel.unreadLikeCount.collectAsState()
 
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
@@ -138,7 +155,75 @@ fun MessagesScreen(
                 TopAppBar(
                     title = "消息",
                     color = blurBarColor(backdrop),
-                    scrollBehavior = scrollBehavior
+                    scrollBehavior = scrollBehavior,
+                    actions = {
+                        // 右上角三点菜单：快捷入口（两组，组间自动带分割线）
+                        WindowIconDropdownMenu(
+                            entries = listOf(
+                                // 第一组：收到的评论 / 收到的喜欢（列表页尚未实现，点击暂时留空）
+                                DropdownEntry(
+                                    items = listOf(
+                                        // 收到的评论：图标带未读数徽标
+                                        DropdownItem(
+                                            text = "收到的评论",
+                                            icon = {
+                                                MenuIconWithBadge(
+                                                    it,
+                                                    icon = MiuixIcons.Regular.Community,
+                                                    badgeCount = unreadCommentCount,
+                                                )
+                                            },
+                                            onClick = { /* TODO: 跳转收到的评论列表页 */ },
+                                        ),
+                                        // 收到的喜欢：图标带未读数徽标
+                                        DropdownItem(
+                                            text = "收到的喜欢",
+                                            icon = {
+                                                MenuIconWithBadge(
+                                                    it,
+                                                    icon = MiuixIcons.Regular.Favorites,
+                                                    badgeCount = unreadLikeCount,
+                                                )
+                                            },
+                                            onClick = { /* TODO: 跳转收到的喜欢列表页 */ },
+                                        ),
+                                    ),
+                                ),
+                                // 第二组：官方客服对话，与社区通知分组隔开
+                                DropdownEntry(
+                                    items = listOf(
+                                        // 客服对话固定跳转；名字与头像用官方客服音酱的信息
+                                        DropdownItem(
+                                            text = "爱发电客服",
+                                            icon = {
+                                                MenuIconWithBadge(it, icon = MiuixIcons.Regular.ContactsCircle)
+                                            },
+                                            onClick = {
+                                                onNavigate(
+                                                    Route.MessageConversation(
+                                                        userId = AFDIAN_CUSTOMER_SERVICE_ID,
+                                                        userName = "爱发电客服",
+                                                        avatarUrl = AFDIAN_CUSTOMER_SERVICE_AVATAR
+                                                    )
+                                                )
+                                            }
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ) {
+                            // 三点图标；评论/喜欢任一有未读时右上角叠 miuix 小红点（Badge 不传内容即纯点）
+                            BadgedBox(
+                                badge = {
+                                    if (unreadCommentCount > 0 || unreadLikeCount > 0) {
+                                        Badge(containerColor = MiuixTheme.colorScheme.primary)
+                                    }
+                                },
+                            ) {
+                                Icon(imageVector = MiuixIcons.More, contentDescription = "更多")
+                            }
+                        }
+                    },
                 )
             }
             }
@@ -308,6 +393,39 @@ fun MessagesScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/* 三点菜单项图标:
+* ╭────────╮
+* │ icon ② │   ② = 未读数徽标（badgeCount 为 0 时不显示）
+* ╰────────╯
+* */
+@Composable
+private fun MenuIconWithBadge(
+    iconSlot: Modifier,
+    icon: ImageVector,
+    badgeCount: Int = 0,
+) {
+    // iconSlot 由 miuix Dropdown 提供（最小 26dp 方形 + 右侧 12dp 间距），作为容器
+    Box(modifier = iconSlot) {
+        // 图标 + 右上角未读数徽标；badgeCount 为 0 时不渲染徽标，仅剩图标
+        BadgedBox(
+            badge = {
+                if (badgeCount > 0) {
+                    // miuix 数字徽标：默认 error 红底白字，右上角定位由 BadgedBox 处理
+                    Badge(containerColor = MiuixTheme.colorScheme.primary, contentColor = MiuixTheme.colorScheme.onPrimary) { Text("$badgeCount") }
+                }
+            },
+            modifier = Modifier.align(Alignment.CenterStart),
+        ) {
+            // 菜单项图标：显式 onSurface，与菜单文字色一致
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.onSurface,
+            )
         }
     }
 }

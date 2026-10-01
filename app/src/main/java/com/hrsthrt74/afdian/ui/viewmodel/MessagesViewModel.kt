@@ -87,6 +87,16 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         .map { it.unreadMessageNum > 0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    /** 未读评论数（check 接口 unread_count.comment），用于消息页三点菜单「收到的评论」徽标 */
+    val unreadCommentCount: StateFlow<Int> = _checkData
+        .map { it.unreadComment }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    /** 未读喜欢数（check 接口 unread_count.like），用于消息页三点菜单「收到的喜欢」徽标 */
+    val unreadLikeCount: StateFlow<Int> = _checkData
+        .map { it.unreadLike }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     private var currentPage = 1
     private var _hasMoreRaw = true
     private var isLoadingInternal = false
