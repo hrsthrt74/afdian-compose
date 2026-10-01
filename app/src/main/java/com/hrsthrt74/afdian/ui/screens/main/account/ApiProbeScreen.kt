@@ -3,7 +3,6 @@ package com.hrsthrt74.afdian.ui.screens.main.account
 import android.app.Application
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,6 +50,8 @@ import com.hrsthrt74.afdian.data.probe.Highlight
 import com.hrsthrt74.afdian.data.storage.formatBytes
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
+import com.hrsthrt74.afdian.ui.components.basic.CardActionBar
+import com.hrsthrt74.afdian.ui.components.basic.CardActionBarItem
 import com.hrsthrt74.afdian.ui.components.basic.CopyButton
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
@@ -267,8 +268,9 @@ fun ApiProbeScreen(
                             ApiProbeCard(
                                 card = card,
                                 onRun = { viewModel.runOne(card.spec.id) },
+                                // 震动不在回调里做:操作栏列的触觉由 CardActionBar 内置,
+                                // 整卡点击的触觉在 ApiProbeCard 的 Card(onClick) 里补,避免详情列双震
                                 onOpenDetail = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     lastDetailCard = card
                                     detailProbeId = card.spec.id
                                 },
@@ -365,22 +367,23 @@ private fun ApiProbeCard(
     onOpenDetail: () -> Unit,
 ) {
     val result = card.result
-    // 操作栏点击的轻触觉反馈：先震动再执行动作（手感与 AffiliateCard 一致）
+    // 整卡点击的触觉在这里补:操作栏列的震动已由 CardActionBar 内置,
+    // 详情列走的是裸 onOpenDetail,若在回调里震动会双震
     val haptic = LocalHapticFeedback.current
-    fun hapticThen(action: () -> Unit): () -> Unit = {
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        action()
-    }
 
     // 整卡可点但不下沉：Miuix Card(onClick) 的 pressFeedbackType 默认 None
     Card(
-        onClick = onOpenDetail,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onOpenDetail()
+        },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .padding(bottom = 12.dp),
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp, 16.dp, 16.dp, 0.dp)) {
+        // 内容区 bottom padding 12dp：分隔线改由操作栏组件内置后，在这里保住原来的间隔
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp, 16.dp, 16.dp, 12.dp)) {
             // ① 标题行：接口语义名 + 运行状态
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -484,64 +487,27 @@ private fun ApiProbeCard(
                 }
             }
 
-            // ⑤ 操作栏上方的分隔线：在内容区内边距里，骨架与 ③ 一致
-            HorizontalDivider(
-                modifier = Modifier.padding(top = 12.dp),
-                color = MiuixTheme.colorScheme.dividerLine,
-            )
+            // ⑤ 内容区到此结束，操作栏自带的分割线直接贴在下方
         }
 
-        // ⑥ 底部操作栏：刷新 / 详情，两列均分（照 AffiliateCard 的操作栏形态）
-        Row(modifier = Modifier.fillMaxWidth()) {
-            // ── 第 1 列：刷新（单独重跑该接口）──
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = hapticThen(onRun))
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 刷新图标
-                    Icon(
-                        imageVector = MiuixIcons.Demibold.Refresh,
-                        contentDescription = "刷新",
-                        modifier = Modifier.size(18.dp),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "刷新",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                }
-            }
-            // ── 第 2 列：详情（打开详情 Sheet；震动由 onOpenDetail 统一处理）──
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = onOpenDetail)
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 详情图标
-                    Icon(
-                        imageVector = MiuixIcons.Demibold.Info,
-                        contentDescription = "详情",
-                        modifier = Modifier.size(18.dp),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "详情",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                }
-            }
-        }
+        // ⑥ 底部操作栏：刷新 / 详情，两列均分（通用 CardActionBar，触觉、热区、分割线由组件内置）
+        CardActionBar(
+            items = listOf(
+                // ── 刷新：单独重跑该接口 ──
+                CardActionBarItem(
+                    icon = MiuixIcons.Demibold.Refresh,
+                    label = "刷新",
+                    onClick = onRun,
+                ),
+                // ── 详情：打开详情 Sheet（触觉由组件内置，不重复 onOpenDetail 整卡路径的震动）──
+                CardActionBarItem(
+                    icon = MiuixIcons.Demibold.Info,
+                    label = "详情",
+                    onClick = onOpenDetail,
+                ),
+            ),
+            showDivider = true,
+        )
     }
 }
 

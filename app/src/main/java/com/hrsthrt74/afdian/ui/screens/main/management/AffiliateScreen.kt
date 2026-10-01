@@ -7,7 +7,6 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,6 +41,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.Affiliate
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
+import com.hrsthrt74.afdian.ui.components.basic.CardActionBar
+import com.hrsthrt74.afdian.ui.components.basic.CardActionBarItem
 import com.hrsthrt74.afdian.ui.components.basic.CopyButton
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
@@ -316,14 +316,6 @@ private fun AffiliateCard(
     onEdit: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    // 点击操作栏时的轻触觉反馈，手感与 PostActionBar 保持一致
-    val haptic = LocalHapticFeedback.current
-    // 先震动再触发动作（表达式体的这层大括号就是返回的 lambda，不要再包一层）
-    fun hapticThen(action: () -> Unit): () -> Unit = {
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        action()
-    }
-
     Card(modifier = modifier.fillMaxWidth()) {
         Column {
             // 头部：优惠码本体 + 复制按钮；右上角是生效开关与状态文案
@@ -374,75 +366,37 @@ private fun AffiliateCard(
 
             HorizontalDivider(modifier = Modifier.padding(16.dp, 8.dp))
 
-            // 信息区
+            // 信息区（bottom padding 16dp：分割线改由操作栏组件内置后，在这里保住原间隔）
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(16.dp, 8.dp)) {
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 16.dp)) {
                 AffiliateInfoRow(label = "折扣", value = affiliate.discountLabel())
                 AffiliateInfoRow(label = "适用范围", value = affiliate.planLabel())
                 AffiliateInfoRow(label = "已使用", value = affiliate.usedLabel())
                 AffiliateInfoRow(label = "有效期", value = affiliate.periodRangeLabel())
             }
 
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 8.dp))
-
-            // 底部操作栏（照 PostActionBar）：编辑 / 生成链接，两列均分
-            Row(modifier = Modifier.fillMaxWidth()) {
-                // ── 第 1 列：编辑 ──
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(onClick = hapticThen(onEdit))
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = MiuixIcons.Demibold.Edit,
-                            contentDescription = "编辑",
-                            modifier = Modifier.size(18.dp),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = "编辑",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                    }
-                }
-                // ── 第 2 列：生成链接（slug 未就绪时置灰且不可点）──
-                val linkTint = if (link != null) {
-                    MiuixTheme.colorScheme.primary
-                } else {
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(
-                            enabled = link != null,
-                            onClick = hapticThen { link?.let(onGenerateLink) },
-                        )
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = MiuixIcons.Demibold.Link,
-                            contentDescription = "生成链接",
-                            modifier = Modifier.size(18.dp),
-                            tint = linkTint,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = "生成链接",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = linkTint,
-                        )
-                    }
-                }
-            }
+            // 底部操作栏：编辑 / 生成链接，两列均分（通用 CardActionBar，触觉、热区、分割线由组件内置）
+            // slug 就绪才有生成动作；显式声明局部变量，避免嵌套 lambda 的类型推断歧义
+            val generateLinkAction: (() -> Unit)? = link?.let { url -> { onGenerateLink(url) } }
+            CardActionBar(
+                items = listOf(
+                    // ── 编辑：打开编辑面板 ──
+                    CardActionBarItem(
+                        icon = MiuixIcons.Demibold.Edit,
+                        label = "编辑",
+                        onClick = onEdit,
+                    ),
+                    // ── 生成链接：slug 未就绪时置灰不可点（onClick/tint 留空 = 次要色纯展示）──
+                    CardActionBarItem(
+                        icon = MiuixIcons.Demibold.Link,
+                        label = "生成链接",
+                        tint = if (link != null) MiuixTheme.colorScheme.primary else null,
+                        onClick = generateLinkAction,
+                    ),
+                ),
+                showDivider = true,
+            )
         }
     }
 }

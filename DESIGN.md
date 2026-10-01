@@ -103,6 +103,7 @@ Text(
 - 加载失败 / 错误态 → `ErrorStateView`（预设「加载失败」+ 重试按钮，见「空状态 / 错误态」一节）
 - 复制按钮 → `CopyButton`（震动 + 写剪贴板 + 图标切 Ok + Toast，异步反馈全在内部；字重用 `iconWeight`，档位 `MiuixIconWeight.Light/Normal/Regular/Medium/Demibold`，默认 `Regular`）
 - 动态卡片 → `PostCard`
+- 卡片底部操作栏 → `CardActionBar`（N 个动作均分一行，「图标 + 文字」居中，触觉先震后动；`onClick = null` 表示纯展示/禁用，视觉为次要色；激活态由调用方显式传 `primary`，`tint = null` 为次要色。带点赞/收藏业务状态时用 `PostActionBar`，不要手写均分列底栏）
 - 环形占比图 → `DonutChart`（`ui/components/data/DonutChart.kt`，基于 Vico；圆心可放内容；颜色由调用方按业务含义固定给出，不要按扇区下标轮转取色；`minSweepDegrees` 保证小占比分类也看得见，默认 5 度）
 - 创作者卡（长条形） → `CreatorListItem`
 - 创作者卡（矩形） → `CreatorLargeCard` / `CreatorSmallCard`

@@ -1,30 +1,16 @@
 package com.hrsthrt74.afdian.ui.components.post
 
-import android.util.Log
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.RecommendedPost
+import com.hrsthrt74.afdian.ui.components.basic.CardActionBar
+import com.hrsthrt74.afdian.ui.components.basic.CardActionBarItem
 import com.hrsthrt74.afdian.ui.viewmodel.PostInteractionController
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Favorites
@@ -32,13 +18,12 @@ import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 动态操作栏：三列均分布局（点赞 / 评论 / 收藏），
- * 每个动作占一个等宽 Box，图标 + 文字居中排列。
+ * 动态操作栏：三列均分（点赞 / 评论 / 收藏）。
  *
- * 从 PostCard 提取出来的公共组件，动态详情页底部也复用同一套操作栏。
+ * 视觉骨架（均分列、图标 + 文字、触觉、点击热区）统一由 basic 的 [CardActionBar] 渲染，
+ * 本组件只保留动态互动的业务部分：读写全局 [PostInteractionController] 单例、点赞数乐观 ±1。
  *
- * 点赞/收藏逻辑内置：组件直接读写全局的 [PostInteractionController] 单例，
- * 任何页面（发现页/收藏页/个人主页/详情页）不传回调也能直接点赞收藏，
+ * 点赞/收藏逻辑内置：任何页面（发现页/收藏页/个人主页/详情页）不传回调也能直接点赞收藏，
  * 状态跨页面自动同步。外部参数仅作覆盖用（默认不需要传）。
  *
  * @param post 动态数据（点赞数 / 评论数 / 服务端点赞状态）
@@ -73,97 +58,35 @@ fun PostActionBar(
         else -> 0
     }
     val commentCount = post.comment_count ?: 0
-    // 点击操作栏时的轻触觉反馈（TextHandleMove：短促轻微，适合点赞/收藏这类高频操作）；
-    // 放在组件内部，列表卡片和详情页的底栏共用同一份手感
-    val haptic = LocalHapticFeedback.current
-
-    /**
-     * 先震动再触发动作（外部覆盖回调优先，否则走全局 toggle）。
-     * ⚠️ 注意：返回类型是 () -> Unit，表达式体的这层大括号【就是】返回的 lambda，
-     * 里面不能再包一层 {} —— 多套一层会变成「返回一个被丢弃的内层 lambda」，
-     * 整个函数退化成空操作（之前点击全部失效就是这个原因）。
-     */
-    fun hapticThen(action: () -> Unit): () -> Unit = {
-        Log.d("PostActionBar", "操作栏点击: post=${post.id}")
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        action()
-    }
+    // 外部覆盖回调优先，否则走全局 toggle（触觉由 CardActionBar 内置，这里不用包）
     val likeAction = onLikeToggle ?: { interactions.toggleLike(post.id) }
     val markAction = onMarkToggle ?: { interactions.toggleMark(post.id) }
 
-    Row(modifier = Modifier.fillMaxWidth()) {
-        // ── 第 1 列：点赞 ──
-        val likeIcon = if (likedNow) MiuixIcons.FavoritesFill else MiuixIcons.Favorites
-        val likeTint = if (likedNow) MiuixTheme.colorScheme.primary
-        else MiuixTheme.colorScheme.onSurfaceVariantSummary
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = hapticThen(likeAction))
-                // padding 放在 clickable 之后：内边距也算进点击热区
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = likeIcon,
-                    contentDescription = if (likedNow) "取消点赞" else "点赞",
-                    modifier = Modifier.size(18.dp),
-                    tint = likeTint,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "$likeCount", style = MiuixTheme.textStyles.footnote1, color = likeTint)
-            }
-        }
-        // ── 第 2 列：评论 ──
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                // 与两侧保持同样的内边距，保证三列高度一致
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = MiuixIcons.Community,
-                    contentDescription = "评论",
-                    modifier = Modifier.size(18.dp),
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "$commentCount",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
-            }
-        }
-        // ── 第 3 列：收藏（没有计数，直接显示「收藏」二字）──
-        val markIcon = if (markedNow) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder
-        val markTint = if (markedNow) MiuixTheme.colorScheme.primary
-        else MiuixTheme.colorScheme.onSurfaceVariantSummary
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = hapticThen(markAction))
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = markIcon,
-                    contentDescription = if (markedNow) "取消收藏" else "收藏",
-                    modifier = Modifier.size(18.dp),
-                    tint = markTint,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "收藏",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = markTint,
-                )
-            }
-        }
-    }
+    // 视觉与交互全部委托通用操作栏：激活列亮主色，评论列纯展示不可点
+    CardActionBar(
+        items = listOf(
+            // ── 点赞：图标随状态在描边/实心间切换，文字显示乐观计数 ──
+            CardActionBarItem(
+                icon = if (likedNow) MiuixIcons.FavoritesFill else MiuixIcons.Favorites,
+                label = "$likeCount",
+                tint = if (likedNow) MiuixTheme.colorScheme.primary else null,
+                contentDescription = if (likedNow) "取消点赞" else "点赞",
+                onClick = likeAction,
+            ),
+            // ── 评论：仅展示计数，onClick 留空 = 纯展示不可点 ──
+            CardActionBarItem(
+                icon = MiuixIcons.Community,
+                label = "$commentCount",
+                contentDescription = "评论",
+            ),
+            // ── 收藏：没有计数，直接显示「收藏」二字 ──
+            CardActionBarItem(
+                icon = if (markedNow) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                label = "收藏",
+                tint = if (markedNow) MiuixTheme.colorScheme.primary else null,
+                contentDescription = if (markedNow) "取消收藏" else "收藏",
+                onClick = markAction,
+            ),
+        ),
+    )
 }
-
