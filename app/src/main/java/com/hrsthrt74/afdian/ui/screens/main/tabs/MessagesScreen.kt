@@ -159,6 +159,9 @@ fun MessagesScreen(
                     actions = {
                         // 右上角三点菜单：快捷入口（两组，组间自动带分割线）
                         WindowIconDropdownMenu(
+                            // 多组重载的 collapseOnSelection 默认为 false（entries.size <= 1 才默认收起），
+                            // 必须显式开启，否则点击菜单项（如跳转客服会话）后弹层不会自动收起
+                            collapseOnSelection = true,
                             entries = listOf(
                                 // 第一组：收到的评论 / 收到的喜欢（列表页尚未实现，点击暂时留空）
                                 DropdownEntry(
@@ -202,7 +205,8 @@ fun MessagesScreen(
                                                 onNavigate(
                                                     Route.MessageConversation(
                                                         userId = AFDIAN_CUSTOMER_SERVICE_ID,
-                                                        userName = "爱发电客服",
+                                                        // 会话页标题/历史记录用官方名「Lain音酱」，菜单项仍显示「爱发电客服」
+                                                        userName = "Lain音酱",
                                                         avatarUrl = AFDIAN_CUSTOMER_SERVICE_AVATAR
                                                     )
                                                 )
