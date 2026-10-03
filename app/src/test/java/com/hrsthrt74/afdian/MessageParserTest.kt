@@ -11,6 +11,7 @@ import com.hrsthrt74.afdian.data.content.resolveTextContent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,6 +32,118 @@ class MessageParserTest {
         assertEquals("顺丰", notice.courier)
         assertEquals("https://afdian.com/order/1", notice.detailUrl)
     }
+
+    @Test
+    fun complaintTextParsesOrderAndComplaintNumbers() {
+        // 普通投诉真实模板（脱敏）：标题 → 投诉单号 → 留言 → 时间 → 金额 → 订单号 → 详情链接
+        val result = resolveTextContent(
+            """
+            用户在微信发起投诉，该笔订单会暂时冻结，用户不再投诉之后10天自动解冻，请在24小时内回复并联系用户撤诉，如超期可能会影响你正常收款：
+            200000020261003140524969289
+            我在爱发电曾经购买过应用，但是现在我不知道这个账号所对应的电话号码或是邮箱是什么了，现在只能看到微信付款记录
+            2026-10-03 14:35:28
+            4.99
+            20260308092607102985354573
+            https://ifdian.net/u/c37c94763a8d11f1bf6452540325c347
+            """.trimIndent(),
+            messageType = 1,
+        )
+
+        val notice = (result as MessageContent.Complaint).notice
+        assertEquals("微信", notice.platform)
+        assertFalse(notice.isUpgradeComplaint)
+        // 此前订单号与投诉单号恰好取反，此处锁定正确映射
+        assertEquals("200000020261003140524969289", notice.complaintNo)
+        assertEquals("20260308092607102985354573", notice.orderNo)
+        assertEquals(
+            "我在爱发电曾经购买过应用，但是现在我不知道这个账号所对应的电话号码或是邮箱是什么了，现在只能看到微信付款记录",
+            notice.message,
+        )
+        assertEquals("2026-10-03 14:35:28", notice.time)
+        assertEquals("4.99", notice.amount)
+        assertEquals("https://ifdian.net/u/c37c94763a8d11f1bf6452540325c347", notice.detailUrl)
+    }
+
+    @Test
+    fun upgradeComplaintTextParsesReasonAndDescription() {
+        // 升级投诉真实模板（脱敏）：详情链接夹在时间与金额之间，订单号在最后一行
+        val result = resolveTextContent(
+            """
+            用户在微信发起投诉，该笔订单会暂时冻结，用户不再投诉之后10天自动解冻，请在24小时内回复并联系用户撤诉，如超期可能会影响你正常收款：
+            200000020260518000574655634
+            用户升级投诉原因：商家响应不及时
+            用户升级投诉描述：不理我也根本没用我不行了
+            2026-05-18 14:34:14
+            https://afdian.com/u/8cdb4354ac5d11f199ea93450025c254
+            9.99
+            202605162331261014957937133
+            """.trimIndent(),
+            messageType = 1,
+        )
+
+        val notice = (result as MessageContent.Complaint).notice
+        assertTrue(notice.isUpgradeComplaint)
+        assertEquals("200000020260518000574655634", notice.complaintNo)
+        assertEquals("商家响应不及时", notice.reason)
+        assertEquals("不理我也根本没用我不行了", notice.description)
+        assertEquals("2026-05-18 14:34:14", notice.time)
+        assertEquals("https://afdian.com/u/8cdb4354ac5d11f199ea93450025c254", notice.detailUrl)
+        assertEquals("9.99", notice.amount)
+        assertEquals("202605162331261014957937133", notice.orderNo)
+        // 升级投诉模板没有留言字段
+        assertNull(notice.message)
+    }
+
+    @Test
+    fun upgradeComplaintWithoutReasonLineStillParses() {
+        // 「原因」行可能缺省（直接从描述行开始），逐行特征解析不受行号偏移影响
+        val result = resolveTextContent(
+            """
+            用户在微信发起投诉，该笔订单会暂时冻结，用户不再投诉之后10天自动解冻，请在24小时内回复并联系用户撤诉，如超期可能会影响你正常收款：
+            200000020260518000574655634
+            用户升级投诉描述：不理我也根本没用我不行了
+            2026-05-18 14:34:14
+            https://afdian.com/u/8cdb4354ac5d11f199ea93450025c254
+            9.99
+            202605162331261014957937133
+            """.trimIndent(),
+            messageType = 1,
+        )
+
+        val notice = (result as MessageContent.Complaint).notice
+        assertNull(notice.reason)
+        assertEquals("不理我也根本没用我不行了", notice.description)
+        assertEquals("2026-05-18 14:34:14", notice.time)
+        assertEquals("9.99", notice.amount)
+        assertEquals("202605162331261014957937133", notice.orderNo)
+    }
+
+    @Test
+    fun complaintAmountRestoresMissingDecimalPoint() {
+        fun amountOf(amount: String): String? =
+            (resolveTextContent(complaintText(amount), messageType = 1) as MessageContent.Complaint).notice.amount
+
+        // 丢失小数点：末两位还原为小数
+        assertEquals("4.99", amountOf("499"))
+        assertEquals("100.00", amountOf("10000"))
+        // 不足两位时前面补 0
+        assertEquals("0.50", amountOf("50"))
+        assertEquals("0.05", amountOf("5"))
+        // 已带小数点的金额原样保留
+        assertEquals("4.99", amountOf("4.99"))
+    }
+
+    /** 构造普通投诉模板文本（脱敏），金额行可替换，便于金额规范化断言。 */
+    private fun complaintText(amount: String): String =
+        """
+        用户在微信发起投诉，该笔订单会暂时冻结，用户不再投诉之后10天自动解冻，请在24小时内回复并联系用户撤诉，如超期可能会影响你正常收款：
+        200000020261003140524969289
+        我在爱发电曾经购买过应用
+        2026-10-03 14:35:28
+        $amount
+        20260308092607102985354573
+        https://ifdian.net/u/c37c94763a8d11f1bf6452540325c347
+        """.trimIndent()
 
     @Test
     fun specialTextTypesKeepTheirOriginalMeaning() {

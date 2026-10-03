@@ -24,6 +24,18 @@ private const val TYPE_PURCHASE_REPLY = 4  // 购买成功后对方系统自动�
 private const val TYPE_AUTO_SENT = 7       // 系统自动发出的消息（FAQ 等场景）
 private const val COMPLAINT_MARKER = "该笔订单会暂时冻结"
 
+/** 投诉通知的时间行，如 2026-05-18 14:34:14。 */
+private val COMPLAINT_TIME_REGEX = Regex("""\d{4}-\d{1,2}-\d{1,2}[ T]\d{1,2}:\d{2}(:\d{2})?""")
+
+/** 金额行：短数字或带小数点数字；服务器丢失小数点时形如 499。 */
+private val COMPLAINT_AMOUNT_REGEX = Regex("""\d{1,10}(\.\d{1,2})?""")
+
+/** 投诉单号/订单号的最短位数（实际约 26 位），远长于金额，用于区分超长纯数字行。 */
+private const val COMPLAINT_LONG_DIGITS_MIN = 15
+
+/** 详情链接提取：除空白与右括号外连续取字符，避免截断带参数的 URL。 */
+private val COMPLAINT_URL_REGEX = Regex("https?://[^\\s\\])]+")
+
 /** 将发货系统文本转换成结构化通知；未命中固定前缀时返回 null。 */
 private fun tryParseShipmentNotice(text: String): ShipmentNotice? {
     if (!text.startsWith(SHIPMENT_PREFIX)) return null
@@ -76,32 +88,89 @@ private fun tryParseComplaintNotice(text: String): ComplaintNotice? {
         else -> null
     }
     val isUpgradeComplaint = text.contains("升级投诉")
+    // 首行是固定标题，跳过；其余行按内容特征逐行分类
     val lines = text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.drop(1).toList()
-    val timeIndex = if (isUpgradeComplaint) 3 else 2
-    val amountIndex = if (isUpgradeComplaint) 4 else 3
-    val complaintNoIndex = if (isUpgradeComplaint) 5 else 4
-    val upgradeReason = lines.getOrNull(1)
-        ?.removePrefix("用户升级投诉原因：")
-        ?.removePrefix("用户升级投诉原因:")
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
-    val upgradeDescription = lines.getOrNull(2)
-        ?.removePrefix("用户升级投诉描述：")
-        ?.removePrefix("用户升级投诉描述:")
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
+
+    var complaintNo: String? = null
+    var orderNo: String? = null
+    var amount: String? = null
+    var time: String? = null
+    var detailUrl: String? = null
+    var reason: String? = null
+    var description: String? = null
+    // 不匹配任何特征的自由文本行视为留言（仅普通投诉模板存在）
+    val messageLines = mutableListOf<String>()
+    // 投诉单号与订单号都是约 26 位的纯数字行，按出现顺序区分：第 1 个是投诉单号，第 2 个是订单号
+    var longDigitCount = 0
+
+    // 按行特征分类而非固定行号：升级投诉的「原因」行可能缺省，
+    // 且详情链接行在两种模板中的位置也不同，固定索引会取错字段
+    for (line in lines) {
+        when {
+            line.startsWith("用户升级投诉原因") ->
+                reason = stripComplaintLabel(line, "用户升级投诉原因")
+            line.startsWith("用户升级投诉描述") ->
+                description = stripComplaintLabel(line, "用户升级投诉描述")
+            COMPLAINT_TIME_REGEX.matches(line) -> time = line
+            line.startsWith("http") ->
+                detailUrl = COMPLAINT_URL_REGEX.find(line)?.value ?: line
+            line.all { it.isDigit() } && line.length >= COMPLAINT_LONG_DIGITS_MIN -> {
+                longDigitCount++
+                if (longDigitCount == 1) complaintNo = line else orderNo = line
+            }
+            // 金额行必然出现在时间行之后，提前约束避免留言里的短数字被误判为金额
+            time != null && COMPLAINT_AMOUNT_REGEX.matches(line) ->
+                amount = normalizeComplaintAmount(line)
+            else -> messageLines += line
+        }
+    }
+
     return ComplaintNotice(
         platform = platform,
         isUpgradeComplaint = isUpgradeComplaint,
-        orderNo = lines.getOrNull(0),
-        message = lines.getOrNull(1).takeUnless { isUpgradeComplaint },
-        reason = upgradeReason.takeIf { isUpgradeComplaint },
-        description = upgradeDescription.takeIf { isUpgradeComplaint },
-        time = lines.getOrNull(timeIndex),
-        amount = lines.getOrNull(amountIndex),
-        complaintNo = lines.getOrNull(complaintNoIndex),
-        detailUrl = Regex("https?://[^\\s\\])]+").find(text)?.value,
+        orderNo = orderNo,
+        // 升级投诉模板没有留言，自由文本行仅在普通投诉时输出；多行留言按换行拼接
+        message = messageLines
+            .takeUnless { isUpgradeComplaint }
+            ?.joinToString("\n")
+            ?.takeIf { it.isNotEmpty() },
+        reason = reason,
+        description = description,
+        time = time,
+        amount = amount,
+        complaintNo = complaintNo,
+        detailUrl = detailUrl,
     )
+}
+
+/** 去掉「用户升级投诉原因：」类标签前缀（兼容半角冒号）；标签后内容为空时返回 null。 */
+private fun stripComplaintLabel(line: String, label: String): String? =
+    line.removePrefix(label)
+        .removePrefix("：").removePrefix(":")
+        .trim()
+        .takeIf { it.isNotEmpty() }
+
+/**
+ * 规范化投诉金额：爱发电服务器可能丢失小数点（如 4.99 返回成 499），
+ * 无小数点时按「末两位为小数」还原（499 → 4.99、50 → 0.50、5 → 0.05）。
+ * 先剥离可能混入的货币符号与千分位逗号；清洗后非纯数字的异常文本原样返回，避免误伤。
+ */
+private fun normalizeComplaintAmount(raw: String): String {
+    // 去除首尾空白、货币符号（¥/￥）与千分位逗号，只留数字与小数点
+    val cleaned = raw.trim()
+        .removePrefix("¥").removePrefix("￥")
+        .replace(",", "")
+    if (cleaned.isEmpty()) return raw.trim()
+    // 已带小数点说明金额格式正常，直接返回清洗结果
+    if (cleaned.contains('.')) return cleaned
+    // 清洗后不是纯数字的异常文本不做猜测，原样返回
+    if (cleaned.any { !it.isDigit() }) return raw.trim()
+    // 无小数点：按末两位还原小数；不足两位时前面补 0
+    return when (cleaned.length) {
+        1 -> "0.0$cleaned"
+        2 -> "0.$cleaned"
+        else -> "${cleaned.dropLast(2)}.${cleaned.takeLast(2)}"
+    }
 }
 
 /** 订单 ext 中的兑换码、收货地址和优惠码信息。 */

@@ -566,8 +566,9 @@ fun ComplaintCard(
                     ShipmentFieldRow("升级投诉描述", it, upgradeTextColor)
                 }
                 complaint.time?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("投诉时间", it) }
-                complaint.orderNo?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("订单号", it) }
+                // 投诉单号在前、订单号在后，与通知模板的行序保持一致
                 complaint.complaintNo?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("投诉单号", it) }
+                complaint.orderNo?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("订单号", it) }
             }
 
             Column{
