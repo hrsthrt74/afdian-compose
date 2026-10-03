@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -138,6 +139,24 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         )
     )
     val backStack = rememberNavBackStack<Route>(Route.MainTabs)
+
+    // 从会话页返回对话列表时刷新一次消息列表。
+    // 消息页常驻 Pager 中，会话页 pop 回来时列表不会重新组合，只能靠监听返回栈感知返回时机：
+    // 仅当「栈顶从会话页变回主 Tab」时触发；会话页再跳创作者主页等更深页面不算返回列表，
+    // 从历史页进入会话再返回历史页同样不触发（此时消息列表不可见）。
+    // 用返回栈而不是给会话页 onBack 加钩子，是因为返回路径有三条以上（返回按钮/手势/预测性返回），集中监听不会漏。
+    var lastTopRoute by remember { mutableStateOf(backStack.lastOrNull()) }
+    LaunchedEffect(backStack) {
+        snapshotFlow { backStack.lastOrNull() }
+            .collect { top ->
+                val previous = lastTopRoute
+                lastTopRoute = top
+                if (previous is Route.MessageConversation && top is Route.MainTabs) {
+                    AppLog.d("MainScreen", "从会话页返回对话列表，刷新消息列表")
+                    messagesViewModel.refresh()
+                }
+            }
+    }
 
     // 高级过渡动画开关：订阅设置后写入全局状态，由 CreatorDetailTransition 运行时切换
     val context = LocalContext.current
