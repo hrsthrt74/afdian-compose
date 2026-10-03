@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,7 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.LinkInteractionListener
@@ -33,8 +33,8 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
+import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.ui.components.post.normalizeImageUrl
 import org.jsoup.Jsoup
@@ -227,11 +227,11 @@ private fun InlineParagraph(nodes: List<Node>, onUrlClick: (String) -> Unit) {
 
 /** 把正文里五花八门的图片地址归一化成 Coil 能直接加载的 https 绝对地址（实现见 PostImageGrid.kt） */
 
-/** 正文图片：<img> 或 <figure> 里包的图片（可多张），宽度撑满、8dp 圆角 */@Composable
+/** 正文图片：<img> 或 <figure> 里包的图片（可多张），宽度撑满、16dp 圆角；加载中/失败显示占位块 */
+@Composable
 private fun HtmlImage(element: Element) {
     val scope = element.select("img").ifEmpty { element.getElementsByTag("img") }
     val images = if (element.tagName() == "img") listOf(element) else scope
-    val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         images.forEach { img ->
             // 一次取多个候选属性：部分编辑器/懒加载方案把真实地址放在 data-* 里
@@ -242,20 +242,39 @@ private fun HtmlImage(element: Element) {
                 AppLog.w("HtmlContent", "<img> 无可用地址，已跳过: ${img.outerHtml().take(200)}")
                 return@forEach
             }
-            val model = ImageRequest.Builder(context)
-                .data(normalizeImageUrl(raw))
-                .listener(
-                    // 失败落日志：URL 形态五花八门，排查「图挂了」时先看这里
-                    onError = { _, result ->
-                        AppLog.w("HtmlContent", "图片加载失败: $raw -> ${result.throwable.message}")
-                    },
-                )
-                .build()
-            AsyncImage(
-                model = model,
+            // 用 SubcomposeAsyncImage 而非 AsyncImage：图片高度自适应、加载完成前高度为 0，
+            // 普通 AsyncImage 就算铺占位背景也看不见；这里在加载中/失败时先渲染一块
+            // 固定 4:3 的占位块撑起高度，加载成功后再切换成真实图片（内存缓存命中时无闪烁）
+            SubcomposeAsyncImage(
+                model = normalizeImageUrl(raw),
                 contentDescription = img.attr("alt").ifBlank { null },
                 contentScale = ContentScale.FillWidth,
+                // 圆角统一裁在最外层，占位块和图片都吃到
                 modifier = Modifier.fillMaxWidth().squircleClip(cornerRadius = 16.dp),
+                // 加载中：统一占位底色（见 DESIGN.md「占位元素」），固定 4:3 撑出可见区域
+                loading = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(4f / 3f)
+                            .background(MiuixTheme.colorScheme.disabledSecondary),
+                    )
+                },
+                // 加载失败：保持同样的占位块，高度不塌陷，让用户知道「这里本来有张图」
+                error = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(4f / 3f)
+                            .background(MiuixTheme.colorScheme.disabledSecondary),
+                    )
+                },
+                // 加载成功：按 scope 默认参数渲染图片（FillWidth + 撑满宽度）
+                success = { SubcomposeAsyncImageContent(modifier = Modifier.fillMaxWidth()) },
+                // 失败落日志：URL 形态五花八门，排查「图挂了」时先看这里
+                onError = { state ->
+                    AppLog.w("HtmlContent", "图片加载失败: $raw -> ${state.result.throwable.message}")
+                },
             )
         }
         // 图注：footnote1 辅助色文本居中显示
