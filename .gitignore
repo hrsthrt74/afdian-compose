@@ -27,6 +27,7 @@ adb
 .agents
 .workbuddy
 .zcode
+/.zcodeignore
 
 # 签名文件
 *.jks
