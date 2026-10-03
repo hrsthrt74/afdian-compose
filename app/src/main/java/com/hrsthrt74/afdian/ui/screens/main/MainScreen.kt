@@ -496,6 +496,11 @@ private fun MainTabsContent(
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     var layoutReady by remember { mutableStateOf(false) }
+    // 发现页搜索面板是否激活（展开中/展开/收起中）：激活期间禁用 pager 横滑，
+    // 避免搜索面板跟着页面被拖走半截；由 DiscoverScreen 状态变化时上报。
+    // 用普通 remember 而非 saveable：进程重建时发现页搜索状态同样重置为关闭，
+    // 若恢复成 true 会让 pager 永久禁滑。
+    var discoverSearchActive by remember { mutableStateOf(false) }
 
     // Miuix Scaffold 的 PaddingValues 会在首轮测量后更新；等待两帧后再显示，
     // 避免用户看到顶栏/底栏边距从旧值跳到最终值的过程。
@@ -546,6 +551,11 @@ private fun MainTabsContent(
             // 流畅滑过中间页（按需加载时中间页要在 350ms 动画中即时组合，掉帧严重
             // 视觉上像瞬移）。代价是启动首帧一次性初始化四份模糊层，可接受。
             beyondViewportPageCount = mainTabs.lastIndex,
+            // 搜索面板打开期间锁死横滑：面板盖在发现页上方，横滑会把带面板的页面
+            // 拖走半截。此参数只禁用户拖拽，navbar 的程序化 animateToPage 不受影响；
+            // 点 navbar 切页时 DiscoverScreen 收到 isPageSelected=false 自动关闭面板，
+            // 随后上报 false 恢复横滑。
+            userScrollEnabled = !discoverSearchActive,
             modifier = Modifier
                 .fillMaxSize()
                 // Pager 延伸到导航栏后方，底栏才能捕获真实滚动内容；页面自身再预留遮挡空间。
@@ -580,6 +590,10 @@ private fun MainTabsContent(
                         viewModel = viewModel,
                         onOpenCreator = onOpenCreator,
                         onOpenPost = onOpenPost,
+                        // 本页是否为导航栏选中的页：navbar 点击时 animateToPage 第一行
+                        // 就更新 selectedPage，Discover 据此在切走瞬间关闭搜索面板
+                        isPageSelected = mainPagerState.selectedPage == 1,
+                        onSearchActiveChange = { discoverSearchActive = it },
                     )
                     2 -> MessagesScreen(messagesViewModel) { route ->
                         when (route) {

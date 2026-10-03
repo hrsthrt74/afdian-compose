@@ -40,9 +40,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -116,6 +116,11 @@ fun DiscoverScreen(
     viewModel: MainViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
     onOpenPost: (RecommendedPost) -> Unit = {},
+    // 本页是否为底部导航选中的页：用户点 navbar 切走时立即变 false，
+    // 据此在切走瞬间关闭搜索面板（搜索激活时 pager 已被外壳禁滑，navbar 是唯一离开途径）
+    isPageSelected: Boolean = true,
+    // 搜索面板激活状态（展开中/展开/收起中）上报给外壳；外壳用它禁用 pager 横滑
+    onSearchActiveChange: (Boolean) -> Unit = {},
 ) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -145,7 +150,10 @@ fun DiscoverScreen(
     //   → ③ 最后才真正滚动列表内容（前两者吃完才轮到 child）。
     // 若共用 collapsedFraction，52dp 的搜索栏高度会被挤进 40dp 的标题行程，
     // contentPadding 收缩速率超过 1:1，内容会比手指更快地飞出去（滚动变快的根源）。
-    var searchFraction by remember { mutableFloatStateOf(0f) }
+    // 必须 rememberSaveable：miuix 的 rememberTopAppBarState（内部 saveable）和
+    // rememberLazyListState 在组合销毁重建（跳走再回来、Activity 重建）后都会恢复，
+    // 本进度若用普通 remember 会归零，出现「顶栏仍折叠、搜索栏却弹回未折叠」的脱节。
+    var searchFraction by rememberSaveable { mutableStateOf(0f) }
     // 搜索栏收缩的滚动预算 = 自然高度（45 胶囊 + 6 底距 + 1 顶距）：滚动多少收多少，手感 1:1
     val searchCollapseRangePx = with(density) { 52.dp.toPx() }
     // 分段收拢连接（nestedScroll 链序：pre 外→内、post 内→外，本连接放外层/最前）：
@@ -213,6 +221,24 @@ fun DiscoverScreen(
     }
 
     LoadMoreEffect(listState, hasMore, isLoadingMore) { viewModel.loadMore() }
+
+    // 搜索激活状态上报：任一非 COLLAPSED 相位都算激活，外壳据此禁用 pager 横滑。
+    // 相位每次变化都会触发；重复写同值布尔对外壳无重组开销。组合重建后本 effect
+    // 以重置的 COLLAPSED 初值自愈上报 false，不会让外壳的禁滑残留。
+    LaunchedEffect(searchStatus.current) {
+        onSearchActiveChange(!searchStatus.isCollapsed())
+    }
+
+    // 底部导航切到其他 tab（本页不再选中）：面板已不可见，无需播放收起动画，
+    // 直接归位关闭；并清空在途搜索（与「取消」按钮同一组清理），回来时是干净列表。
+    // 搜索激活时 pager 已禁滑，点 navbar 是唯一切页途径，这里必定能拦到。
+    LaunchedEffect(isPageSelected) {
+        if (!isPageSelected && !searchStatus.isCollapsed()) {
+            AppLog.d("DiscoverScreen", "页面被切走，取消搜索状态")
+            viewModel.searchCreators("")
+            searchStatus = DiscoverSearchStatus()
+        }
+    }
 
     Scaffold(
         topBar = {
