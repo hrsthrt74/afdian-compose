@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import android.app.Application
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -27,6 +28,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -36,10 +39,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.MessageDialog
+import com.hrsthrt74.afdian.data.content.NoticeAction
 import com.hrsthrt74.afdian.ui.components.FilterChip
+import com.hrsthrt74.afdian.ui.components.ReceivedNoticeSheet
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
@@ -51,6 +60,7 @@ import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.ReceivedNoticeViewModel
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Card
@@ -81,6 +91,7 @@ import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.menu.WindowIconDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -116,6 +127,40 @@ fun MessagesScreen(
     val listState = rememberLazyListState()
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
+
+    // 「收到的通知」弹层（三点菜单入口：收到的喜欢 / 收到的评论）；VM 依赖 Application，走自定义工厂创建
+    val appContext = LocalContext.current.applicationContext as Application
+    val likesViewModel: ReceivedNoticeViewModel = viewModel(
+        key = "received-notice-like",
+        factory = remember {
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    ReceivedNoticeViewModel(appContext, NoticeAction.Like) as T
+            }
+        },
+    )
+    val commentsViewModel: ReceivedNoticeViewModel = viewModel(
+        key = "received-notice-comment",
+        factory = remember {
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    ReceivedNoticeViewModel(appContext, NoticeAction.Comment) as T
+            }
+        },
+    )
+    var showLikesSheet by rememberSaveable { mutableStateOf(false) }
+    var showCommentsSheet by rememberSaveable { mutableStateOf(false) }
+
+    // 关闭弹层后立即同步一次未读数：服务端在拉取通知列表时已自动清除对应未读，
+    // 不主动刷的话菜单红点要等下一轮 30s 轮询才会消失
+    val coroutineScope = rememberCoroutineScope()
+    val dismissNoticeSheet = {
+        coroutineScope.launch { viewModel.refreshUnreadCount() }
+        showLikesSheet = false
+        showCommentsSheet = false
+    }
 
     // 下拉触发刷新：isRefreshing 变 true 时调用 viewModel.refresh()
     LaunchedEffect(isRefreshing) {
@@ -163,10 +208,10 @@ fun MessagesScreen(
                             // 必须显式开启，否则点击菜单项（如跳转客服会话）后弹层不会自动收起
                             collapseOnSelection = true,
                             entries = listOf(
-                                // 第一组：收到的评论 / 收到的喜欢（列表页尚未实现，点击暂时留空）
+                                // 第一组：收到的评论 / 收到的喜欢（评论暂只展示，不支持回复等操作）
                                 DropdownEntry(
                                     items = listOf(
-                                        // 收到的评论：图标带未读数徽标
+                                        // 收到的评论：图标带未读数徽标，点击弹出评论通知弹层
                                         DropdownItem(
                                             text = "收到的评论",
                                             icon = {
@@ -176,9 +221,9 @@ fun MessagesScreen(
                                                     badgeCount = unreadCommentCount,
                                                 )
                                             },
-                                            onClick = { /* TODO: 跳转收到的评论列表页 */ },
+                                            onClick = { showCommentsSheet = true },
                                         ),
-                                        // 收到的喜欢：图标带未读数徽标
+                                        // 收到的喜欢：图标带未读数徽标，点击弹出喜欢通知弹层
                                         DropdownItem(
                                             text = "收到的喜欢",
                                             icon = {
@@ -188,7 +233,7 @@ fun MessagesScreen(
                                                     badgeCount = unreadLikeCount,
                                                 )
                                             },
-                                            onClick = { /* TODO: 跳转收到的喜欢列表页 */ },
+                                            onClick = { showLikesSheet = true },
                                         ),
                                     ),
                                 ),
@@ -398,6 +443,30 @@ fun MessagesScreen(
                 }
             }
         }
+
+        // 「收到的喜欢」弹层：点击卡片关闭弹层并跳转对应动态详情
+        ReceivedNoticeSheet(
+            show = showLikesSheet,
+            viewModel = likesViewModel,
+            title = "收到的喜欢",
+            onDismiss = dismissNoticeSheet,
+            onOpenPost = { postId ->
+                dismissNoticeSheet()
+                onNavigate(Route.PostDetailById(postId))
+            },
+        )
+
+        // 「收到的评论」弹层：暂只展示评论内容，点击卡片同样跳动态详情
+        ReceivedNoticeSheet(
+            show = showCommentsSheet,
+            viewModel = commentsViewModel,
+            title = "收到的评论",
+            onDismiss = dismissNoticeSheet,
+            onOpenPost = { postId ->
+                dismissNoticeSheet()
+                onNavigate(Route.PostDetailById(postId))
+            },
+        )
     }
 }
 

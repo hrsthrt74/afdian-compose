@@ -122,6 +122,36 @@ object ApiProbeCatalog {
             ),
         ),
         ApiProbeSpec(
+            id = "my_notice_like",
+            title = "收到的喜欢",
+            path = "/api/my/notice?publish_sn=&type=old&action=like",
+            // 注意副作用：与网页端一致，服务端在返回列表的同时清空点赞未读数
+            summary = "别人赞我动态的通知（单页；拉取会顺带清空点赞未读）",
+            highlights = listOf(
+                "has_more",
+                "list[0].subject",
+                "list[0].publish_sn",
+                "list[0].action_item.user.name",
+                "list[0].action_item.publish_time",
+                "list[0].post.title",
+            ),
+        ),
+        ApiProbeSpec(
+            id = "my_notice_comment",
+            title = "收到的评论",
+            path = "/api/my/notice?publish_sn=&type=old&action=comment",
+            summary = "别人评论我动态的通知（单页；拉取会顺带清空评论未读）",
+            highlights = listOf(
+                "has_more",
+                "list[0].subject",
+                "list[0].publish_sn",
+                "list[0].action_item.user.name",
+                "list[0].action_item.content",
+                "list[0].action_item.publish_time",
+                "list[0].object_item.title",
+            ),
+        ),
+        ApiProbeSpec(
             id = "my_marked",
             title = "收藏的创作者",
             path = "/api/my/marked",

@@ -188,3 +188,51 @@ data class MyCheckData(
     val unreadLike: Int = 0,
     val unreadPrivateMsg: Int = 0,
 )
+
+/** 通知类型，对应 /api/my/notice 的 action 参数。 */
+enum class NoticeAction(val apiValue: String) {
+    /** 「收到的喜欢」：XX 喜欢了动态。 */
+    Like("like"),
+
+    /** 「收到的评论」：XX 评论了动态。 */
+    Comment("comment"),
+}
+
+/** 「收到的通知」分页结果（/api/my/notice，like/comment 通用）。 */
+data class NoticePage(
+    val notices: List<NoticeItem> = emptyList(),
+    val hasMore: Boolean = false,
+)
+
+/**
+ * 一条社区通知（喜欢/评论动态）。
+ *
+ * publish_sn 是服务端下发的通知游标：既是列表排序键（降序），也是加载
+ * 下一页时回传的 publish_sn 参数，必须用 Long 承接（约 1.8e13）。
+ * 拉取列表的同时服务端会把对应类型的未读清零（网页端同款行为）。
+ */
+data class NoticeItem(
+    val subject: String = "",
+    val publishSn: Long = 0L,
+    val user: AfadianUser = AfadianUser(),
+    /** 动作时间（秒级时间戳）：点赞时间 / 评论时间。 */
+    val time: Long? = null,
+    /** 评论 id（仅评论通知有）。 */
+    val commentId: String? = null,
+    /** 评论正文（仅评论通知有；点赞通知为 null）。 */
+    val commentText: String? = null,
+    /** 被赞 / 被评论的动态摘要。 */
+    val post: NoticePost? = null,
+) {
+    /** 列表 key：publish_sn 由服务端保证唯一。 */
+    val id: String get() = publishSn.toString()
+}
+
+/** 通知关联的动态摘要（仅用于展示，不含正文）。 */
+data class NoticePost(
+    val postId: String = "",
+    val title: String = "",
+    val desc: String? = null,
+    val thumb: String? = null,
+    val picCount: Int = 0,
+)

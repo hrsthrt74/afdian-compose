@@ -5,6 +5,7 @@ import com.hrsthrt74.afdian.data.content.MessageContent
 import com.hrsthrt74.afdian.data.content.MessageOrderAddress
 import com.hrsthrt74.afdian.data.content.parseMessageDialog
 import com.hrsthrt74.afdian.data.content.parseMessageItem
+import com.hrsthrt74.afdian.data.content.parseNoticeItem
 import com.hrsthrt74.afdian.data.content.parseOrderExt
 import com.hrsthrt74.afdian.data.content.parseSendResponse
 import com.hrsthrt74.afdian.data.content.resolveTextContent
@@ -300,5 +301,125 @@ class MessageParserTest {
         assertEquals(200, result.ec)
         assertEquals(5, result.item?.message?.msg_id)
         assertEquals("你好", (result.item?.message?.content as MessageContent.Text).text)
+    }
+
+    @Test
+    fun likeNoticeParsesUserPostAndCursor() {
+        // 真实接口样本（脱敏）：publish_sn 是数字游标，action_item 带点赞人与点赞时间
+        val notice = parseNoticeItem(
+            Json.parseToJsonElement(
+                """
+                {
+                  "subject": "喜欢了动态",
+                  "action": "like",
+                  "object": "post",
+                  "publish_sn": 17908172626149,
+                  "action_item": {
+                    "post_id": "1215e0e2739b11f0886552540025c377",
+                    "publish_time": 1790817262,
+                    "user": {
+                      "user_id": "8afa7864b4af11f1aab15254001e7c00",
+                      "name": "莫名其妙",
+                      "avatar": "https://pic1.afdiancdn.com/user/avatar.jpeg",
+                      "url_slug": "",
+                      "is_verified": 0
+                    }
+                  },
+                  "object_item": {},
+                  "post": {
+                    "post_id": "1215e0e2739b11f0886552540025c377",
+                    "title": "表盘「PoP☆P」",
+                    "desc": "",
+                    "thumb": "https://pic1.afdiancdn.com/user/cover.png",
+                    "pic_count": 1
+                  }
+                }
+                """.trimIndent(),
+            ).jsonObject,
+        )
+
+        assertEquals("喜欢了动态", notice.subject)
+        assertEquals(17908172626149L, notice.publishSn)
+        assertEquals("17908172626149", notice.id)
+        assertEquals(1790817262L, notice.time)
+        assertNull(notice.commentText)
+        assertEquals("莫名其妙", notice.user.name)
+        assertEquals("8afa7864b4af11f1aab15254001e7c00", notice.user.user_id)
+        assertEquals("https://pic1.afdiancdn.com/user/avatar.jpeg", notice.user.avatar)
+        // 点赞通知的动态摘要在顶层 post 字段
+        assertEquals("表盘「PoP☆P」", notice.post?.title)
+        assertEquals("https://pic1.afdiancdn.com/user/cover.png", notice.post?.thumb)
+        assertEquals(1, notice.post?.picCount)
+    }
+
+    @Test
+    fun commentNoticeParsesContentFromObjectItem() {
+        // 真实接口样本（脱敏）：评论通知的动态摘要在 object_item，正文在 action_item.content
+        val notice = parseNoticeItem(
+            Json.parseToJsonElement(
+                """
+                {
+                  "subject": "评论了动态",
+                  "action": "comment",
+                  "object": "post",
+                  "publish_sn": 17908653612459,
+                  "action_item": {
+                    "comment_id": "6c6e7f90bda511f1aaf05254001e7c00",
+                    "post_id": "5b881fa8e6ee11f0ae2752540025c377",
+                    "content": "测试",
+                    "like_count": 0,
+                    "publish_time": 1790865361,
+                    "has_like": 0,
+                    "user": {
+                      "user_id": "4c2c65089ed811f19f9052540025c377",
+                      "name": "WASDimension",
+                      "avatar": "https://pic1.afdiancdn.com/default/avatar/avatar-blue.png"
+                    }
+                  },
+                  "object_item": {
+                    "post_id": "5b881fa8e6ee11f0ae2752540025c377",
+                    "title": "CAPTURE THE MOMENT",
+                    "desc": "徕卡风格表盘",
+                    "thumb": "https://pic1.afdiancdn.com/user/cover2.png",
+                    "pic_count": 1
+                  }
+                }
+                """.trimIndent(),
+            ).jsonObject,
+        )
+
+        assertEquals("评论了动态", notice.subject)
+        assertEquals(17908653612459L, notice.publishSn)
+        assertEquals(1790865361L, notice.time)
+        assertEquals("6c6e7f90bda511f1aaf05254001e7c00", notice.commentId)
+        assertEquals("测试", notice.commentText)
+        assertEquals("WASDimension", notice.user.name)
+        // 评论通知的动态摘要在 object_item 字段
+        assertEquals("CAPTURE THE MOMENT", notice.post?.title)
+        assertEquals("徕卡风格表盘", notice.post?.desc)
+        assertEquals("https://pic1.afdiancdn.com/user/cover2.png", notice.post?.thumb)
+    }
+
+    @Test
+    fun noticeItemToleratesMissingFields() {
+        // 动态被删除等场景下字段可能缺失，解析不应抛异常，空值用默认兜底
+        val notice = parseNoticeItem(
+            Json.parseToJsonElement(
+                """
+                {
+                  "subject": "喜欢了动态",
+                  "publish_sn": 17579452680600,
+                  "action_item": {},
+                  "object_item": {}
+                }
+                """.trimIndent(),
+            ).jsonObject,
+        )
+
+        assertEquals(17579452680600L, notice.publishSn)
+        assertNull(notice.time)
+        assertNull(notice.post)
+        assertNull(notice.commentText)
+        assertEquals("", notice.user.name)
     }
 }

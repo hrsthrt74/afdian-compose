@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian.data.content
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.network.AfdianHttpClient
+import com.hrsthrt74.afdian.data.network.requireAfdianSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -120,6 +121,50 @@ internal class MessageService(
                 canSendPictureMessage = data["can_picture_message"]?.jsonPrimitive?.content?.toIntOrNull() == 1,
             ).also {
                 AppLog.d(TAG, "/api/message/messages user_id=$userID type=$type message_id=$messageID -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${list.size} 条消息，has_more=${it.hasMore}")
+            }
+        }
+    }
+
+    /**
+     * 「收到的通知」列表（/api/my/notice，喜欢 / 评论通用）。
+     *
+     * 游标分页：首页 publishSn 传 null（服务端收到空串）；下一页传上一页
+     * 最后一条的 publish_sn。返回 has_more=false 时停止翻页。
+     * 服务端在返回列表的同时会把对应 action 的未读清零（网页端同款行为）。
+     */
+    suspend fun fetchNotices(action: NoticeAction, publishSn: Long? = null): NoticePage {
+        val url = (AFDIAN_HOST + "/api/my/notice").toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("publish_sn", publishSn?.toString() ?: "")
+            .addQueryParameter("type", "old")
+            .addQueryParameter("action", action.apiValue)
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .build()
+        val start = System.currentTimeMillis()
+        return http.execute(request).use { response ->
+            if (!response.isSuccessful) {
+                AppLog.e(TAG, "/api/my/notice action=${action.apiValue} publish_sn=$publishSn -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("通知加载失败 (${response.code})")
+            }
+            val root = try {
+                json.parseToJsonElement(response.body.string()).jsonObject
+            } catch (_: Exception) {
+                AppLog.w(TAG, "/api/my/notice action=${action.apiValue} 响应体解析失败")
+                error("通知加载失败")
+            }
+            // 统一业务码校验：ec 缺失或非 200 都视为失败，并优先展示服务端 em
+            root.requireAfdianSuccess(TAG, "/api/my/notice action=${action.apiValue}", "通知加载失败", requireEc = true)
+            val data = root["data"]?.jsonObject ?: error("通知加载失败")
+            val list = data["list"]?.jsonArray?.mapNotNull { element ->
+                runCatching { parseNoticeItem(element.jsonObject) }.getOrNull()
+            }.orEmpty()
+            NoticePage(
+                notices = list,
+                hasMore = data["has_more"]?.jsonPrimitive?.content?.toIntOrNull() == 1,
+            ).also {
+                AppLog.d(TAG, "/api/my/notice action=${action.apiValue} publish_sn=$publishSn -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${list.size} 条通知，has_more=${it.hasMore}")
             }
         }
     }

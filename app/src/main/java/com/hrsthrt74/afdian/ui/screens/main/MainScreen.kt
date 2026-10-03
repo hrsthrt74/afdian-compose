@@ -598,6 +598,9 @@ private fun MainTabsContent(
                     2 -> MessagesScreen(messagesViewModel) { route ->
                         when (route) {
                             is Route.MessageConversation -> onOpenConversation(route.userId, route.userName, route.avatarUrl)
+                            // 「收到的喜欢」弹层：点击卡片跳转动态详情
+                            is Route.PostDetailById -> onNavigate(route)
+                            // 其余路由暂不放行
                             else -> {}
                         }
                     }

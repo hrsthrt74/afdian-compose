@@ -237,6 +237,49 @@ private fun JsonObject.toSponsorAmount() = SponsorAmount(
 )
 
 /**
+ * 解析「收到的通知」列表里的单条通知（/api/my/notice，like/comment 通用）。
+ *
+ * 两种通知的差异点：
+ * - 点赞：动态摘要在顶层 `post` 字段，object_item 恒为空对象；
+ * - 评论：动态摘要在 `object_item`，评论正文 / comment_id 在 action_item。
+ * 未知 action 不丢弃，仅解析公共字段（subject / 游标 / 用户），保证列表不缺行。
+ */
+internal fun parseNoticeItem(obj: JsonObject): NoticeItem {
+    val isComment = obj["action"]?.jsonPrimitive?.contentOrNull == NoticeAction.Comment.apiValue
+    val actionObj = obj["action_item"]?.jsonObject
+    val postSource = (if (isComment) obj["object_item"] else obj["post"])?.jsonObject
+    return NoticeItem(
+        subject = obj["subject"]?.jsonPrimitive?.contentOrNull ?: "",
+        // publish_sn 是数字字面量，content 取出的是其十进制字符串形式
+        publishSn = obj["publish_sn"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
+        user = actionObj?.get("user")?.jsonObject?.toAfadianUser() ?: AfadianUser(),
+        time = actionObj?.get("publish_time")?.jsonPrimitive?.content?.toLongOrNull(),
+        commentId = if (isComment) actionObj?.get("comment_id")?.jsonPrimitive?.contentOrNull else null,
+        commentText = if (isComment) actionObj?.get("content")?.jsonPrimitive?.contentOrNull else null,
+        post = postSource?.toNoticePost(),
+    )
+}
+
+/** 解析通知里的用户对象，与会话用户同构但无 headimgurl 回退。 */
+private fun JsonObject.toAfadianUser(): AfadianUser = AfadianUser(
+    user_id = this["user_id"]?.jsonPrimitive?.contentOrNull ?: "",
+    name = this["name"]?.jsonPrimitive?.contentOrNull ?: "",
+    avatar = this["avatar"]?.jsonPrimitive?.contentOrNull,
+    url_slug = this["url_slug"]?.jsonPrimitive?.contentOrNull,
+    cover = this["cover"]?.jsonPrimitive?.contentOrNull,
+    is_verified = this["is_verified"]?.jsonPrimitive?.content?.toIntOrNull(),
+)
+
+/** 解析通知关联的动态摘要（点赞通知的 post / 评论通知的 object_item 同构）。 */
+private fun JsonObject.toNoticePost(): NoticePost = NoticePost(
+    postId = this["post_id"]?.jsonPrimitive?.contentOrNull ?: "",
+    title = this["title"]?.jsonPrimitive?.contentOrNull ?: "",
+    desc = this["desc"]?.jsonPrimitive?.contentOrNull,
+    thumb = this["thumb"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank),
+    picCount = this["pic_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+)
+
+/**
  * 解析会话消息列表里的单条消息：
  * content 字段会随消息类型返回字符串、订单对象或群邀请对象，这里统一收敛为 MessageContent。
  */
