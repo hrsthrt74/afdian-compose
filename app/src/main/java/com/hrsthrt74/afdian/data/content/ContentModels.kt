@@ -590,3 +590,64 @@ fun monthDisplayName(yyyymm: String): String {
     if (month !in 1..12) return yyyymm
     return "${yyyymm.substring(0, 4)}年${month}月"
 }
+
+// ==================== 屏蔽 / 拒绝名单 ====================
+
+/** 名单类型：block = 屏蔽（限制评论互动），reject = 拒绝（限制赞助发电）。 */
+enum class BlackedType(val wire: String) {
+    Block("block"),
+    Reject("reject");
+
+    companion object {
+        /** 由接口返回的 type 字符串还原枚举；未知值回退为屏蔽。 */
+        fun fromWire(wire: String?): BlackedType =
+            entries.firstOrNull { it.wire == wire } ?: Block
+    }
+}
+
+/**
+ * 名单条目里的用户资料（接口 user 对象）。
+ *
+ * 刻意不复用 [AfadianUser]：本接口把非创作者的 creator 字段序列化成空数组 []，
+ * 而 AfadianUser.creator 是对象类型，直接解析会抛异常。
+ */
+@Serializable
+data class BlackedUserInfo(
+    val user_id: String = "",
+    val name: String = "",
+    val avatar: String? = null,
+    val url_slug: String? = null,
+    val cover: String? = null,
+    val is_verified: Int? = null,
+)
+
+/** 名单条目：谁、在什么时候被屏蔽 / 拒绝。 */
+@Serializable
+data class BlackedItem(
+    val id: Long = 0,
+    val remote_id: String = "",
+    val type: String = "",
+    val create_time: Long = 0,
+    val update_time: Long = 0,
+    val user: BlackedUserInfo = BlackedUserInfo(),
+) {
+    /** 条目所属名单类型；未知值回退为屏蔽。 */
+    val blackedType: BlackedType get() = BlackedType.fromWire(type)
+
+    /** 映射成通用用户模型，供「打开创作者主页」等既有导航复用。 */
+    val asUser: AfadianUser
+        get() = AfadianUser(
+            user_id = user.user_id.ifBlank { remote_id },
+            name = user.name,
+            avatar = user.avatar,
+            url_slug = user.url_slug,
+            cover = user.cover,
+            is_verified = user.is_verified,
+        )
+}
+
+/** 名单分页结果。 */
+data class BlackedPage(
+    val items: List<BlackedItem>,
+    val hasMore: Boolean,
+)

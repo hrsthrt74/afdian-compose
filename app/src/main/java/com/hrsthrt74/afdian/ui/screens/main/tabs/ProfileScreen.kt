@@ -248,10 +248,16 @@ private fun ProfileMainScreen(
 
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                        ArrowPreference(
-                            title = "设置",
-                            onClick = { onNavigate(Route.Settings) }
-                        )
+                        Column{
+                            ArrowPreference(
+                                title = "设置",
+                                onClick = { onNavigate(Route.Settings) }
+                            )
+                            ArrowPreference(
+                                title = "屏蔽与拒绝名单",
+                                onClick = { onNavigate(Route.Blocklist) }
+                            )
+                        }
                     }
                 }
             }

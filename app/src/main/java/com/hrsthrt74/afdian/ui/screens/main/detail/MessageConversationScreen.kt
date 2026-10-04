@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -54,14 +55,17 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.content.BlackedType
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.SponsorAmount
@@ -70,15 +74,22 @@ import com.hrsthrt74.afdian.data.settings.ThemeSettings
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.MessageBubble
 import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
+import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
+import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.progressiveBlurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
+import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.screens.main.account.BLOCK_INTRO_LINES
+import com.hrsthrt74.afdian.ui.screens.main.account.REJECT_INTRO_LINES
+import com.hrsthrt74.afdian.ui.screens.main.account.customerServiceContactText
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
@@ -99,6 +110,7 @@ import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults.textFieldColors
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
@@ -153,6 +165,68 @@ fun MessageConversationScreen(
     var showSponsorSheet by remember { mutableStateOf(false) }
     var sponsorInfo by remember { mutableStateOf<SponsorInfo?>(null) }
     var sponsorLoading by remember { mutableStateOf(false) }
+
+    // 拉取赞助详情：数据只拉一次，已加载或正在加载则不重复请求（失败后可由错误态的重试按钮再触发）
+    val loadSponsorInfo: () -> Unit = {
+        if (sponsorInfo == null && !sponsorLoading) {
+            sponsorLoading = true
+            coroutineScope.launch {
+                sponsorInfo = viewModel.fetchSponsorInfo(userId)
+                sponsorLoading = false
+            }
+        }
+    }
+
+    // 加入屏蔽 / 拒绝名单：待确认动作（决定弹窗文案与确认行为）+ 提交中标记（防连点）
+    var pendingBlackType by remember { mutableStateOf<BlackedType?>(null) }
+    var blackPending by remember { mutableStateOf(false) }
+    val blackDialogState = rememberDialogState()
+
+    // Toast / 上下文：屏蔽与拒绝操作的轻量结果反馈
+    val context = LocalContext.current
+
+    // 「音酱」链接：收起弹窗与 Sheet 后进入与爱发电客服（Lain音酱）的会话
+    val openCustomerService: () -> Unit = {
+        blackDialogState.dismiss()
+        showSponsorSheet = false
+        // pushUnique 是 MainScreen 内的私有扩展，这里照设置页的写法：已打开客服会话则不重复压栈
+        val customerServiceOpen = backStack.any {
+            it is Route.MessageConversation && it.userId == AFDIAN_CUSTOMER_SERVICE_ID
+        }
+        if (!customerServiceOpen) {
+            backStack.add(
+                Route.MessageConversation(
+                    userId = AFDIAN_CUSTOMER_SERVICE_ID,
+                    // 会话页标题用官方名「Lain音酱」
+                    userName = "Lain音酱",
+                    avatarUrl = AFDIAN_CUSTOMER_SERVICE_AVATAR,
+                )
+            )
+        }
+    }
+
+    // 弹窗确认回调：调用 black 接口；成功 Toast 服务端文案并收起 Sheet，失败 Toast 错误信息
+    val submitBlack: (BlackedType) -> Unit = { type ->
+        if (!blackPending) {
+            coroutineScope.launch {
+                blackPending = true
+                try {
+                    val message = viewModel.blackUser(userId, type)
+                    AppLog.d("MessageConversation", "blackUser $userId type=${type.wire} 成功：$message")
+                    Toast.makeText(context, message.ifBlank { "已加入名单" }, Toast.LENGTH_SHORT).show()
+                    // 操作完成后收起 Sheet，回到会话页
+                    showSponsorSheet = false
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AppLog.e("MessageConversation", "blackUser $userId type=${type.wire} 失败", e)
+                    Toast.makeText(context, e.message ?: "操作失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                } finally {
+                    blackPending = false
+                }
+            }
+        }
+    }
 
     val themeSettings = LocalThemeSettings.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -333,14 +407,7 @@ fun MessageConversationScreen(
                     IconButton(onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
                         showSponsorSheet = true
-                        // 数据只拉一次：已加载或正在加载则不重复请求
-                        if (sponsorInfo == null && !sponsorLoading) {
-                            sponsorLoading = true
-                            coroutineScope.launch {
-                                sponsorInfo = viewModel.fetchSponsorInfo(userId)
-                                sponsorLoading = false
-                            }
-                        }
+                        loadSponsorInfo()
                     }) {
                         // 「赞助详情」入口图标
                         Icon(
@@ -452,107 +519,256 @@ fun MessageConversationScreen(
         }
 }
 
-// 赞助详情 Sheet：展示「我发电了 TA」与「TA 发电了我」两组数据
+// 赞助详情 Sheet：展示「我发电了 TA」与「TA 发电了我」两组数据；
+// 底部提供「加入屏蔽列表 / 加入拒绝列表」快捷操作（客服会话不显示，避免误屏蔽官方客服）
 SponsorDetailSheet(
     show = showSponsorSheet,
+    userId = userId,
     userName = userName,
     sponsorInfo = sponsorInfo,
     isLoading = sponsorLoading,
+    blackPending = blackPending,
+    onRetry = loadSponsorInfo,
+    onBlackRequest = { type ->
+        // 点按钮先轻震一下再弹确认弹窗（反馈强度与顶栏图标按钮一致）
+        haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+        pendingBlackType = type
+        blackDialogState.show()
+    },
+    onOpenCustomerService = openCustomerService,
     onDismiss = { showSponsorSheet = false },
 )
+
+// 加入屏蔽 / 拒绝确认弹窗（破坏性：确认按钮变红）；
+// 说明文字与屏蔽页顶部的说明卡片共用同一份数据（不含「长按卡片可移除」——那是名单页的操作提示）
+AppDialog(
+    state = blackDialogState,
+    title = pendingBlackType?.let {
+        if (it == BlackedType.Block) "加入屏蔽列表" else "加入拒绝列表"
+    }.orEmpty(),
+    confirmText = pendingBlackType?.let {
+        if (it == BlackedType.Block) "加入屏蔽" else "加入拒绝"
+    } ?: "确认",
+    destructive = true,
+    onDismissed = { pendingBlackType = null },
+    onConfirm = { pendingBlackType?.let(submitBlack) },
+) {
+    Column(
+        // 底部留 12dp：说明文字与「取消 / 加入」按钮区拉开距离（AppDialog 自身还有 4dp 间隔）
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        // 效果说明：按动作类型取对应文案
+        val introLines = if (pendingBlackType == BlackedType.Reject) REJECT_INTRO_LINES else BLOCK_INTRO_LINES
+        introLines.forEach { line ->
+            Text(
+                text = "• $line",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+        // 拒绝弹窗多一条客服指引：「@Lain音酱」可点进入客服会话
+        if (pendingBlackType == BlackedType.Reject) {
+            Text(
+                text = AnnotatedString("• ") + customerServiceContactText(
+                    linkColor = MiuixTheme.colorScheme.primary,
+                    onOpenCustomerService = openCustomerService,
+                ),
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+    }
+}
 }
 
 /**
  * 赞助详情底部弹层：布局参考爱发电官方「xx 的赞助详情」弹窗。
  * 顶部三张 DataCard（当前发电/总共发电/到期时间）+ 下方逐笔赞助明细，
- * 「我发电了 TA」与「TA 发电了我」两组数据上下分区展示。
+ * 「我发电了 TA」与「TA 发电了我」两组数据上下分区展示；
+ * 「加入屏蔽列表 / 加入拒绝列表」两个按钮竖排作为最后的列表项，随内容滚动。
+ *
+ * @param userId 会话对方的用户 id（用于判断是否隐藏屏蔽/拒绝操作）
+ * @param blackPending 是否正在提交屏蔽/拒绝请求，为 true 时禁用按钮防连点
+ * @param onRetry 赞助详情加载失败后的重试回调
+ * @param onBlackRequest 点击加入按钮（参数为名单类型），由调用方弹确认弹窗
+ * @param onOpenCustomerService 弹窗文案里「音酱」链接的点击回调
  */
 @Composable
 private fun SponsorDetailSheet(
     show: Boolean,
+    userId: String,
     userName: String,
     sponsorInfo: SponsorInfo?,
     isLoading: Boolean,
+    blackPending: Boolean,
+    onRetry: () -> Unit,
+    onBlackRequest: (BlackedType) -> Unit,
+    onOpenCustomerService: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     WindowBottomSheet(show = show, title = "${userName} 的赞助详情", onDismissRequest = onDismiss) {
-        when {
-            // 首次拉取中：显示加载指示
-            isLoading -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                LoadingComponent()
-            }
+        // 整个弹层就是一条列表：赞助数据、空态与操作按钮都作为列表项，按钮跟随内容滚动
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                // 撑满 Sheet 可用高度：Sheet 外层是 wrapContentHeight，
+                // 内容不自撑满时整个弹层就只有内容那么高
+                .fillMaxHeight(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
+            // 是否展示屏蔽/拒绝操作：客服会话隐藏，避免误屏蔽官方客服
+            val showBlackActions = userId != AFDIAN_CUSTOMER_SERVICE_ID
+            when {
+                // 首次拉取中：加载指示居中，按钮紧随其下
+                isLoading -> item(key = "loading") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        LoadingComponent()
+                    }
+                }
 
-            // 加载失败（数据为 null）：提示用户
-            sponsorInfo == null -> Text(
-                text = "赞助详情加载失败，请稍后重试",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.fillMaxSize(),
-                textAlign = TextAlign.Center,
-            )
-
-            // 正常展示：out=我发电了 TA，in=TA 发电了我；
-            // 某个方向没有记录时整个分区（含标题/卡片）都不显示
-            else -> {
-                // 两个方向都没有任何记录：显示空态插画
-                val hasOut = !sponsorInfo.out_detail?.list.isNullOrEmpty()
-                val hasIn = !sponsorInfo.in_detail?.list.isNullOrEmpty()
-                if (!hasOut && !hasIn) {
-                    // 空态：通用空状态视图，撑满 Sheet 居中
-                    EmptyStateView(
-                        title = "暂无发电记录",
-                        summary = "喜欢 TA 的话，去 TA 的主页发电支持一下吧～",
-                        icon = MiuixIcons.Light.Favorites,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(),
-                    )
-                } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        // 撑满 Sheet 可用高度：Sheet 外层是 wrapContentHeight，
-                        // 内容不自撑满时整个弹层就只有内容那么高
-                        .fillMaxHeight(),
-                    contentPadding = PaddingValues(bottom = 24.dp),
-                ) {
-                    // 「我发电了 TA」分区：out_detail 有记录才显示
-                    if (hasOut) {
-                        item {
-                            SponsorSection(
-                                title = "我发电了 TA",
-                                amount = sponsorInfo.out_detail,
-                                // 与官方一致：我发电用主色（purple）
-                                amountColor = MiuixTheme.colorScheme.primary,
+                // 加载失败（数据为 null）：预设错误态视图（「加载失败」标题 + 重试按钮），
+                // 与空态一致地垂直居中，操作区内嵌在同一 item 底部
+                sponsorInfo == null -> item(key = "error") {
+                    Column(modifier = Modifier.fillParentMaxSize()) {
+                        Box(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            ErrorStateView(
+                                onRetry = onRetry,
+                                modifier = Modifier.fillMaxWidth(),
+                                summary = "赞助详情加载失败，请稍后重试",
                             )
                         }
-                    }
-
-                    // 两个分区都有内容时才画中间的分割线
-                    if (hasOut && hasIn) {
-                        item {
-                            HorizontalDivider(Modifier.padding(horizontal = 4.dp).padding(top = 16.dp))
-                        }
-                    }
-
-                    // 「TA 发电了我」分区：in_detail 有记录才显示
-                    if (hasIn) {
-                        item {
-                            SponsorSection(
-                                title = "TA 发电了我",
-                                amount = sponsorInfo.in_detail,
-                                // 与官方一致：TA 发电我用橙色
-                                amountColor = Color(0xFFFCB239),
+                        if (showBlackActions) {
+                            BlackActionsContent(
+                                blackPending = blackPending,
+                                onBlackRequest = onBlackRequest,
                             )
                         }
                     }
                 }
+
+                // 正常展示：out=我发电了 TA，in=TA 发电了我；
+                // 某个方向没有记录时整个分区（含标题/卡片）都不显示
+                else -> {
+                    // 两个方向都没有任何记录：显示空态插画
+                    val hasOut = !sponsorInfo.out_detail?.list.isNullOrEmpty()
+                    val hasIn = !sponsorInfo.in_detail?.list.isNullOrEmpty()
+                    if (!hasOut && !hasIn) {
+                        item(key = "empty") {
+                            // 整项撑满视口：插画在按钮区之上的剩余空间里垂直居中，
+                            // 分割线与按钮跟插画同一屏、沉在底部（空态没有可滚动的明细）
+                            Column(modifier = Modifier.fillParentMaxSize()) {
+                                Box(
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    EmptyStateView(
+                                        title = "暂无发电记录",
+                                        summary = "喜欢 TA 的话，去 TA 的主页发电支持一下吧～",
+                                        icon = MiuixIcons.Light.Favorites,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                                if (showBlackActions) {
+                                    BlackActionsContent(
+                                        blackPending = blackPending,
+                                        onBlackRequest = onBlackRequest,
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // 「我发电了 TA」分区：out_detail 有记录才显示
+                        if (hasOut) {
+                            item {
+                                SponsorSection(
+                                    title = "我发电了 TA",
+                                    amount = sponsorInfo.out_detail,
+                                    // 与官方一致：我发电用主色（purple）
+                                    amountColor = MiuixTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+
+                        // 两个分区都有内容时才画中间的分割线
+                        if (hasOut && hasIn) {
+                            item {
+                                HorizontalDivider(Modifier.padding(horizontal = 4.dp).padding(top = 16.dp))
+                            }
+                        }
+
+                        // 「TA 发电了我」分区：in_detail 有记录才显示
+                        if (hasIn) {
+                            item {
+                                SponsorSection(
+                                    title = "TA 发电了我",
+                                    amount = sponsorInfo.in_detail,
+                                    // 与官方一致：TA 发电我用橙色
+                                    amountColor = Color(0xFFFCB239),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 加入屏蔽 / 拒绝名单：竖排两个按钮，作为列表项随内容滚动
+            // （失败与空态分支已把操作区内嵌到同一 item 以保持居中，只有加载中与有明细两个分支在这里追加）
+            val recordsEmpty = sponsorInfo != null &&
+                sponsorInfo.out_detail?.list.isNullOrEmpty() &&
+                sponsorInfo.in_detail?.list.isNullOrEmpty()
+            val embedBlackActions = (sponsorInfo == null && !isLoading) || recordsEmpty
+            if (showBlackActions && !embedBlackActions) {
+                item(key = "black-actions") {
+                    BlackActionsContent(
+                        blackPending = blackPending,
+                        onBlackRequest = onBlackRequest,
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * 「加入屏蔽列表 / 加入拒绝列表」操作区：分割线 + 竖排两个按钮。
+ *
+ * @param blackPending 是否正在提交屏蔽/拒绝请求，为 true 时禁用按钮防连点
+ * @param onBlackRequest 点击加入按钮（参数为名单类型），由调用方弹确认弹窗
+ */
+@Composable
+private fun BlackActionsContent(
+    blackPending: Boolean,
+    onBlackRequest: (BlackedType) -> Unit,
+) {
+    // 分割线：与上方内容区分隔（边距对齐两个分区之间的分割线样式）
+    HorizontalDivider(
+        modifier = Modifier
+            .padding(horizontal = 4.dp)
+            .padding(top = 16.dp, bottom = 4.dp),
+    )
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        TextButton(
+            text = "加入屏蔽列表",
+            enabled = !blackPending,
+            onClick = { onBlackRequest(BlackedType.Block) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextButton(
+            text = "加入拒绝列表",
+            enabled = !blackPending,
+            onClick = { onBlackRequest(BlackedType.Reject) },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

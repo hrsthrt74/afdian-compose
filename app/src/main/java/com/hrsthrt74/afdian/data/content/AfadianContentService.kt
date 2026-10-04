@@ -18,6 +18,9 @@ class AfadianContentService(tokenStore: AuthTokenStore, client: OkHttpClient = s
     // 优惠码接口独立维护，外观层保留旧方法签名，调用方无需同步迁移。
     private val affiliateService = AffiliateService(tokenStore, client)
 
+    // 屏蔽 / 拒绝名单接口独立维护，查询与解除都在这一个服务里。
+    private val blocklistService = BlocklistService(tokenStore, client)
+
     // 动态、收藏和互动接口独立维护，外观层继续兼容旧调用方。
     private val feedService = FeedService(tokenStore, client)
 
@@ -88,6 +91,18 @@ class AfadianContentService(tokenStore: AuthTokenStore, client: OkHttpClient = s
         affiliateService.fetchAffiliateDetail(affiliateCode)
 
     suspend fun deleteAffiliate(id: Long) = affiliateService.deleteAffiliate(id)
+
+    /** 屏蔽 / 拒绝名单外观方法：type 区分屏蔽（block）与拒绝（reject），page 从 1 开始。 */
+    suspend fun fetchBlacked(type: BlackedType, page: Int = 1): BlackedPage =
+        blocklistService.fetchBlacked(type, page)
+
+    /** 加入屏蔽 / 拒绝：把用户加入对应名单，返回服务端提示文案。 */
+    suspend fun black(userId: String, type: BlackedType): String =
+        blocklistService.black(userId, type)
+
+    /** 解除屏蔽 / 拒绝：从对应名单中移除该用户，返回服务端提示文案。 */
+    suspend fun unblack(userId: String, type: BlackedType): String =
+        blocklistService.unblack(userId, type)
 
     /**
      * 读取感谢语（感谢页顶部创作者自定义文案，与年月无关，接口带年月参数但内容全局一份）

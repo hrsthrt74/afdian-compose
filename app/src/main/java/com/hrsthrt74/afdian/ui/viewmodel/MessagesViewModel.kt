@@ -6,14 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
+import com.hrsthrt74.afdian.data.content.BlackedType
 import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MyCheckData
 import com.hrsthrt74.afdian.data.content.SponsorInfo
-import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.history.HistoryStore
+import com.hrsthrt74.afdian.data.settings.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -227,6 +228,16 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     suspend fun sendMessage(userID: String, content: String): MessageItem {
         return withContext(Dispatchers.IO) {
             service.sendMessage(userID, content)
+        }
+    }
+
+    /**
+     * 加入屏蔽 / 拒绝名单（POST /api/user/black）。
+     * 返回服务端提示文案（如「已加入屏蔽名单」）；失败抛出异常，由调用方提示。
+     */
+    suspend fun blackUser(userId: String, type: BlackedType): String {
+        return withContext(Dispatchers.IO) {
+            service.black(userId, type)
         }
     }
 

@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+// AFDIAN_CUSTOMER_SERVICE_ID / _AVATAR 与本文件同包（MessagesScreen.kt 的包名是 ui.screens.main），无需 import
 import android.app.Application
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -45,6 +46,7 @@ import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.BlocklistScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
@@ -54,6 +56,7 @@ import com.hrsthrt74.afdian.ui.screens.main.management.ManagementScreen
 import com.hrsthrt74.afdian.ui.screens.main.tabs.ProfileScreen
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
+import com.hrsthrt74.afdian.ui.viewmodel.BlocklistViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
@@ -445,6 +448,30 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 接口调试页：设置页「其他」分组入口进入，逐个运行核心无参接口并查看原始返回
             ApiProbeScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
+        entry<Route.Blocklist> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 屏蔽 / 拒绝名单页：入口在「我的」页设置上方，TabRow 切换屏蔽与拒绝两个名单
+            val app = LocalContext.current.applicationContext as Application
+            val vm: BlocklistViewModel = viewModel(
+                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app),
+            )
+            BlocklistScreen(
+                viewModel = vm,
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+                // 说明卡片里的「音酱」链接：进入与爱发电客服（Lain音酱）的会话
+                onOpenCustomerService = {
+                    backStack.pushUnique(
+                        Route.MessageConversation(
+                            userId = AFDIAN_CUSTOMER_SERVICE_ID,
+                            userName = "Lain音酱",
+                            avatarUrl = AFDIAN_CUSTOMER_SERVICE_AVATAR,
+                        )
+                    )
+                },
+            )
         }
         entry<Route.History> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }

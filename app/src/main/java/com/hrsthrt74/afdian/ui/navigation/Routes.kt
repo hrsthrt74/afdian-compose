@@ -45,4 +45,6 @@ sealed interface Route : NavKey {
     @Serializable data object Log : Route
     // 接口调试页：主动探针逐个运行核心无参接口并查看原始返回，入口在设置页「其他」分组
     @Serializable data object ApiProbe : Route
+    // 屏蔽 / 拒绝名单页（/api/my/blacked，TabRow 切换两个名单），入口在「我的」页设置上方
+    @Serializable data object Blocklist : Route
 }

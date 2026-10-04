@@ -61,6 +61,7 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedNoticeViewModel
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Card
@@ -91,15 +92,14 @@ import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.menu.WindowIconDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-// 爱发电官方客服音酱的信息
-private const val AFDIAN_CUSTOMER_SERVICE_ID = "27f7cea2370d11e8ae8852540025c377"
-private  const val AFDIAN_CUSTOMER_SERVICE_AVATAR = "https://pic1.afdiancdn.com/user/27f7cea2370d11e8ae8852540025c377/avatar/2d9659585fc4798068efbb652e56c08a.jpg"
+// 爱发电官方客服音酱的信息（internal：屏蔽/拒绝名单页的说明文字也要跳客服会话，一并复用）
+internal const val AFDIAN_CUSTOMER_SERVICE_ID = "27f7cea2370d11e8ae8852540025c377"
+internal  const val AFDIAN_CUSTOMER_SERVICE_AVATAR = "https://pic1.afdiancdn.com/user/27f7cea2370d11e8ae8852540025c377/avatar/2d9659585fc4798068efbb652e56c08a.jpg"
 
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable

@@ -1,7 +1,7 @@
 package com.hrsthrt74.afdian.ui.components.basic
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +31,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param doing 创作内容描述，组件会自动拼成「正在创作 xxx」显示
  * @param summary 完全自定义的副标题文字，优先级高于 doing；为null时回退到 doing
  * @param onClick 点击回调，传null则不可点击
+ * @param onLongClick 长按回调，传null则不支持长按（与 onClick 独立）
  * @param modifier 修饰符
  */
 @Composable
@@ -40,6 +41,7 @@ fun CreatorListItem(
     doing: String? = null,
     summary: String? = null,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     // 副标题取值：自定义 summary 优先，否则用「正在创作 xxx」
@@ -50,13 +52,16 @@ fun CreatorListItem(
     }
     // Card 只负责容器样式，不处理点击
     Card(modifier = modifier) {
-        // 点击事件和涟漪特效放在 Box 上
+        // 点击/长按事件和涟漪特效放在 Box 上；两者都为 null 时不可交互
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(
-                    if (onClick != null) {
-                        Modifier.clickable(onClick = onClick)
+                    if (onClick != null || onLongClick != null) {
+                        Modifier.combinedClickable(
+                            onClick = onClick ?: {},
+                            onLongClick = onLongClick
+                        )
                     } else {
                         Modifier
                     }
