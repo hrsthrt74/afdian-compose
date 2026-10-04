@@ -21,11 +21,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
-import com.hrsthrt74.afdian.ui.components.CreatorListItem
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
+import com.hrsthrt74.afdian.ui.components.basic.CreatorListItem
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
-import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor

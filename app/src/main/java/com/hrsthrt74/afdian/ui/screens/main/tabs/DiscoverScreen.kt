@@ -77,11 +77,10 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
-import com.hrsthrt74.afdian.ui.components.CreatorLargeCard
 import com.hrsthrt74.afdian.ui.components.FilterChip
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
+import com.hrsthrt74.afdian.ui.components.basic.CreatorLargeCard
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
-import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent

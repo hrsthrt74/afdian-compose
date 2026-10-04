@@ -14,7 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.hrsthrt74.afdian.ui.components.CreatorSmallCard
+import com.hrsthrt74.afdian.ui.components.basic.CreatorSmallCard
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import top.yukonga.miuix.kmp.basic.Text

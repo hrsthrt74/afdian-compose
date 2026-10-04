@@ -2,9 +2,9 @@ package com.hrsthrt74.afdian.ui.components.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -13,9 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.FavoriteItem
-import com.hrsthrt74.afdian.ui.components.CreatorSmallCard
+import com.hrsthrt74.afdian.ui.components.basic.CreatorSmallCard
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
-import top.yukonga.miuix.kmp.utils.overScrollHorizontal
 
 /** 收藏创作者模块。 */
 @Composable
