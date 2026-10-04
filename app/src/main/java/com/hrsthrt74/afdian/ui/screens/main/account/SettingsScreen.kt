@@ -75,7 +75,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-// 「启动」页 下拉菜单选项
+// 「通用」分组里启动页的下拉选项
 private val startupPageNames = listOf(
     DropdownItem(
         icon = { Icon(MiuixIcons.Home, null, modifier = Modifier.padding(end = 12.dp)) },
@@ -249,7 +249,7 @@ private fun SettingsScreenContent(
                 )
             ) {
                 // 设置项目
-                item { SmallTitle(text = "启动", modifier = Modifier.padding(start = 4.dp)) }
+                item { SmallTitle(text = "通用", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         OverlaySpinnerPreference(
@@ -257,6 +257,14 @@ private fun SettingsScreenContent(
                             items = startupPageNames,
                             selectedIndex = startupPage,
                             onSelectedIndexChange = viewModel::setStartupPage
+                        )
+                        // 记录历史：从原来的「其他」分组挪过来，和启动页选择同属通用行为设置
+                        SwitchPreference(
+                            checked = historyEnabled,
+                            onCheckedChange = viewModel::setHistoryEnabled,
+                            title = "记录历史",
+                            summary = "最近访问、最近搜索等" +
+                                    "（仅保存在本地）",
                         )
                     }
                 }
@@ -320,11 +328,14 @@ private fun SettingsScreenContent(
                                 title = "模糊效果",
                                 summary = "顶栏、底栏、动画中的模糊效果",
                             )
-                            SwitchPreference(
-                                checked = themeSettings.progressiveBlur,
-                                onCheckedChange = viewModel::setProgressiveBlur,
-                                title = "渐进模糊",
-                            )
+                            // 渐进模糊是模糊效果的子选项，总开关关掉时一起隐藏，避免出现无效选项
+                            AnimatedVisibility(visible = themeSettings.enableBlur) {
+                                SwitchPreference(
+                                    checked = themeSettings.progressiveBlur,
+                                    onCheckedChange = viewModel::setProgressiveBlur,
+                                    title = "渐进模糊",
+                                )
+                            }
                         }
                     }
                 }
@@ -398,18 +409,6 @@ private fun SettingsScreenContent(
                 }
 
                 item { SmallTitle(text = "其他", modifier = Modifier.padding(start = 4.dp)) }
-                item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
-                        SwitchPreference(
-                            checked = historyEnabled,
-                            onCheckedChange = viewModel::setHistoryEnabled,
-                            title = "记录历史",
-                            summary = "最近访问、最近搜索等" +
-                                    "（仅保存在本地）",
-                        )
-                    }
-                }
-
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         ArrowPreference(
