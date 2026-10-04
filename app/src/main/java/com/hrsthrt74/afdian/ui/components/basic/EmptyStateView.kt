@@ -93,7 +93,7 @@ fun EmptyStateView(
                     action()
                 }
             }
-            Spacer(Modifier.height(36.dp)) // 视觉补偿
+//            Spacer(Modifier.height(36.dp)) // 视觉补偿
         }
     }
 }
