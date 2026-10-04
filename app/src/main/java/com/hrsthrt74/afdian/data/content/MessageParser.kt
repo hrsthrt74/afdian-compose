@@ -68,7 +68,14 @@ internal fun resolveTextContent(text: String, messageType: Int): MessageContent 
     messageType == TYPE_REDEEM_CODE -> MessageContent.Code(text)
     else -> tryParseComplaintNotice(text)?.let { MessageContent.Complaint(it) }
         ?: tryParseShipmentNotice(text)?.let { MessageContent.Shipment(it) }
-        ?: MessageContent.Text(text, autoKind = resolveAutoMessageKind(messageType))
+        // 普通文本先做 HTML 清洗（客服自动回复带 <br>/<a> 标签），再挂自动消息标注
+        ?: cleanMessageHtml(text).let { cleaned ->
+            MessageContent.Text(
+                cleaned.text,
+                links = cleaned.links,
+                autoKind = resolveAutoMessageKind(messageType),
+            )
+        }
 }
 
 /** 把接口消息类型映射为自动消息标注；type4（购买成功自动回复）与 type7（自动发出）以外的类型返回 null。 */

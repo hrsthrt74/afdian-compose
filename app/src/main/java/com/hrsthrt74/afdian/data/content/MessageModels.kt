@@ -88,9 +88,21 @@ enum class AutoMessageKind {
     AUTO_SENT,
 }
 
+/** 清洗后正文里的超链接区间；start/end 为 [MessageContent.Text.text] 的字符索引（含头不含尾）。 */
+data class MessageTextLink(
+    val start: Int,
+    val end: Int,
+    val url: String,
+)
+
 /** 私信正文的领域模型，屏蔽接口 content 字段的多种 JSON 形态。 */
 sealed class MessageContent {
-    data class Text(val text: String, val autoKind: AutoMessageKind? = null) : MessageContent()
+    /** links：正文里的 HTML <a> 链接区间（经 HTML 清洗得到），普通纯文本消息为空列表。 */
+    data class Text(
+        val text: String,
+        val links: List<MessageTextLink> = emptyList(),
+        val autoKind: AutoMessageKind? = null,
+    ) : MessageContent()
     data class Object(val content: MessageObjectContent) : MessageContent()
     data class Shipment(val notice: ShipmentNotice) : MessageContent()
     data class Complaint(val notice: ComplaintNotice) : MessageContent()

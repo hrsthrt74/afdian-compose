@@ -163,6 +163,43 @@ class MessageParserTest {
     }
 
     @Test
+    fun htmlMessageCleansBreaksAndAnchors() {
+        // 客服自动回复模板：每个 <br> 都换一行（与网页端一致，连续 <br> 即空行），
+        // <a> 标签还原为链接文字
+        val raw = "你好<br>  <br>当月收入可在下月进行提现。<br>  <br>如需提现，" +
+            "<a class=\"purple\" href=\"https://afdian.com/p/abc123\">点此看申请格式</a> 查看详情。"
+        val content = resolveTextContent(raw, messageType = 7) as MessageContent.Text
+
+        assertEquals("你好\n\n当月收入可在下月进行提现。\n\n如需提现，点此看申请格式 查看详情。", content.text)
+        assertEquals(AutoMessageKind.AUTO_SENT, content.autoKind)
+        // 链接区间必须正好落在还原出的链接文字上
+        val link = content.links.single()
+        assertEquals("https://afdian.com/p/abc123", link.url)
+        assertEquals("点此看申请格式", content.text.substring(link.start, link.end))
+    }
+
+    @Test
+    fun plainTextMessageSkipsHtmlCleaning() {
+        // 纯文本消息原样保留，不产生链接区间（裸 URL 的点击 Span 由展示层负责）
+        val content = resolveTextContent(
+            "在吗？\n看下这个 https://afdian.com/a",
+            messageType = 1,
+        ) as MessageContent.Text
+
+        assertEquals("在吗？\n看下这个 https://afdian.com/a", content.text)
+        assertTrue(content.links.isEmpty())
+    }
+
+    @Test
+    fun htmlMessageDecodesEntitiesAndStripsUnknownTags() {
+        // HTML 实体解码（&nbsp;→不间断空格、&amp;→&），未知标签剥壳保留文本
+        val content = resolveTextContent("A&nbsp;B<b>C</b>D&amp;E", messageType = 1) as MessageContent.Text
+
+        assertEquals("A\u00A0BCD&E", content.text)
+        assertTrue(content.links.isEmpty())
+    }
+
+    @Test
     fun orderExtensionKeepsAddressAndAffiliateFields() {
         val content = Json.parseToJsonElement(
             """
