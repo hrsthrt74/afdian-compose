@@ -48,7 +48,7 @@ internal class FeedService(
     }
 
     suspend fun fetchMarkedCreators(): List<FavoriteItem> =
-        fetchFavoriteList("/api/my/marked") { it["user"]?.jsonObject ?: it }
+        fetchFavoriteList("/api/my/marked", { it["user"]?.jsonObject ?: it })
 
     suspend fun fetchMarkedPosts(page: Int = 1): MarkedPostsPage {
         val url = "$AFDIAN_HOST/api/my/marked-post".toHttpUrl().newBuilder()
@@ -86,7 +86,7 @@ internal class FeedService(
     }
 
     suspend fun fetchMarkedCrowdfundings(): List<FavoriteItem> =
-        fetchFavoriteList("/api/user/marked-crowdfunding") { it["crowdfunding"]?.jsonObject ?: it }
+        fetchFavoriteList("/api/user/marked-crowdfunding", { it["crowdfunding"]?.jsonObject ?: it }, ::decorateCrowdfunding)
 
     suspend fun fetchRecommendedPosts(publishSN: String = ""): RecommendedPostsPage {
         val url = "$AFDIAN_HOST/api/post/get-rec-list".toHttpUrl().newBuilder()
@@ -217,7 +217,15 @@ internal class FeedService(
         }
     }
 
-    private fun fetchFavoriteList(path: String, unwrap: (JsonObject) -> JsonObject): List<FavoriteItem> {
+    /**
+     * 收藏列表通用拉取：unwrap 负责从条目里取出主体对象（创作者/众筹），
+     * decorate 可选地在基础字段之上追加 tab 专属解析（如众筹详情）。
+     */
+    private fun fetchFavoriteList(
+        path: String,
+        unwrap: (JsonObject) -> JsonObject,
+        decorate: (FavoriteItem, JsonObject) -> FavoriteItem = { item, _ -> item },
+    ): List<FavoriteItem> {
         val url = (AFDIAN_HOST + path).toHttpUrl().newBuilder()
             .addQueryParameter("auth_token", tokenStore.token)
             .addQueryParameter("page", "1")
@@ -239,18 +247,29 @@ internal class FeedService(
             val items = data["items"]?.jsonArray ?: data["list"]?.jsonArray ?: return@use emptyList()
             items.mapNotNull { element ->
                 val value = unwrap(element.jsonObject)
-                FavoriteItem(
+                val item = FavoriteItem(
                     id = value.string("post_id") ?: value.string("user_id") ?: value.string("crowdfunding_id") ?: value.string("id") ?: return@mapNotNull null,
                     title = value.string("title") ?: value.string("name") ?: "未命名内容",
                     subtitle = value.string("preview") ?: value.string("preview_text") ?: value.string("desc") ?: value.string("doing") ?: "",
-                    image = value.string("avatar") ?: value.string("cover"),
+                    image = value.string("avatar") ?: value.string("cover") ?: value.string("pic"),
                     user = runCatching { json.decodeFromString<AfadianUser>(value.toString()) }.getOrNull(),
                 )
+                decorate(item, value)
             }
         }.also { list ->
             AppLog.d(TAG, "$path -> HTTP $httpCode（${System.currentTimeMillis() - start}ms），返回 ${list.size} 条")
         }
     }
+
+    /** 众筹 tab 专属：把官方众筹详情整体解析进 FavoriteItem，卡片渲染进度/倒计时要用。 */
+    private fun decorateCrowdfunding(item: FavoriteItem, value: JsonObject): FavoriteItem =
+        item.copy(
+            crowdfunding = runCatching {
+                json.decodeFromJsonElement(FavoriteCrowdfunding.serializer(), value)
+            }.onFailure {
+                AppLog.w(TAG, "众筹详情解析失败 id=${item.id}", it)
+            }.getOrNull(),
+        )
 
     private fun JsonObject.string(key: String): String? =
         (this[key] as? JsonPrimitive)?.contentOrNull

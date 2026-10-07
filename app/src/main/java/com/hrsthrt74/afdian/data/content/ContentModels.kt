@@ -10,6 +10,39 @@ data class FavoriteItem(
     val subtitle: String,
     val image: String? = null,
     val user: AfadianUser? = null,
+    // 众筹 tab 专属：官方众筹详情（状态/进度/支持人数等），创作者/动态 tab 为 null
+    val crowdfunding: FavoriteCrowdfunding? = null,
+)
+
+/**
+ * 收藏众筹条目的详情，来自 /api/user/marked-crowdfunding 返回的 crowdfunding 对象。
+ * 只解析卡片渲染所需的字段，商品列表/富文本详情等不收藏的数据一律忽略。
+ */
+@Serializable
+data class FavoriteCrowdfunding(
+    val crowdfunding_id: String = "",
+    // 封面图
+    val pic: String? = null,
+    // 众筹状态：1=众筹即将开始 2=众筹中 3=众筹已结束（与官方前端 tag 判断一致）
+    val process: Int = 0,
+    // 开始/结束时间戳（秒），用于倒计时
+    val begin_time: Long = 0,
+    val end_time: Long = 0,
+    // 支持人数
+    val sponsor_count: Long = 0,
+    // 目标列表，官方卡片只展示第一个
+    val goal_list: List<FavoriteCrowdfundingGoal> = emptyList(),
+)
+
+/** 众筹目标：官方 percent 为「已筹/目标」的倍数（如 55.7 表示 5570%）。 */
+@Serializable
+data class FavoriteCrowdfundingGoal(
+    // 目标金额，如 "30000.00"
+    val amount: String = "",
+    // 已筹金额，如 "1670918.00"
+    val sum_income: String = "",
+    // 进度倍数，如 "55.697"；展示时 ×100 保留 1 位小数
+    val percent: String = "",
 )
 
 @Serializable

@@ -1,7 +1,5 @@
 package com.hrsthrt74.afdian.ui.screens.main.account
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,7 +24,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
-import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.CreatorListItem
@@ -38,6 +35,7 @@ import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.components.crowdfunding.CrowdfundingCard
 import com.hrsthrt74.afdian.ui.components.post.PostCard
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
@@ -201,24 +199,11 @@ fun FavoritesScreen(
                                 modifier = origin.trackModifier().padding(16.dp, 6.dp)
                             )
                         } else {
-                            // TODO: 众筹卡片，待实现
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp)
-                                    .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Avatar(
-                                    model = item.image,
-                                    size = 48.dp,
-                                )
-                                Column {
-                                    Text(item.title)
-                                    Text(item.subtitle)
-                                }
-                            }
+                            // 众筹 tab：官方同款众筹卡片（封面 + 状态徽标 + 金额进度条 + 支持人数/倒计时）
+                            CrowdfundingCard(
+                                item = item,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                            )
                         }
                     }
                 }
