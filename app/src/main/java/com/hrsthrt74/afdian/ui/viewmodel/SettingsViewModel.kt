@@ -43,6 +43,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val predictiveBack: StateFlow<Boolean> = store.predictiveBack
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    /** 底部导航栏样式：0=常规（默认） 1=悬浮胶囊 */
+    val bottomBarStyle: StateFlow<Int> = store.bottomBarStyle
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
     /** 浏览历史记录开关，默认开启。 */
     val historyEnabled: StateFlow<Boolean> = store.historyEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -57,6 +61,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setHistoryEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setHistoryEnabled(enabled) }
+    }
+
+    /** 切换底部导航栏样式（0=常规 1=悬浮），DataStore 回推后 MainScreen 立即重组生效 */
+    fun setBottomBarStyle(style: Int) {
+        viewModelScope.launch { store.setBottomBarStyle(style) }
     }
 
     fun setShowIncomeUnit(enabled: Boolean) {

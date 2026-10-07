@@ -97,6 +97,9 @@ private val startupPageNames = listOf(
 // 配色模式选项，索引与 SettingsStore 的 0/1/2 约定一致
 private val colorModeNames = listOf("跟随系统", "浅色", "深色")
 
+// 底栏样式选项，索引与 SettingsStore 的 bottomBarStyle（0/1）约定一致
+private val bottomBarStyleNames = listOf("常规", "悬浮")
+
 /**
  * 「跟随系统壁纸」那一项的颜色球用的色轮。
  *
@@ -203,6 +206,7 @@ private fun SettingsScreenContent(
     val advancedTransition by viewModel.advancedTransition.collectAsState()
     val gestureBack by viewModel.gestureBack.collectAsState()
     val predictiveBack by viewModel.predictiveBack.collectAsState()
+    val bottomBarStyle by viewModel.bottomBarStyle.collectAsState()
     val historyEnabled by viewModel.historyEnabled.collectAsState()
     val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
     val showCountUnit by viewModel.showCountUnit.collectAsState()
@@ -272,6 +276,13 @@ private fun SettingsScreenContent(
                 item { SmallTitle(text = "外观", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        // 底栏样式：常规（贴底整条）/ 悬浮（胶囊），MainScreen 订阅后立即生效
+                        OverlayDropdownPreference(
+                            title = "底栏样式",
+                            items = bottomBarStyleNames,
+                            selectedIndex = bottomBarStyle.coerceIn(0, bottomBarStyleNames.lastIndex),
+                            onSelectedIndexChange = viewModel::setBottomBarStyle
+                        )
                         // 配色模式：只决定明暗（跟随系统/浅色/深色），与下面 Monet 开关正交
                         OverlayDropdownPreference(
                             title = "配色模式",

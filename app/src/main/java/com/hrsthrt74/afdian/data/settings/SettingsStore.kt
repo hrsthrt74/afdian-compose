@@ -51,6 +51,8 @@ class SettingsStore(private val context: Context) {
         val GESTURE_BACK = booleanPreferencesKey("gesture_back")
         // 系统预测性返回总开关；关闭后由导航 entry 消费系统返回事件
         val PREDICTIVE_BACK = booleanPreferencesKey("predictive_back")
+        // 底部导航栏样式：0=常规（贴底整条） 1=悬浮胶囊
+        val BOTTOM_BAR_STYLE = intPreferencesKey("bottom_bar_style")
     // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
     val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
     // 日志落盘开关：开启后运行日志（D/W/E）追加写入 files/logs/ 按天文件（崩溃报告不受此开关控制）
@@ -108,6 +110,13 @@ class SettingsStore(private val context: Context) {
     /** 页面内边缘滑动返回手势，默认开启（系统预测性返回不受此控制） */
     val gestureBack: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.GESTURE_BACK] ?: true }
+
+    /**
+     * 底部导航栏样式：0=常规（贴底整条，默认） 1=悬浮胶囊。
+     * 用 Int 而非 Boolean 存储是为了以后新增档位（如沉浸式、双排）不用迁移键。
+     */
+    val bottomBarStyle: Flow<Int> =
+        context.settingsDataStore.data.map { it[Keys.BOTTOM_BAR_STYLE] ?: 0 }
 
     /** 系统预测性返回，默认开启；legacy 低配版（SUPPORT_PREDICTIVE_BACK=false）在数据源层
      *  强制关闭，MainScreen 的 PredictiveBackGuard 据此拦截系统返回事件、降级为普通返回。 */
@@ -290,6 +299,12 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setPredictiveBack(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.PREDICTIVE_BACK] = enabled }
+    }
+
+    /** 写入底部导航栏样式档位（0=常规 1=悬浮），立即生效无需重启 */
+    suspend fun setBottomBarStyle(style: Int) {
+        AppLog.d("Settings", "保存底栏样式，style=$style")
+        context.settingsDataStore.edit { it[Keys.BOTTOM_BAR_STYLE] = style }
     }
 
     suspend fun setColorMode(mode: Int) {

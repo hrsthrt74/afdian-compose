@@ -20,6 +20,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -55,6 +56,7 @@ import com.hrsthrt74.afdian.ui.screens.main.management.IncomeDetailScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.ManagementScreen
 import com.hrsthrt74.afdian.ui.screens.main.tabs.ProfileScreen
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.theme.isDarkColorScheme
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
 import com.hrsthrt74.afdian.ui.viewmodel.BlocklistViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
@@ -69,12 +71,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Badge
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
+import top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
@@ -525,6 +531,8 @@ private fun MainTabsContent(
     val hasUnreadMessages by messagesViewModel.hasUnreadMessages.collectAsState()
     val unreadCount by messagesViewModel.unreadCount.collectAsState()
     val themeSettings = LocalThemeSettings.current
+    // 底栏样式档位（0=常规 1=悬浮）：订阅 DataStore，设置页切换后立即重组生效
+    val bottomBarStyle by settingsStore.bottomBarStyle.collectAsState(initial = 0)
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     var layoutReady by remember { mutableStateOf(false) }
     // 发现页搜索面板是否激活（展开中/展开/收起中）：激活期间禁用 pager 横滑，
@@ -546,32 +554,89 @@ private fun MainTabsContent(
     Scaffold(
         modifier = Modifier.alpha(if (layoutReady) 1f else 0f),
         bottomBar = {
-            NavigationBar(
-                modifier = if (backdrop != null) Modifier.textureBlur(
-                    backdrop = backdrop,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
-                    blurRadius = AppBlurRadius,
-                    colors = blurBarColors(),
-                    enabled = themeSettings.enableBlur,
-                ) else Modifier,
-                color = if (themeSettings.enableBlur) MiuixTheme.colorScheme.surface.copy(alpha = 0.1f)
-                else MiuixTheme.colorScheme.surface,
-            ) {
-                mainTabs.forEachIndexed { index, tab ->
-                    NavigationBarItem(
-                        selected = mainPagerState.selectedPage == index,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            mainPagerState.animateToPage(index)
-                        },
-                        icon = tab.icon,
-                        label = tab.title,
-                        badge = if (index == 2 && hasUnreadMessages) {
-                            { Badge( containerColor = MiuixTheme.colorScheme.primary, contentColor = MiuixTheme.colorScheme.onPrimary ) { Text("$unreadCount") } }
-                        } else {
-                            null
-                        }
+            // 底栏样式：0=常规（贴底整条，默认） 1=悬浮胶囊；设置页「外观→底栏样式」切换，实时生效
+            // 消息 tab 的未读红点：两种样式共用
+            val navBadge: (Int) -> (@Composable () -> Unit)? = { index ->
+                if (index == 2 && hasUnreadMessages) {
+                    { Badge(containerColor = MiuixTheme.colorScheme.primary, contentColor = MiuixTheme.colorScheme.onPrimary) { Text("$unreadCount") } }
+                } else {
+                    null
+                }
+            }
+            // 悬浮档：胶囊样式圆角 50dp 与官方 FloatingToolbarDefaults.CornerRadius 一致，
+            // 模糊层用同形状 RoundedCornerShape，只模糊胶囊区域而非整条底栏。
+            // 注意 FloatingNavigationBarItem 不是 RowScope 扩展，不能和常规档共用一个 item lambda
+            if (bottomBarStyle == 1) {
+                // 官方 example 同款描边高光：亮暗主题用对应的 GlassStrokeMiddle 预设
+                val navHighlight = if (isDarkColorScheme(MiuixTheme.colorScheme)) {
+                    Highlight.GlassStrokeMiddleDark
+                } else {
+                    Highlight.GlassStrokeMiddleLight
+                }
+                Box {
+                    // 胶囊下方的渐变遮罩：上端 surface 全透明 → 下端 surface 全不透明，
+                    // 让滚动到导航栏后方的内容柔和淡出，而不是被胶囊硬生生截断
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    0f to MiuixTheme.colorScheme.surface.copy(alpha = 0f),
+                                    1f to MiuixTheme.colorScheme.surface,
+                                )
+                            )
                     )
+                    FloatingNavigationBar(
+                        modifier = if (backdrop != null) Modifier.textureBlur(
+                            backdrop = backdrop,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(FloatingToolbarDefaults.CornerRadius),
+                            blurRadius = AppBlurRadius,
+                            colors = blurBarColors(),
+                            highlight = navHighlight,
+                            enabled = themeSettings.enableBlur,
+                        ) else Modifier,
+                        color = if (themeSettings.enableBlur) MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.1f)
+                        else MiuixTheme.colorScheme.surfaceContainer,
+                    ) {
+                        mainTabs.forEachIndexed { index, tab ->
+                            FloatingNavigationBarItem(
+                                selected = mainPagerState.selectedPage == index,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    mainPagerState.animateToPage(index)
+                                },
+                                icon = tab.icon,
+                                label = tab.title,
+                                badge = navBadge(index),
+                            )
+                        }
+                    }
+                }
+            } else {
+                // 常规档：贴底整条 NavigationBar（默认样式）
+                NavigationBar(
+                    modifier = if (backdrop != null) Modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                        blurRadius = AppBlurRadius,
+                        colors = blurBarColors(),
+                        enabled = themeSettings.enableBlur,
+                    ) else Modifier,
+                    color = if (themeSettings.enableBlur) MiuixTheme.colorScheme.surface.copy(alpha = 0.1f)
+                    else MiuixTheme.colorScheme.surface,
+                ) {
+                    mainTabs.forEachIndexed { index, tab ->
+                        NavigationBarItem(
+                            selected = mainPagerState.selectedPage == index,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                mainPagerState.animateToPage(index)
+                            },
+                            icon = tab.icon,
+                            label = tab.title,
+                            badge = navBadge(index),
+                        )
+                    }
                 }
             }
         }
