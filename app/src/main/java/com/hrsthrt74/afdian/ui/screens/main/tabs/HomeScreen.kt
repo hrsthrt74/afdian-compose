@@ -16,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,9 +33,9 @@ import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
+import com.hrsthrt74.afdian.ui.components.basic.RefreshButton
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
-import com.hrsthrt74.afdian.ui.components.basic.RefreshButton
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.data.toDataCardItem
 import com.hrsthrt74.afdian.ui.components.home.CreatorDataEditPage
@@ -46,9 +47,11 @@ import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -95,6 +98,24 @@ fun HomeScreen(
     var showCustomizeSheet by remember { mutableStateOf(false) }
     // 创作者数据是否处于整页编辑：为 true 时隐藏其它模块，只渲染可拖拽的编辑页。
     var editingCreatorData by remember { mutableStateOf(false) }
+
+    // 下拉刷新状态与指示器：isRefreshing 由「下拉」或「顶栏刷新按钮」共同驱动
+    var isRefreshing by rememberSaveable { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    // 下拉触发刷新：isRefreshing 变 true 时调用 viewModel.refresh()（与顶栏刷新按钮同一路径）
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) {
+            viewModel.refresh()
+        }
+    }
+
+    // 刷新完成（isLoading 从 true→false）时关闭下拉刷新指示器
+    LaunchedEffect(loading) {
+        if (!loading && isRefreshing) {
+            isRefreshing = false
+        }
+    }
 
     // 编辑态拦截系统返回：编辑页只是页内状态而非导航栈页面，不拦截的话
     // 返回键会穿透到 NavDisplay 把根页面弹掉、直接退出应用。
@@ -165,6 +186,16 @@ fun HomeScreen(
                     onExit = { editingCreatorData = false },
                 )
             } else {
+                // 下拉刷新包裹列表：只在普通首页态生效，整页编辑态不套（编辑网格无需刷新）
+                PullToRefresh(
+                    isRefreshing = isRefreshing,
+                    onRefresh = { isRefreshing = true },
+                    pullToRefreshState = pullToRefreshState,
+                    refreshTexts = listOf("下拉刷新", "松开刷新", "正在刷新", "刷新成功"),
+                    // 只让刷新指示器避开模糊顶栏，列表自身的 contentPadding 仍由 LazyColumn 控制
+                    contentPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection).scrollEndHaptic(),
@@ -195,6 +226,7 @@ fun HomeScreen(
                             }
                         }
                     }
+                }
                 }
             }
             }
