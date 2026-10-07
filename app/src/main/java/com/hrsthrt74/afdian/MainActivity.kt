@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
@@ -43,7 +44,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()  // 启动界面大肥鱼
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // 关闭 enableEdgeToEdge 默认给系统导航栏垫的半透明白色 scrim（三键导航下尤其明显），
+        // 显式传全透明样式，让内容真正延伸到导航栏底下
+        enableEdgeToEdge(
+            navigationBarStyle = SystemBarStyle.auto(
+                lightScrim = android.graphics.Color.TRANSPARENT,
+                darkScrim = android.graphics.Color.TRANSPARENT,
+            ),
+        )
+        // API 29+ 系统默认强制「导航栏对比度」：即使导航栏全透明，三键导航模式下
+        // 系统也会自己垫一层半透明白 scrim（手势条不受影响）。这里显式关掉它。
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
         // 首个真正可见的界面（主页布局就绪 / 登录页 / 免责声明）出现前不放行，
         // 冷启动已登录时直接从启动画面无缝进入主界面，不再闪「登录中」
         splash.setKeepOnScreenCondition { !appReady.value }
