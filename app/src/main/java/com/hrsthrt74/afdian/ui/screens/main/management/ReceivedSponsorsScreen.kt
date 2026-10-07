@@ -61,7 +61,6 @@ import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
-import com.hrsthrt74.afdian.ui.components.basic.MiuixIconWeight
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
@@ -946,11 +945,10 @@ private fun SponsorDetailCopyField(label: String, value: String) {
         SponsorDetailField(label, value, modifier = Modifier.weight(1f))
 
         // 复制该行内容：Toast 沿用「$label已复制」的既有文案，
-        // 字重保持该处原有的 Demibold，避免替换组件后图标变细
+        // 预设样式现在与字重绑定，此处跟随默认档（Regular 字重）
         CopyButton(
             text = value,
             toastText = "${label}已复制",
-            iconWeight = MiuixIconWeight.Demibold,
             contentDescription = "复制$label",
         )
     }
