@@ -331,7 +331,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         }
         entry<Route.Orders> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            OrderScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+            OrderScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
+            )
         }
         entry<Route.Management> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
