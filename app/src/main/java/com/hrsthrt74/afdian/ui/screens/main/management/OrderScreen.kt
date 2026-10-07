@@ -353,7 +353,7 @@ private fun OrderCard(
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 // 期限：纯赞助类订单显示（商品订单的时长在 SKU 规格名里，不重复）
                 if (order.duration != null) {
-                    InfoRow(label = "期限", value = order.duration!!)
+                    InfoRow(label = "期限", value = order.duration)
                 }
                 // 金额：整单合计（区别于卡中卡里的单价）；多份时补充「单价 × 份数」
                 InfoRow(
@@ -372,20 +372,20 @@ private fun OrderCard(
                 )
                 // 买家留言
                 if (order.remark != null) {
-                    InfoRow(label = "留言", value = order.remark!!)
+                    InfoRow(label = "留言", value = order.remark)
                 }
                 // 兑换码订单：外显只显示码本身，不带官方的链接前缀；可一键复制
                 if (order.redeemCode != null) {
                     InfoRow(
                         label = "兑换自",
-                        value = order.redeemCode!!,
+                        value = order.redeemCode,
                         copyText = order.redeemCode,
                         copyDescription = "复制兑换码",
                     )
                 }
                 // 已发货订单：收货地址 + 快递信息，快递单号可一键复制
                 if (order.address != null) {
-                    InfoRow(label = "收货地址", value = order.address!!)
+                    InfoRow(label = "收货地址", value = order.address)
                 }
                 if (order.expressNo != null) {
                     InfoRow(
@@ -428,7 +428,7 @@ private fun OrderCardPlan(
                 // 纯赞助订单没有方案 id，点击无效
                 .then(
                     if (order.planId != null) {
-                        Modifier.clickable(onClick = { onOpenPlan(order.planId!!) })
+                        Modifier.clickable(onClick = { onOpenPlan(order.planId) })
                     } else {
                         Modifier
                     }
@@ -465,7 +465,7 @@ private fun OrderCardPlan(
                 // SKU 规格：纯赞助订单没有，规格名与方案名相同时不重复显示
                 if (order.skuName != null && order.skuName != order.title) {
                     Text(
-                        order.skuName!!,
+                        order.skuName,
                         style = MiuixTheme.textStyles.footnote2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         maxLines = 1,
@@ -534,7 +534,7 @@ private fun InfoRow(
         // 右列：复制按钮（没有就整列留空）
         if (copyText != null) {
             CopyButton(
-                text = copyText!!,
+                text = copyText,
                 contentDescription = copyDescription,
                 style = CopyButtonStyle.Small,
             )
@@ -589,7 +589,7 @@ private fun OrderCardHeader(order: OrderItem, onClick: () -> Unit) {
             // 日期：当年内只显示「M/d」，跨年才带上年份，与官方网页端习惯一致
             if (order.timeSeconds != null) {
                 val dateStr = remember(order.timeSeconds) {
-                    val date = Date(order.timeSeconds!! * 1000)
+                    val date = Date(order.timeSeconds * 1000)
                     val cal = Calendar.getInstance()
                     val orderYear = cal.apply { time = date }.get(Calendar.YEAR)
                     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
