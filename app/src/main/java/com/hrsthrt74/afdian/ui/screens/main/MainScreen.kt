@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+import com.hrsthrt74.afdian.R
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -84,7 +86,6 @@ import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
-import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
@@ -96,14 +97,17 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 底部导航 Tab 定义：标题 + 图标。
+ * 图标用 @Composable lambda 惰性提供，支持需要 Composable 上下文的
+ * [ImageVector.vectorResource]（如自定义 drawable 图标）。
  */
-private data class MainTab(val title: String, val icon: ImageVector)
+private data class MainTab(val title: String, val icon: @Composable () -> ImageVector)
 
 private val mainTabs = listOf(
-    MainTab("首页", MiuixIcons.Home),
-    MainTab("发现", MiuixIcons.Search),
-    MainTab("消息", MiuixIcons.Community),
-    MainTab("我的", MiuixIcons.Contacts),
+    // 首页：自定义描边小房子（drawable/home_outlined，抄自 exTile 项目）
+    MainTab("首页") { ImageVector.vectorResource(R.drawable.home_outlined) },
+    MainTab("发现") { MiuixIcons.Search },
+    MainTab("消息") { MiuixIcons.Community },
+    MainTab("我的") { MiuixIcons.Contacts },
 )
 
 /**
@@ -605,7 +609,7 @@ private fun MainTabsContent(
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     mainPagerState.animateToPage(index)
                                 },
-                                icon = tab.icon,
+                                icon = tab.icon(),
                                 label = tab.title,
                                 badge = navBadge(index),
                             )
@@ -632,7 +636,7 @@ private fun MainTabsContent(
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 mainPagerState.animateToPage(index)
                             },
-                            icon = tab.icon,
+                            icon = tab.icon(),
                             label = tab.title,
                             badge = navBadge(index),
                         )
