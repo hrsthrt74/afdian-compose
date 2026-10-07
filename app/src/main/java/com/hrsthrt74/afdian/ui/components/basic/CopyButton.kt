@@ -15,6 +15,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.AppLog
 import kotlinx.coroutines.delay
@@ -54,6 +56,30 @@ private const val CopyButtonTransitionDurationMs = 200
 
 /** 模糊过渡的最大半径：0.dp 表示完全清晰，此值表示过渡两端的模糊程度 */
 private val CopyButtonBlurRadius = 8.dp
+
+/**
+ * 复制按钮的预设样式：把图标大小与字重绑定成套，避免调用处分别传两个参数导致风格脱节。
+ *
+ * 各档位的图标与热区留白成对设计：
+ * - [Small]：小图标配粗字重，小图标笔画少，用 Demibold 保证视觉分量；
+ * - [Default]：标准图标配常规字重，与 Miuix Icon 默认观感一致。
+ */
+enum class CopyButtonStyle(
+    /** 图标绘制尺寸 */
+    val iconSize: Dp,
+
+    /** 图标字重 */
+    val iconWeight: MiuixIconWeight,
+
+    /** 图标与热区边缘的留白：热区 = iconSize + 此值 */
+    val touchTargetPadding: Dp,
+) {
+    /** 小号：适合行内紧凑场景（图标小，留白也收窄，占位更紧凑） */
+    Small(16.dp, MiuixIconWeight.Demibold, 12.dp),
+
+    /** 默认：与 Miuix Icon 默认尺寸一致（24.dp + 16.dp = 40.dp，等于 Miuix IconButton 默认热区） */
+    Default(24.dp, MiuixIconWeight.Regular, 16.dp),
+}
 
 /**
  * 图标字重档位：与 MiuixIcons 提供的 5 档字重一一对应，由细到粗排列。
@@ -111,14 +137,14 @@ private val MiuixIconWeight.okIcon: ImageVector
  * 使用示例：
  * ```kotlin
  * CopyButton(text = "邀请码 ABC123", modifier = Modifier)
- * CopyButton(text = "邀请码 ABC123", iconWeight = MiuixIconWeight.Demibold)
+ * CopyButton(text = "邀请码 ABC123", style = CopyButtonStyle.Small)
  * ```
  *
  * @param text 要复制的文本（纯文本）
  * @param modifier 外部修饰符
  * @param enabled 是否可点击；false 时既不震动也不写剪贴板
  * @param toastText 复制成功后的 Toast 文案
- * @param iconWeight 图标字重，默认 [MiuixIconWeight.Regular]（等同不带字重的 MiuixIcons.Copy）
+ * @param style 预设样式（图标大小 + 字重 + 热区留白成套），默认 [CopyButtonStyle.Default]
  * @param contentDescription 无障碍描述（进入「已复制」态时会自动附加状态后缀）
  */
 @Composable
@@ -127,11 +153,15 @@ fun CopyButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     toastText: String = "复制成功",
-    iconWeight: MiuixIconWeight = MiuixIconWeight.Regular,
+    style: CopyButtonStyle = CopyButtonStyle.Default,
     contentDescription: String = "复制",
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+
+    // 点击热区随预设同步缩放：Miuix IconButton 默认 minWidth/minHeight 是 40.dp，
+    // 恰好等于 Default 档「24.dp 图标 + 16.dp 留白」；Small 档留白更窄，占位更紧凑
+    val minTouchTarget = style.iconSize + style.touchTargetPadding
 
     // 是否处于「复制成功」态：驱动 Copy → Ok 的图标切换，同时也是自动复位的计时开关
     var copied by remember { mutableStateOf(false) }
@@ -180,6 +210,8 @@ fun CopyButton(
         },
         modifier = modifier,
         enabled = enabled,
+        minWidth = minTouchTarget,
+        minHeight = minTouchTarget,
     ) {
         // 图标区：Copy 与 Ok 之间做内容切换动画
         AnimatedContent(
@@ -211,13 +243,16 @@ fun CopyButton(
             ) { state -> if (state == EnterExitState.Visible) 0.dp else CopyButtonBlurRadius }
 
             Icon(
-                // Copy 与 Ok 都按 iconWeight 取同一档字重，切换时不会出现粗细跳变
-                imageVector = if (isCopied) iconWeight.okIcon else iconWeight.copyIcon,
+                // Copy 与 Ok 都取预设绑定的同一档字重，切换时不会出现粗细跳变
+                imageVector = if (isCopied) style.iconWeight.okIcon else style.iconWeight.copyIcon,
                 // 可用/禁用两态间渐变过渡的着色（禁用时置灰）
                 tint = iconTint,
                 contentDescription = if (isCopied) "$contentDescription（成功）" else contentDescription,
                 // Unbounded：图标带透明像素，模糊结果不裁切、边缘自然淡出
-                modifier = Modifier.blur(blurRadius, BlurredEdgeTreatment.Unbounded),
+                modifier = Modifier
+                    // 先定尺寸再模糊，保证模糊效果在指定大小的图标上生效
+                    .size(style.iconSize)
+                    .blur(blurRadius, BlurredEdgeTreatment.Unbounded),
             )
         }
     }
