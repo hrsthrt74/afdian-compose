@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -73,21 +72,26 @@ fun PlanDetailSheet(
         onDismissRequest = onDismiss,
     ) {
         when {
+            // 各兜底态统一撑满剩余高度，避免弹层高度随内容跳变
             loading && detail == null -> LoadingComponent(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp),
+                    .fillMaxHeight(),
             )
             // 加载失败：预设错误态（含重试按钮）
             detail == null && error != null -> ErrorStateView(
                 onRetry = viewModel::retry,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(),
                 summary = error,
             )
             // 无错误也没有详情（如 planId 缺失）：空态兜底
             detail == null -> EmptyStateView(
                 title = "暂无详情",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(),
             )
             else -> {
                 val loadedDetail = detail!!
