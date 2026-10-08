@@ -4,13 +4,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -46,29 +44,17 @@ import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
-import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.NumberPicker
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
-import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import top.yukonga.miuix.kmp.window.WindowListPopup
 import java.time.YearMonth
 
 /**
@@ -147,77 +133,77 @@ fun ThankSponsorsScreen(
                     actions = {
                         // 手写「图标 + 弹层」绑定：WindowListPopup 锚定到父容器（这个 Box），
                         // 所以图标和弹层必须包在同一个 Box 里
-                        Box {
-                            IconButton(onClick = { showPicker = true }) {
-                                Icon(imageVector = MiuixIcons.More, contentDescription = "选择年月")
-                            }
-                            WindowListPopup(
-                                show = showPicker,
-                                alignment = PopupPositionProvider.Align.End,
-                                onDismissRequest = { showPicker = false },
-                            ) {
-                                ListPopupColumn {
-                                    Column(
-                                        modifier = Modifier.padding(16.dp)
-                                    ) {
-                                        SmallTitle("月份跳转", insideMargin = PaddingValues(start = 12.dp, bottom = 8.dp))
-                                        // 左边年份（2017~今年）、右边月份（今年则本月不可选）
-                                        Card(
-                                            // 弹层（Popup）内 Card 统一配色：与弹层背景拉开层次
-                                            colors = AfdianCardDefaults.overlayColors(),
-                                        ) {
-                                            // 横排：年选择器 + 「年」 + 月选择器 + 「月」，文字与滚轮垂直居中；
-                                            // picker 用固定宽度，避免选中值位数不同导致宽度抖动
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(horizontal = 12.dp)
-                                                ) {
-                                                NumberPicker(
-                                                    textStyle = MiuixTheme.textStyles.title2,
-                                                    value = pickerYear,
-                                                    onValueChange = { pickerYear = it },
-                                                    range = 2018..now.year,
-                                                    label = { it.toString() },
-                                                    modifier = Modifier.width(88.dp)
-                                                )
-                                                Text(
-                                                    "年",
-                                                    style = MiuixTheme.textStyles.title2,
-                                                    modifier = Modifier.padding(start = 8.dp)
-                                                )
-                                                Spacer(Modifier.width(16.dp))
-                                                NumberPicker(
-                                                    textStyle = MiuixTheme.textStyles.title2,
-                                                    value = pickerMonth,
-                                                    onValueChange = { pickerMonth = it },
-                                                    range = monthRange,
-                                                    label = { it.toString() },
-                                                    modifier = Modifier.width(56.dp)
-                                                )
-                                                Text(
-                                                    "月",
-                                                    style = MiuixTheme.textStyles.title2,
-                                                    modifier = Modifier.padding(start = 8.dp)
-                                                )
-                                            }
-                                        }
-                                        // 跳转按钮：关掉弹层并加载所选年月
-                                        val dismiss = LocalDismissState.current
-                                        Button(
-                                            onClick = {
-                                                dismiss?.invoke()
-                                                viewModel.jumpTo(pickerYear, pickerMonth)
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 12.dp)
-                                        ) {
-                                            Text("跳转")
-                                        }
-                                    }
-                                }
-                            }
-                        }
+//                        Box {
+//                            IconButton(onClick = { showPicker = true }) {
+//                                Icon(imageVector = MiuixIcons.More, contentDescription = "选择年月")
+//                            }
+//                            WindowListPopup(
+//                                show = showPicker,
+//                                alignment = PopupPositionProvider.Align.End,
+//                                onDismissRequest = { showPicker = false },
+//                            ) {
+//                                ListPopupColumn {
+//                                    Column(
+//                                        modifier = Modifier.padding(16.dp)
+//                                    ) {
+//                                        SmallTitle("月份跳转", insideMargin = PaddingValues(start = 12.dp, bottom = 8.dp))
+//                                        // 左边年份（2017~今年）、右边月份（今年则本月不可选）
+//                                        Card(
+//                                            // 弹层（Popup）内 Card 统一配色：与弹层背景拉开层次
+//                                            colors = AfdianCardDefaults.overlayColors(),
+//                                        ) {
+//                                            // 横排：年选择器 + 「年」 + 月选择器 + 「月」，文字与滚轮垂直居中；
+//                                            // picker 用固定宽度，避免选中值位数不同导致宽度抖动
+//                                            Row(
+//                                                verticalAlignment = Alignment.CenterVertically,
+//                                                modifier = Modifier.padding(horizontal = 12.dp)
+//                                                ) {
+//                                                NumberPicker(
+//                                                    textStyle = MiuixTheme.textStyles.title2,
+//                                                    value = pickerYear,
+//                                                    onValueChange = { pickerYear = it },
+//                                                    range = 2018..now.year,
+//                                                    label = { it.toString() },
+//                                                    modifier = Modifier.width(88.dp)
+//                                                )
+//                                                Text(
+//                                                    "年",
+//                                                    style = MiuixTheme.textStyles.title2,
+//                                                    modifier = Modifier.padding(start = 8.dp)
+//                                                )
+//                                                Spacer(Modifier.width(16.dp))
+//                                                NumberPicker(
+//                                                    textStyle = MiuixTheme.textStyles.title2,
+//                                                    value = pickerMonth,
+//                                                    onValueChange = { pickerMonth = it },
+//                                                    range = monthRange,
+//                                                    label = { it.toString() },
+//                                                    modifier = Modifier.width(56.dp)
+//                                                )
+//                                                Text(
+//                                                    "月",
+//                                                    style = MiuixTheme.textStyles.title2,
+//                                                    modifier = Modifier.padding(start = 8.dp)
+//                                                )
+//                                            }
+//                                        }
+//                                        // 跳转按钮：关掉弹层并加载所选年月
+//                                        val dismiss = LocalDismissState.current
+//                                        Button(
+//                                            onClick = {
+//                                                dismiss?.invoke()
+//                                                viewModel.jumpTo(pickerYear, pickerMonth)
+//                                            },
+//                                            modifier = Modifier
+//                                                .fillMaxWidth()
+//                                                .padding(top = 12.dp)
+//                                        ) {
+//                                            Text("跳转")
+//                                        }
+//                                    }
+//                                }
+//                            }
+//                        }
                     },
                 )
             }
