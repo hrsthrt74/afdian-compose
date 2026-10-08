@@ -51,6 +51,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.OrderItem
 import com.hrsthrt74.afdian.ui.components.PlanDetailSheet
@@ -95,6 +96,22 @@ import java.util.Date
 import java.util.Locale
 
 /**
+ * 订单筛选 Tab：与网页端四个状态一致（接口必填 status，无「全部」选项）。
+ *
+ * 提为顶层常量：TabRow、每个 Tab 的滚动状态映射、转场方向判断都依赖它。
+ * 放在可组合函数里会每次重组重新分配列表，`remember` 里的 key 集合也就不稳定了。
+ */
+private val ORDER_FILTERS = listOf(
+    OrderViewModel.STATUS_PAID to "已支付",
+    OrderViewModel.STATUS_UNPAID to "待支付",
+    OrderViewModel.STATUS_UNSHIPPED to "待发货",
+    OrderViewModel.STATUS_SHIPPED to "已发货",
+)
+
+/** 日志 TAG */
+private const val OrderScreenLogTag = "OrderScreen"
+
+/**
  * 「我的订单」页：当前账号在别人家的购买记录。
  * 筛选与网页端一致（已支付/待支付/待发货/已发货），接口不支持「全部」，默认停在已支付。
  */
@@ -119,13 +136,7 @@ fun OrderScreen(
     val isLoadingMore by vm.isLoadingMore.collectAsState()
     val hasMore by vm.hasMore.collectAsState()
     val error by vm.error.collectAsState()
-    // 筛选 Tab：与网页端四个状态一致（接口必填 status，无「全部」选项）
-    val filters = listOf(
-        OrderViewModel.STATUS_PAID to "已支付",
-        OrderViewModel.STATUS_UNPAID to "待支付",
-        OrderViewModel.STATUS_UNSHIPPED to "待发货",
-        OrderViewModel.STATUS_SHIPPED to "已发货",
-    )
+    // 筛选 Tab 定义见文件顶部的 ORDER_FILTERS（与网页端四个状态一致，无「全部」选项）
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -133,9 +144,32 @@ fun OrderScreen(
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     // Tab 切换的轻震动：TextHandleMove 档位，轻量确认「切换发生了」
     val haptic = LocalHapticFeedback.current
-    // 滚动状态按筛选条件重建（remember 的 key）：切 Tab 时列表自动回到顶部，
-    // 同时让顶栏「双击回顶」和滚动条也能拿到当前列表的状态
-    val listState = remember(status) { LazyListState() }
+
+    // 每个筛选 Tab 一份独立的滚动状态。
+    //
+    // 为什么不能「只用一个」或「按 status 临时重建」——这正是上一版修了却没用的原因：
+    // AnimatedContent 转场期间新旧两页会**同时组合**，两页的 LazyColumn 于是同时持有同一个
+    // LazyListState。而 LazyListState 内部全是「列表独占」的单值件：scrollPosition、
+    // itemAnimator、beyondBoundsInfo，以及 remeasurementModifier / awaitLayoutModifier
+    // （LazyList.kt 直接把状态自带的这两个实例 .then 进布局链，后者只有一个 attachedNode
+    // 和一个 lock）。两条列表互相覆盖后，程序化滚动会出现「scrollPosition 已改、但
+    // remeasurement 指向了另一个（甚至已退场的）列表」→ 位置当帧不落位、下一帧才突变。
+    // 症状就是：切 Tab 后位置看着是对的，一滑动就跳到预期外的位置。
+    //
+    // 每个 Tab 各自一份实例后，转场中旧页用旧 Tab 的状态、新页用新 Tab 的状态，互不干扰；
+    // 旧页退场时也是「带着自己原来的位置」淡出，不会闪跳。
+    val listStates = remember {
+        ORDER_FILTERS.associate { it.first to LazyListState() }
+    }
+    // 当前 Tab 的滚动状态：顶栏「双击回顶」与右侧滚动条读这一份
+    val listState = listStates.getValue(status)
+
+    // 切 Tab 回顶：进入某个 Tab 时把该 Tab 自己的滚动位置归零。
+    // 只动「进来的这一页」，转场中正在退场的旧页保持原位置淡出。
+    LaunchedEffect(status) {
+        AppLog.d(OrderScreenLogTag, "filter switched -> status=$status, scroll list to top")
+        listState.scrollToItem(0)
+    }
     // 下拉刷新：pullRefreshing 只在用户拉过阈值后为 true，刷新完成（isRefreshing=false）时复位
     val pullToRefreshState = rememberPullToRefreshState()
     var pullRefreshing by rememberSaveable { mutableStateOf(false) }
@@ -185,12 +219,12 @@ fun OrderScreen(
                 }
             )
             TabRow(
-                tabs = filters.map { it.second },
-                selectedTabIndex = filters.indexOfFirst { it.first == status }.coerceAtLeast(0),
+                tabs = ORDER_FILTERS.map { it.second },
+                selectedTabIndex = ORDER_FILTERS.indexOfFirst { it.first == status }.coerceAtLeast(0),
                 onTabSelected = { index ->
                     // 先震后切：TextHandleMove 轻量档
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    vm.load(filters[index].first)
+                    vm.load(ORDER_FILTERS[index].first)
                 },
                 // 背景透明：让顶栏模糊层透出来，TabRow 只负责指示器与文字
                 colors = TabRowDefaults.tabRowColors(Color.Transparent),
@@ -213,9 +247,9 @@ fun OrderScreen(
                 AnimatedContent(
                     targetState = status,
                     transitionSpec = {
-                        // 按 filters 顺序决定平移方向：切到更靠后的 Tab 从右滑入，反之从左
-                        val forward = filters.indexOfFirst { it.first == targetState } >
-                            filters.indexOfFirst { it.first == initialState }
+                        // 按 ORDER_FILTERS 顺序决定平移方向：切到更靠后的 Tab 从右滑入，反之从左
+                        val forward = ORDER_FILTERS.indexOfFirst { it.first == targetState } >
+                            ORDER_FILTERS.indexOfFirst { it.first == initialState }
                         (fadeIn(animationSpec = tween(220)) +
                             slideInHorizontally(animationSpec = tween(220)) { if (forward) it / 8 else -it / 8 })
                             .togetherWith(
@@ -230,8 +264,11 @@ fun OrderScreen(
                     val tabSnapshot = snapshots[currentStatus]
                     // 加载中/错误/下拉刷新这些交互状态只对「正在展示的 Tab」生效，滑出的旧页不受影响
                     val isActiveTab = currentStatus == status
+                    // 本页自己的滚动状态（见上方 listStates 的说明）：转场中两页各用各的，
+                    // 旧页保持自己原来的位置淡出，新页从顶部进入
+                    val pageListState = listStates.getValue(currentStatus)
                     // 滚动到底部附近自动加载下一页（只有活动 Tab 允许触发）
-                    LoadMoreEffect(listState, if (isActiveTab) hasMore else false, isLoadingMore) { vm.loadMore() }
+                    LoadMoreEffect(pageListState, if (isActiveTab) hasMore else false, isLoadingMore) { vm.loadMore() }
                     PullToRefresh(
                         isRefreshing = pullRefreshing,
                         onRefresh = { pullRefreshing = true },
@@ -242,7 +279,7 @@ fun OrderScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                     LazyColumn(
-                        state = listState,
+                        state = pageListState,
                         modifier = Modifier
                             .fillMaxSize()
                             .nestedScroll(scrollBehavior.nestedScrollConnection)
