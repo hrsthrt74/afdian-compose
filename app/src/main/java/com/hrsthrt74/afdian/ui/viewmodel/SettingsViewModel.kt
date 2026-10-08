@@ -59,6 +59,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val showCountUnit: StateFlow<Boolean> = store.showCountUnit
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    /** 数据卡数字滚动动画开关，默认开启。 */
+    val rollingNumberEnabled: StateFlow<Boolean> = store.rollingNumberEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     fun setHistoryEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setHistoryEnabled(enabled) }
     }
@@ -74,6 +78,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setShowCountUnit(enabled: Boolean) {
         viewModelScope.launch { store.setShowCountUnit(enabled) }
+    }
+
+    /** 切换数字滚动动画；DataStore 回推后 MainScreen 更新全局开关，卡片立即切换渲染方式 */
+    fun setRollingNumberEnabled(enabled: Boolean) {
+        viewModelScope.launch { store.setRollingNumberEnabled(enabled) }
     }
 
     /** 重置管理页卡片布局为默认顺序；成功/失败都给 Toast 反馈，失败额外记警告日志。 */

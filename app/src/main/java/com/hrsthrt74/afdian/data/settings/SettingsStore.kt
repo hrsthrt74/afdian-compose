@@ -61,6 +61,8 @@ class SettingsStore(private val context: Context) {
     val SHOW_INCOME_UNIT = booleanPreferencesKey("show_income_unit")
     // 数据卡单位：人数/次数类（发电人数、发电次数、访问人数、访问次数）是否显示「人」「次」
     val SHOW_COUNT_UNIT = booleanPreferencesKey("show_count_unit")
+    // 数据卡数字动画：是否使用「逐位滚动」的滚轮效果；关闭则回退为普通文本显示
+    val ROLLING_NUMBER = booleanPreferencesKey("rolling_number")
         // 浏览历史开关：关闭后不再写入新的历史记录或头像缓存
         val HISTORY_ENABLED = booleanPreferencesKey("history_enabled")
         val HOME_CREATOR_DATA = booleanPreferencesKey("home_creator_data")
@@ -153,6 +155,16 @@ class SettingsStore(private val context: Context) {
     /** 人数/次数类数据卡是否显示「人」「次」单位，默认关闭（只显示数字）。 */
     val showCountUnit: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.SHOW_COUNT_UNIT] ?: false }
+
+    /**
+     * 数据卡数字是否播放「逐位滚动」动画，默认开启。
+     *
+     * 关闭后数字回退为改动前的普通文本显示（整串 Text + 自适应字号），
+     * 开关由 MainScreen 订阅并写入 [com.hrsthrt74.afdian.ui.components.RollingNumberSetting]，
+     * 卡片据此切换渲染方式。
+     */
+    val rollingNumberEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.ROLLING_NUMBER] ?: true }
 
     /** 首页模块开关，默认全部开启；新账号无需额外初始化配置。 */
     val homeCreatorData: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_CREATOR_DATA] ?: true }
@@ -287,6 +299,12 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setShowCountUnit(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.SHOW_COUNT_UNIT] = enabled }
+    }
+
+    /** 写入「数字滚动动画」开关；生效链路见 [rollingNumberEnabled] 注释。 */
+    suspend fun setRollingNumberEnabled(enabled: Boolean) {
+        AppLog.d("Settings", "数字滚动动画已${if (enabled) "开启" else "关闭"}")
+        context.settingsDataStore.edit { it[Keys.ROLLING_NUMBER] = enabled }
     }
 
     suspend fun setAdvancedTransition(enabled: Boolean) {

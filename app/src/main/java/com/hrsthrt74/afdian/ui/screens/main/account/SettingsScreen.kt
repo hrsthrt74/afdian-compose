@@ -17,9 +17,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -210,7 +214,21 @@ private fun SettingsScreenContent(
     val historyEnabled by viewModel.historyEnabled.collectAsState()
     val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
     val showCountUnit by viewModel.showCountUnit.collectAsState()
+    val rollingNumberEnabled by viewModel.rollingNumberEnabled.collectAsState()
     val themeSettings = LocalThemeSettings.current
+
+    // 预览卡的重播令牌：0 = 首次渲染不播放，数字直接落位。
+    // 自增会让 key(replayToken) 重建预览卡，从而重新触发一次完整滚动
+    //（滚轮用 rememberSaveable 记住「已播过」，只有重建才能重播）。
+    var replayToken by remember { mutableStateOf(0) }
+    // 唯一的触发源是「把开关从关打到开」：让用户立刻看到刚打开的效果，
+    // 而刚进设置页时不会自己播（动画只有约 460ms，自动播很容易被错过）。
+    // 与「上一次的值」比较而不是直接触发，正是为了滤掉首次组合。
+    var lastRollingNumberEnabled by remember { mutableStateOf(rollingNumberEnabled) }
+    LaunchedEffect(rollingNumberEnabled) {
+        if (rollingNumberEnabled && !lastRollingNumberEnabled) replayToken++
+        lastRollingNumberEnabled = rollingNumberEnabled
+    }
 
     // 页面
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
@@ -337,7 +355,7 @@ private fun SettingsScreenContent(
                                 checked = themeSettings.enableBlur,
                                 onCheckedChange = viewModel::setEnableBlur,
                                 title = "模糊效果",
-                                summary = "顶栏、底栏、动画中的模糊效果",
+                                summary = "顶栏、底栏、数字滚动等动画中的模糊效果",
                             )
                             // 渐进模糊是模糊效果的子选项，总开关关掉时一起隐藏，避免出现无效选项
                             AnimatedVisibility(visible = themeSettings.enableBlur) {
@@ -380,30 +398,48 @@ private fun SettingsScreenContent(
 
                 item { SmallTitle(text = "数据卡片", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    // 开关的实时预览：切换下面两个开关时，预览卡的单位会立即出现/消失
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        DataCard(
-                            title = "收入预览",
-                            value = "1280.00",
-                            unit = "元".takeIf { showIncomeUnit },
-                            modifier = Modifier.weight(1f),
-                        )
-                        DataCard(
-                            title = "人数预览",
-                            value = "256",
-                            unit = "人".takeIf { showCountUnit },
-                            modifier = Modifier.weight(1f),
-                        )
+                    // 这两张预览卡身兼两职：
+                    //   1) 切换下面两个单位开关时，单位会立即出现/消失；
+                    //   2) 兼作数字滚动动画的预览 —— 进页面时直接落位、不播放（动画只有约 460ms，
+                    //      自动播很容易被错过），只有把「数字滚动动画」开关从关打到开时才播一次。
+                    // 令牌一变就重建预览卡，滚轮随之从 0 重新滚一遍。
+                    key(replayToken) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            DataCard(
+                                title = "收入预览",
+                                value = "1280.00",
+                                unit = "元".takeIf { showIncomeUnit },
+                                modifier = Modifier.weight(1f),
+                                // 开关关掉时这里回退成普通文本，顺带预览了「关闭后」的效果
+                                animateValue = rollingNumberEnabled,
+                                autoPlay = replayToken > 0,
+                            )
+                            DataCard(
+                                title = "人数预览",
+                                value = "256",
+                                unit = "人".takeIf { showCountUnit },
+                                modifier = Modifier.weight(1f),
+                                animateValue = rollingNumberEnabled,
+                                autoPlay = replayToken > 0,
+                            )
+                        }
                     }
                 }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        // 数字动画总开关：关闭后所有数据卡的数字回退为普通文本显示
+                        SwitchPreference(
+                            checked = rollingNumberEnabled,
+                            onCheckedChange = viewModel::setRollingNumberEnabled,
+                            title = "数字滚动动画",
+//                            summary = "数字逐位滚动到位；关闭后按普通文本显示",
+                        )
                         SwitchPreference(
                             checked = showIncomeUnit,
                             onCheckedChange = viewModel::setShowIncomeUnit,
