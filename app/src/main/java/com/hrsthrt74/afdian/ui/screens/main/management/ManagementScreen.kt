@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,9 +52,11 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -98,6 +102,17 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
     var showCustomization by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var editableLayout by remember(managementLayout) { mutableStateOf(managementLayout) }
+
+    // 下拉刷新：isRefreshing 由下拉手势置位，VM 的 loading 落回 false（首帧到齐）后收起指示器。
+    // 与首页同一套写法，刷新本身复用 load()，和错误页的「重试」是同一条路径。
+    var isRefreshing by rememberSaveable { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) viewModel.load(section)
+    }
+    LaunchedEffect(loading) {
+        if (!loading && isRefreshing) isRefreshing = false
+    }
 
     Scaffold(
         topBar = {
@@ -175,42 +190,52 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                         .fillMaxSize()
                         .nestedScroll(scrollBehavior.nestedScrollConnection),
                 )
-            } else LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(scrollBehavior.nestedScrollConnection)
-                    .scrollEndHaptic(),
-                contentPadding = PaddingValues(
-                    top = paddingValues.calculateTopPadding(),
-                    bottom = contentBottomPadding(),
-                ),
+            } else PullToRefresh(
+                isRefreshing = isRefreshing,
+                onRefresh = { isRefreshing = true },
+                pullToRefreshState = pullToRefreshState,
+                refreshTexts = listOf("下拉刷新", "松开刷新", "正在刷新", "刷新成功"),
+                // 只让刷新指示器避开模糊顶栏；列表自身的 contentPadding 仍由 LazyColumn 控制
+                contentPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
+                modifier = Modifier.fillMaxSize(),
             ) {
-                // 加载错误提示
-                item {
-                    when {
-                        loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
-                        error != null -> {
-                            // 加载失败：空状态视图 + 重试按钮
-                            ErrorStateView(
-                                onRetry = { viewModel.load(section) },
-                                modifier = Modifier.fillParentMaxSize(),
-                                summary = error!!,
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(scrollBehavior.nestedScrollConnection)
+                        .scrollEndHaptic(),
+                    contentPadding = PaddingValues(
+                        top = paddingValues.calculateTopPadding(),
+                        bottom = contentBottomPadding(),
+                    ),
+                ) {
+                    // 加载错误提示
+                    item {
+                        when {
+                            loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
+                            error != null -> {
+                                // 加载失败：空状态视图 + 重试按钮
+                                ErrorStateView(
+                                    onRetry = { viewModel.load(section) },
+                                    modifier = Modifier.fillParentMaxSize(),
+                                    summary = error!!,
+                                )
+                            }
+                            result == null -> Text("暂无数据")
+                        }
+                    }
+
+                    if (!loading && error == null) {
+                        // 数据卡布局
+                        item {
+                            ManagementDataLayout(
+                                cards = cardItems,
+                                layout = managementLayout,
+                                charts = charts,
+                                modifier = Modifier.padding(horizontal = 16.dp),
                             )
                         }
-                        result == null -> Text("暂无数据")
-                    }
-                }
-
-                if (!loading && error == null) {
-                    // 数据卡布局
-                    item {
-                        ManagementDataLayout(
-                            cards = cardItems,
-                            layout = managementLayout,
-                            charts = charts,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
                     }
                 }
             }
