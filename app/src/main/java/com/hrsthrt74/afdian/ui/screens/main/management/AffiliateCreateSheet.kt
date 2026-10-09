@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,7 +26,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,9 +43,10 @@ import com.hrsthrt74.afdian.ui.components.DateTimeField
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.SaveButton
+import com.hrsthrt74.afdian.ui.components.basic.TooltipInfoButton
+import com.hrsthrt74.afdian.ui.components.basic.TooltipInfoButtonStyle
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -55,7 +54,6 @@ import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.PlainTooltip
 import top.yukonga.miuix.kmp.basic.RadioButton
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
@@ -63,13 +61,9 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TooltipBox
-import top.yukonga.miuix.kmp.basic.TooltipDefaults
-import top.yukonga.miuix.kmp.basic.rememberTooltipState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
@@ -393,35 +387,11 @@ fun AffiliateCreateSheet(
                             )
                             if (discountTenths >= 100) {
                                 Spacer(Modifier.width(4.dp))
-                                val tooltipState = rememberTooltipState()
-                                val scope = rememberCoroutineScope()
-                                TooltipBox(
-                                    tooltip = {
-                                        PlainTooltip {
-                                            Text(
-                                                "如果你有分销需求，利用无折扣优惠码，可以知道分销渠道的销量。",
-                                                style = MiuixTheme.textStyles.footnote1
-                                            )
-                                        }
-                                              },
-                                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
-                                    state = tooltipState,
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            scope.launch { tooltipState.show() }
-                                            },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = MiuixIcons.Demibold.Info,
-                                            contentDescription = "信息",
-                                            modifier = Modifier.size(20.dp),
-                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions
-                                        )
-                                    }
-                                }
+                                // ⓘ 说明「10 折」的用途：点按/长按都弹提示，点击本身只切换气泡，无额外动作
+                                TooltipInfoButton(
+                                    tooltipText = "如果你有分销需求，利用无折扣优惠码，可以知道分销渠道的销量。",
+                                    style = TooltipInfoButtonStyle.Small,
+                                )
                             }
                         }
                         Spacer(Modifier.height(12.dp))
