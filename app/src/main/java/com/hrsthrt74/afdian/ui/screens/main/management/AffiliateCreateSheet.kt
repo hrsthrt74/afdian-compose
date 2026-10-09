@@ -1,6 +1,5 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -45,6 +44,7 @@ import com.hrsthrt74.afdian.data.content.AffiliateSelectablePlan
 import com.hrsthrt74.afdian.ui.components.DateTimeField
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
+import com.hrsthrt74.afdian.ui.components.basic.SaveButton
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import kotlinx.coroutines.launch
@@ -55,7 +55,6 @@ import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.PlainTooltip
 import top.yukonga.miuix.kmp.basic.RadioButton
 import top.yukonga.miuix.kmp.basic.Slider
@@ -71,7 +70,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
@@ -244,17 +242,9 @@ fun AffiliateCreateSheet(
                 Icon(imageVector = MiuixIcons.Close, contentDescription = "关闭")
             }
         },
-        // 右上角：保存；提交中换成进度指示器
+        // 右上角：保存；提交中自动换成进度指示器并禁止点击（SaveButton 内部统一处理）
         endAction = {
-            IconButton(onClick = { save() }, enabled = !submitting) {
-                AnimatedContent(targetState = submitting, label = "save") { saving ->
-                    if (saving) {
-                        InfiniteProgressIndicator(modifier = Modifier.size(24.dp))
-                    } else {
-                        Icon(imageVector = MiuixIcons.Ok, contentDescription = "保存")
-                    }
-                }
-            }
+            SaveButton(saving = submitting, onClick = { save() })
         },
     ) {
         LazyColumn(
