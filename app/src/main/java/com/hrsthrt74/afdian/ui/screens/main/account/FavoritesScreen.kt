@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.AfadianUser
@@ -57,7 +56,6 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
@@ -65,7 +63,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
@@ -248,8 +245,10 @@ private fun FavoritesTabList(
         )
     ) {
         when {
-            // 该 tab 从未访问过：还没有任何数据可显示，进入整页加载态
-            tabState == null -> item(key = "loading") {
+            // 该 tab 还没开始拉（从未访问过）或正在首屏加载，且一条数据都还没有：整页加载态。
+            // 光看 tabState == null 不够——load() 一进来就会写入条目，null 只存在于首帧之前；
+            // 而不能只看 loading，否则「有旧数据静默刷新」时会把正在显示的列表换成加载态
+            tabState == null || (tabState.loading && tabState.isEmpty) -> item(key = "loading") {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center
@@ -263,48 +262,36 @@ private fun FavoritesTabList(
                     summary = tabState.error,
                 )
             }
-            // 动态 tab：完整动态卡片
-            kind == 1 -> {
-                if (tabState.posts.isEmpty()) {
-                    item(key = "empty") {
-                        Text(
-                            "还没有收藏内容",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    items(tabState.posts, key = { it.id }) { post ->
-                        // 捕获动态卡片头部行的边界，作为「主页展开」过渡动画的起点
-                        val origin = rememberCreatorOrigin()
-                        PostCard(
-                            post = post,
-                            profile = post.user,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                            onClick = { onOpenPost(post) },
-                            onCreatorClick = origin.onClick { onOpenCreator(post.user) },
-                            showDoing = true,
-                            creatorOrigin = origin,
-                        )
-                    }
-                    // 底部加载指示器
-                    if (isLoadingMore) {
-                        item(key = "loading_more") { LoadingComponent(modifier = Modifier.padding(vertical = 16.dp)) }
-                    }
-                }
-            }
-            // 创作者 / 众筹 tab 的通用收藏条目
-            tabState.items.isEmpty() -> item(key = "empty") {
+            // 空态：三个 tab（创作者/动态/众筹）共用同一个分支与同一套图标文案，
+            // 不再像以前那样让动态 tab 手写一行裸 Text 提示
+            tabState.isEmpty -> item(key = "empty") {
                 EmptyStateView(
                     icon = Icons.Outlined.BookmarkBorder,
                     title = "还没有收藏内容",
                     modifier = Modifier.fillParentMaxSize(),
                 )
             }
+            // 动态 tab：完整动态卡片
+            kind == 1 -> {
+                items(tabState.posts, key = { it.id }) { post ->
+                    // 捕获动态卡片头部行的边界，作为「主页展开」过渡动画的起点
+                    val origin = rememberCreatorOrigin()
+                    PostCard(
+                        post = post,
+                        profile = post.user,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                        onClick = { onOpenPost(post) },
+                        onCreatorClick = origin.onClick { onOpenCreator(post.user) },
+                        showDoing = true,
+                        creatorOrigin = origin,
+                    )
+                }
+                // 底部加载指示器
+                if (isLoadingMore) {
+                    item(key = "loading_more") { LoadingComponent(modifier = Modifier.padding(vertical = 16.dp)) }
+                }
+            }
+            // 创作者 / 众筹 tab 的通用收藏条目
             else -> items(tabState.items, key = { it.id }) { item ->
                 // 创作者 tab 使用长条形卡片组件，众筹 tab 用官方同款众筹卡片
                 if (kind == 0) {

@@ -134,9 +134,21 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 收藏页（FavoritesScreen）
 
-- TabRow 三个分区：创作者 / 动态 / 众筹。
+- TabRow 三个分区：创作者 / 动态 / 众筹，切 tab 用「售卖商品 / 我的订单」同款
+  `AnimatedContent` 转场（淡入淡出 + 1/8 横向位移）+ 点击轻震动。
 - 创作者 tab 用 `CreatorListItem`，副标题回退链：subtitle → creator.doing。
-- 动态、众筹 tab 保持普通列表行。
+- 动态 tab 用 `PostCard`，众筹 tab 用 `CrowdfundingCard`。
+- ViewModel 每个 tab 各存一份 `FavoritesTabState` 快照（`_tabs: Map<Int, FavoritesTabState>`），
+  页面按「转场中的那个 tab 下标」取自己那一份渲染，转场期间新旧两页各读各的。
+  配套约定：
+  - `FavoritesTabState.loading` 标志首屏是否在加载中。**不能用「`_tabs` 里有没有这个 key」
+    来判断加载态**——没有条目既可能是「还没开始拉」也可能是「拉完了但真的没有收藏」，
+    少了这个标志会在请求发出前先把空态闪一帧。
+  - `FavoritesTabState.isEmpty` 是页面判空与 ViewModel 失败分支共用的判空条件。
+  - `loadMore` 写回时读 `currentTab(kind)` 而不是发起请求时的快照，否则请求在飞期间
+    首屏刷新过会被旧快照整段覆盖回去。
+  - 页面侧每个 tab 一份独立 `LazyListState`：转场期间新旧两页会同时组合，
+    共用一个会让两页互相覆盖 `scrollPosition` / remeasurement。
 
 ## 我发电的页（SponsoringScreen）
 

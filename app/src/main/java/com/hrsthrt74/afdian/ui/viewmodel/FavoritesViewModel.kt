@@ -31,9 +31,20 @@ data class FavoritesTabState(
     val nextPage: Int = 1,
     /** 动态 tab 分页：是否还有更多 */
     val hasMore: Boolean = false,
+    /**
+     * 首屏是否正在加载。
+     *
+     * 不能用「该 tab 在 [_tabs] 里有没有这个 key」来代替：没有条目既可能是「还没开始拉」
+     * 也可能是「拉完了但真的没有收藏」，页面要靠这个标志区分这两种情况，
+     * 否则请求发出前会先把空态闪一帧。
+     */
+    val loading: Boolean = false,
     /** 首屏加载失败原因；非空时该 tab 显示整页错误态 */
     val error: String? = null,
-)
+) {
+    /** 该 tab 是否一条内容都没有（页面判空与 ViewModel 失败分支共用同一套条件） */
+    val isEmpty: Boolean get() = items.isEmpty() && posts.isEmpty()
+}
 
 /**
  * 收藏页状态：三个 tab（0=创作者 / 1=动态 / 2=众筹）各自一份 [FavoritesTabState]。
@@ -66,7 +77,7 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
      * 加载某个 tab 的第一页（默认当前 tab）。
      *
      * 已经有数据时先亮出旧列表再静默刷新，不进整页加载态；
-     * 从未访问过的 tab 会立刻写入一条空状态，让页面切到加载态。
+     * 从未访问过的 tab 会立刻打上 loading 标志，让页面切到加载态。
      *
      * @param kind tab 下标（0=创作者 1=动态 2=众筹）
      */
@@ -75,19 +86,21 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             // 调试日志：记录 tab 类型与是否命中缓存
             AppLog.d(TAG, "load: kind=$kind, page=1, cacheHit=${cached != null}")
-            putTab(kind, currentTab(kind).copy(error = null))
+            // 只打 loading 标志、不动 items/posts：
+            // 这里如果顺手写一条空列表，页面就会先闪一帧空态再出内容
+            putTab(kind, currentTab(kind).copy(loading = true, error = null))
             runCatching {
                 withContext(Dispatchers.IO) {
                     when (kind) {
-                        0 -> putTab(kind, currentTab(kind).copy(items = service.fetchMarkedCreators()))
+                        0 -> putTab(kind, currentTab(kind).copy(items = service.fetchMarkedCreators(), loading = false))
                         // 动态 tab：拉完整 RecommendedPost，替换列表并记录是否还有更多
                         1 -> service.fetchMarkedPosts(1).let {
                             // 先播种点赞/收藏状态再上屏，保证卡片首帧图标正确
                             interactions.seedLiked(it.posts.filter { p -> p.has_like == 1 }.map { p -> p.id }.toSet())
                             interactions.seedMarked(it.posts.map { p -> p.id }.toSet())
-                            putTab(kind, currentTab(kind).copy(posts = it.posts, nextPage = 2, hasMore = it.hasMore))
+                            putTab(kind, currentTab(kind).copy(posts = it.posts, nextPage = 2, hasMore = it.hasMore, loading = false))
                         }
-                        else -> putTab(kind, currentTab(kind).copy(items = service.fetchMarkedCrowdfundings()))
+                        else -> putTab(kind, currentTab(kind).copy(items = service.fetchMarkedCrowdfundings(), loading = false))
                     }
                 }
             }.onSuccess {
@@ -100,11 +113,9 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
             }.onFailure {
                 // 错误日志：用户模式下也能看到收藏加载失败
                 AppLog.e(TAG, "load failed: kind=$kind", it)
-                // 已经有旧列表时保留内容只留日志；一条都没有才给出整页错误态
+                // 已经有旧列表时保留内容只留日志（error 传 null）；一条都没有才给出整页错误态
                 val tab = currentTab(kind)
-                if (tab.items.isEmpty() && tab.posts.isEmpty()) {
-                    putTab(kind, tab.copy(error = it.message ?: "收藏加载失败"))
-                }
+                putTab(kind, tab.copy(loading = false, error = if (tab.isEmpty) it.message ?: "收藏加载失败" else null))
             }
         }
     }
@@ -120,16 +131,22 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
             runCatching {
                 withContext(Dispatchers.IO) { service.fetchMarkedPosts(tab.nextPage) }
             }.onSuccess {
-                val next = tab.nextPage + 1
-                putTab(kind, currentTab(kind).copy(posts = tab.posts + it.posts, nextPage = next, hasMore = it.hasMore))
+                // 基于「写入时」的列表追加而不是发起请求时的快照 tab：
+                // 请求在飞的时候首屏可能已经刷新过（load 会重置 posts 与 nextPage），
+                // 拿旧快照拼接会把刷新出来的数据整段覆盖回旧列表
+                val latest = currentTab(kind)
+                val next = latest.nextPage + 1
+                putTab(kind, latest.copy(posts = latest.posts + it.posts, nextPage = next, hasMore = it.hasMore))
                 // 调试日志：翻页参数、本页条数与累计总数
-                AppLog.d(TAG, "loadMore ok: page=$next, got=${it.posts.size}, total=${tab.posts.size + it.posts.size}, hasMore=${it.hasMore}")
+                AppLog.d(TAG, "loadMore ok: page=$next, got=${it.posts.size}, total=${latest.posts.size + it.posts.size}, hasMore=${it.hasMore}")
             }.onFailure {
                 // 错误日志：用户模式下也能看到加载更多失败
                 AppLog.e(TAG, "loadMore failed: page=${tab.nextPage}", it)
+                // 同成功分支：写回时读最新状态，别拿请求发出前的快照覆盖掉期间刷新的内容
+                val latest = currentTab(kind)
                 // 已经有列表时不清空，只在没有内容时给出错误态
-                if (tab.posts.isEmpty()) {
-                    putTab(kind, tab.copy(error = it.message ?: "加载更多失败"))
+                if (latest.posts.isEmpty()) {
+                    putTab(kind, latest.copy(error = it.message ?: "加载更多失败"))
                 }
             }
             _isLoadingMore.value = false
