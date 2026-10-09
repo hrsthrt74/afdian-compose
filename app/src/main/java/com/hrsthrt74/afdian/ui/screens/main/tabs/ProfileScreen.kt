@@ -54,6 +54,7 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.All
+import top.yukonga.miuix.kmp.icon.extended.Backup
 import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.ListView
@@ -219,6 +220,12 @@ private fun ProfileMainScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         ProfileQuickEntry(
+                            title = "售卖商品",
+                            icon = MiuixIcons.Demibold.Backup,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Route.Shop) },
+                        )
+                        ProfileQuickEntry(
                             title = "优惠码",
                             icon = MiuixIcons.Demibold.Rename,
                             modifier = Modifier.weight(1f),
@@ -235,11 +242,6 @@ private fun ProfileMainScreen(
                             icon = MiuixIcons.Demibold.MindMap,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
-                        )
-                        ProfileQuickEntry(  // 占位符
-                            title = "",
-                            modifier = Modifier.weight(1f),
-                            onClick = {  },
                         )
                     }
                 }

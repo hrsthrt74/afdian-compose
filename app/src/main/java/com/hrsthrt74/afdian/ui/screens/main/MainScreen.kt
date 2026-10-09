@@ -58,6 +58,7 @@ import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.StorageScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.IncomeDetailScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.ManagementScreen
+import com.hrsthrt74.afdian.ui.screens.main.management.ShopScreen
 import com.hrsthrt74.afdian.ui.screens.main.tabs.ProfileScreen
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.isDarkColorScheme
@@ -491,6 +492,16 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                         )
                     )
                 },
+            )
+        }
+        entry<Route.Shop> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 售卖商品管理页：入口在「我的」页快捷入口占位
+            ShopScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                // 查看商品页 / 网页端编辑器：交给外层链接处理（item 链接不在拦截范围，走系统浏览器）
+                onOpenUrl = handleContentUrl,
             )
         }
         entry<Route.History> {
