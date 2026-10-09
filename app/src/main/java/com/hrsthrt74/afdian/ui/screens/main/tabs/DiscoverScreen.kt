@@ -77,7 +77,7 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
-import com.hrsthrt74.afdian.ui.components.FilterChip
+import com.hrsthrt74.afdian.ui.components.AppChip
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.CreatorLargeCard
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
@@ -640,7 +640,7 @@ private fun SearchPager(
                                             verticalArrangement = Arrangement.spacedBy(8.dp),
                                         ) {
                                             searchHistory.forEach { query ->
-                                                FilterChip(
+                                                AppChip(
                                                     text = query,
                                                     selected = deletingHistory == query,
                                                     trailingIcon = if (deletingHistory == query) {

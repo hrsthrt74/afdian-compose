@@ -51,7 +51,7 @@ import com.hrsthrt74.afdian.data.content.ReceivedSponsorsSort
 import com.hrsthrt74.afdian.data.content.ReceivedTimeRange
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.DateTimeField
-import com.hrsthrt74.afdian.ui.components.FilterChip
+import com.hrsthrt74.afdian.ui.components.AppChip
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
@@ -323,13 +323,13 @@ fun ReceivedSponsorsScreen(
                                 onSortSelected = viewModel::setSort,
                                 modifier = Modifier.weight(1.5f),
                             )
-                            FilterChip(
+                            AppChip(
                                 text = "兑换码",
                                 selected = redeemOnly,
                                 onClick = viewModel::toggleRedeemOnly,
                                 modifier = Modifier.weight(1f),
                             )
-                            FilterChip(
+                            AppChip(
                                 text = "有留言",
                                 selected = remarkOnly,
                                 onClick = viewModel::toggleRemarkOnly,
@@ -481,7 +481,7 @@ private fun ReceivedSponsorSortChip(
     val haptic = LocalHapticFeedback.current
 
     Box(modifier = modifier) {
-        FilterChip(
+        AppChip(
             text = sort.title,
             selected = sort != ReceivedSponsorsSort.Newest,
             onClick = onClick,
@@ -555,7 +555,7 @@ private fun ReceivedSponsorFilterSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     rowOptions.forEach { option ->
-                        FilterChip(
+                        AppChip(
                             text = option.title,
                             selected = sort == option,
                             onClick = {
@@ -575,7 +575,7 @@ private fun ReceivedSponsorFilterSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     rowOptions.forEach { option ->
-                        FilterChip(
+                        AppChip(
                             text = option.title,
                             selected = shipmentFilter == option,
                             onClick = {
@@ -616,7 +616,7 @@ private fun ReceivedSponsorFilterSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (hasTimeFilter) {
-                    FilterChip(
+                    AppChip(
                         text = "清除",
                         selected = false,
                         onClick = {
@@ -628,7 +628,7 @@ private fun ReceivedSponsorFilterSheet(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                FilterChip(
+                AppChip(
                     text = "应用",
                     selected = false,
                     onClick = {

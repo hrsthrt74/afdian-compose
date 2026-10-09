@@ -30,11 +30,30 @@ import top.yukonga.miuix.kmp.utils.SinkFeedback
 import top.yukonga.miuix.kmp.utils.pressable
 
 /** 选中态配色过渡时长：比尾部图标出场动画（220ms）更短，让变色先到位、图标随后落位。 */
-private const val FilterChipColorTransitionDurationMs = 150
+private const val AppChipColorTransitionDurationMs = 150
 
-/** 通用筛选 Chip：统一消息页与列表页的选中颜色、触觉和按压反馈。 */
+/**
+ * 通用可选中胶囊 Chip：只有「选中 / 未选中」两态，尾部图标可空。
+ *
+ * 全项目共用这一个实现，已覆盖的场景不要再按场景另写 Chip：
+ * - 列表筛选档位 / 排序锚点（SponsorManageScreen、ReceivedSponsorsScreen）
+ * - 筛选条件构建器里的分段选择（type 段 / 操作段 / value 段）
+ * - 消息页会话类型、发现页内容分类
+ * - `WindowBottomSheet` 的 `endAction` 开关（添加卡片 Sheet 的「连续放置」）
+ *
+ * 选中与否完全由底色与内容色表达（`primaryContainer` / `secondary`），
+ * 所以开关类用法不必再配 `trailingIcon`（不传即为空，不占位）。
+ *
+ * @param text Chip 文案，超长自动缩字并省略
+ * @param selected 是否选中
+ * @param onClick 点击回调（组件内先补一次长按档触觉）
+ * @param modifier 外部修饰符
+ * @param trailingIcon 尾部图标，可空；为 null 时不渲染、胶囊宽度平滑收缩
+ * @param onLongClick 长按回调，可空
+ * @param onTrailingIconClick 尾部图标上的独立点击回调，可空
+ */
 @Composable
-fun FilterChip(
+fun AppChip(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -51,8 +70,8 @@ fun FilterChip(
         } else {
             MiuixTheme.colorScheme.secondary
         },
-        animationSpec = tween(FilterChipColorTransitionDurationMs),
-        label = "filterChipBackgroundColor",
+        animationSpec = tween(AppChipColorTransitionDurationMs),
+        label = "appChipBackgroundColor",
     )
     val contentColor by animateColorAsState(
         targetValue = if (selected) {
@@ -60,8 +79,8 @@ fun FilterChip(
         } else {
             MiuixTheme.colorScheme.onSecondaryVariant
         },
-        animationSpec = tween(FilterChipColorTransitionDurationMs),
-        label = "filterChipContentColor",
+        animationSpec = tween(AppChipColorTransitionDurationMs),
+        label = "appChipContentColor",
     )
     val haptic = LocalHapticFeedback.current
 
@@ -94,7 +113,7 @@ fun FilterChip(
             AnimatedContent(
                 targetState = trailingIcon,
                 contentAlignment = Alignment.Center,
-                label = "filterChipTrailingIcon",
+                label = "appChipTrailingIcon",
             ) { icon ->
                 if (icon != null) {
                     Icon(

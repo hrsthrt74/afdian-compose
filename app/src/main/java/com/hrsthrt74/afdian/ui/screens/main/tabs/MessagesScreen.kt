@@ -47,7 +47,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.NoticeAction
-import com.hrsthrt74.afdian.ui.components.FilterChip
+import com.hrsthrt74.afdian.ui.components.AppChip
 import com.hrsthrt74.afdian.ui.components.ReceivedNoticeSheet
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
@@ -313,19 +313,19 @@ fun MessagesScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            FilterChip(
+                            AppChip(
                                 text = "未读",
                                 selected = showUnreadOnly,
                                 onClick = { viewModel.toggleUnreadFilter() },
                                 modifier = Modifier.weight(1f)
                             )
-                            FilterChip(
+                            AppChip(
                                 text = "2 周内",
                                 selected = showRecentOnly,
                                 onClick = { viewModel.toggleRecentFilter() },
                                 modifier = Modifier.weight(1f)
                             )
-                            FilterChip(
+                            AppChip(
                                 text = "发电明细",
                                 selected = showSponsorDetail,
                                 onClick = { viewModel.toggleSponsorDetail() },

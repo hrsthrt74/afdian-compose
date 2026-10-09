@@ -56,7 +56,7 @@ import com.hrsthrt74.afdian.data.content.SponsorManageItem
 import com.hrsthrt74.afdian.data.content.SponsorManageSort
 import com.hrsthrt74.afdian.data.content.monthDisplayName
 import com.hrsthrt74.afdian.ui.components.DataCard
-import com.hrsthrt74.afdian.ui.components.FilterChip
+import com.hrsthrt74.afdian.ui.components.AppChip
 import com.hrsthrt74.afdian.ui.components.YearMonthField
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
@@ -347,7 +347,7 @@ fun SponsorManageScreen(
 
 /**
  * 排序下拉 Chip：显示当前排序，点击弹出选项列表（默认档 + 三字段 × 升降序成对）。
- * 交互与样式照搬收到发电页的排序 Chip（FilterChip + WindowListPopup）。
+ * 交互与样式照搬收到发电页的排序 Chip（AppChip + WindowListPopup）。
  * 默认档（不传排序字段）不高亮，与参考实现保持一致。
  */
 @Composable
@@ -363,7 +363,7 @@ private fun SponsorManageSortChip(
 
     Box(modifier = modifier) {
         // 排序 Chip：文案为当前排序，随 weight 撑满半行
-        FilterChip(
+        AppChip(
             text = sort.title,
             // 默认档不显选中色，选定任一排序（含方向）后高亮为主色容器
             selected = sort != SponsorManageSort.Default,
@@ -562,7 +562,7 @@ private fun SponsorFilterChip(
 
     Box(modifier = modifier) {
         // 筛选 Chip：有生效条件时高亮为主色容器
-        FilterChip(
+        AppChip(
             text = summary,
             selected = active,
             onClick = onClick,
@@ -619,7 +619,7 @@ private fun SponsorFilterChip(
 
 /**
  * 筛选面板主页：条件行列表（type/action/value 三段 + 删除）+ 新增 + 清除/确定。
- * 视觉对齐网页条件构建器，段用 FilterChip 承担点按反馈。
+ * 视觉对齐网页条件构建器，段用 AppChip 承担点按反馈。
  * 每段自带一个段级 WindowListPopup（组合在段 Box 内，从该段下方弹出叠在主页上），
  * show 由 [view] 是否指向「当前段」驱动；点外/选完只收子层（[onDismissPicker]），
  * [pickerContent] 提供子层具体内容（由外层闭包草稿更新逻辑）。
@@ -665,7 +665,7 @@ private fun FilterBuilderView(
             ) {
                 // type 段 + 段级选择 popup（锚定本段）
                 Box {
-                    FilterChip(
+                    AppChip(
                         text = row.type.title,
                         selected = false,
                         onClick = { onTypeClick(index) },
@@ -679,7 +679,7 @@ private fun FilterBuilderView(
                 }
                 // action 段 + 段级选择 popup
                 Box {
-                    FilterChip(
+                    AppChip(
                         text = row.action.titleFor(row.type),
                         selected = false,
                         onClick = { onActionClick(index) },
@@ -693,7 +693,7 @@ private fun FilterBuilderView(
                 }
                 // value 段：吃满剩余宽度，长方案名省略；方案/金额/月份三种子视图共用本段 popup
                 Box(modifier = Modifier.weight(1f)) {
-                    FilterChip(
+                    AppChip(
                         text = row.valueLabel,
                         selected = false,
                         onClick = { onValueClick(index) },
@@ -947,7 +947,7 @@ private fun FilterMonthPicker(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 row.months.forEach { yyyymm ->
-                    FilterChip(
+                    AppChip(
                         text = monthDisplayName(yyyymm),
                         selected = true,
                         trailingIcon = MiuixIcons.Demibold.Close,
