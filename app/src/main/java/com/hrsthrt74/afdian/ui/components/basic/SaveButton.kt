@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -48,8 +50,15 @@ fun SaveButton(
     enabled: Boolean = true,
     contentDescription: String = "保存",
 ) {
+    // 点击触感反馈：先震动再回调，调用方无需各自处理
+    val haptic = LocalHapticFeedback.current
+
     IconButton(
-        onClick = onClick,
+        onClick = {
+            // 先给一次长按震动反馈，让用户确认「点到了」
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onClick()
+        },
         modifier = modifier,
         // 提交中一律不可点：调用方不必自己再判一次 saving
         enabled = enabled && !saving,
