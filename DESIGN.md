@@ -108,6 +108,7 @@ Text(
 - 创作者卡（长条形） → `CreatorListItem`
 - 创作者卡（矩形） → `CreatorLargeCard` / `CreatorSmallCard`
 - 双击顶栏回顶 → `DoubleTapToTop`（包住 `BlurredBar` + `TopAppBar`，双击栏身平滑回顶并展开大标题；输入框形态的栏传 `enabled = false`，固定小标题栏 `scrollBehavior` 传 `null`）
+- 说明按钮（ⓘ） → `TooltipInfoButton`（点击与长按都弹 Miuix Tooltip，气泡 `focusable`，点外部/返回键关闭，再次点击收起；预设 `TooltipInfoButtonStyle.Tiny/Small/Default` 成套给图标尺寸 + 字重 + 热区，与 `CopyButtonStyle` 同构，`Tiny` 档用于表格等行高敏感的位置；不需要手写 `TooltipBox` + `state.show()` 那套样板）
 - and more in ui/components/
 
 ### 点击按压下沉反馈
