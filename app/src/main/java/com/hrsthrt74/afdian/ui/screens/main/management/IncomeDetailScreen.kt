@@ -26,19 +26,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.hrsthrt74.afdian.data.stats.IncomeStatRecord
 import com.hrsthrt74.afdian.data.stats.IncomeStatType
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
@@ -51,6 +47,8 @@ import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
+import com.hrsthrt74.afdian.ui.components.home.IncomeStatTableHeader
+import com.hrsthrt74.afdian.ui.components.home.IncomeStatTableRow
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.IncomeDetailViewModel
 import kotlinx.coroutines.Dispatchers
@@ -189,7 +187,7 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
                         modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp),
                     )
                     // 表头
-                    TableHeader(modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
+                    IncomeStatTableHeader(modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
                 }
             }
             }
@@ -241,7 +239,7 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
                                         FadeInContainer {
                                             // 第一行上方不需要分割线
                                             if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 12.dp))
-                                            TableRow(record)
+                                            IncomeStatTableRow(record)
                                         }
                                     }
                                 }
@@ -295,26 +293,6 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
     )
 }
 
-/** 表格列的宽度分配 */
-private val ColumnWeights = listOf(1.4f, 1f, 1f, 1f, 1f, 0.8f)
-
-/** 固定表头行：六列统计口径标题。 */
-@Composable
-private fun TableHeader(modifier: Modifier = Modifier) {
-    val titles = listOf("日期", "访问人数", "发电金额", "发电次数", "发电人数", "老客数")
-    Row(modifier = modifier.fillMaxWidth()) {
-        titles.forEachIndexed { index, title ->
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                textAlign = if (index == 0) TextAlign.Start else TextAlign.End,
-                modifier = Modifier.weight(ColumnWeights[index]),
-            )
-        }
-    }
-}
-
 /**
  * 淡入容器：内容首次进入组合时透明度从 0 渐变到 1。
  * 表格行用它实现「新条目淡入出现」——首次加载、切 tab、翻页追加时都会生效。
@@ -331,32 +309,4 @@ private fun FadeInContainer(content: @Composable () -> Unit) {
     }
 }
 
-/** 表格数据行：一行一条统计记录，金额保留两位小数；外层 Card 由调用方统一提供。 */
-@Composable
-private fun TableRow(record: IncomeStatRecord) {
-    // 格式化金额：直接用 BigDecimal 的两位小数字符串（接口本身形如 13.99）
-    val cells = listOf(
-        record.displayDate,
-        record.uv.toString(),
-        record.amount.toPlainString(),
-        record.orderCount.toString(),
-        record.userCount.toString(),
-        record.oldUserCount.toString(),
-    )
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp)) {
-        cells.forEachIndexed { index, cell ->
-            Text(
-                text = cell,
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    fontFeatureSettings = "tnum"
-                ),
-                // 日期列用次级文字色弱化，其余数值列用默认前景色
-                color = if (index == 0) MiuixTheme.colorScheme.onSurfaceVariantSummary else Color.Unspecified,
-                textAlign = if (index == 0) TextAlign.Start else TextAlign.End,
-                maxLines = 1,
-                modifier = Modifier.weight(ColumnWeights[index]),
-            )
-        }
-    }
-}
+

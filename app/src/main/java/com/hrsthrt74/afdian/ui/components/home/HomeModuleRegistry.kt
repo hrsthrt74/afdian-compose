@@ -14,6 +14,7 @@ object HomeModuleRegistry {
     val all: List<HomeModuleSpec> = listOf(
         HomeModuleSpec(HomeModule.WithdrawalReminder) { WithdrawalReminderModule(it) },
         HomeModuleSpec(HomeModule.CreatorData) { CreatorDataModule(it) },
+        HomeModuleSpec(HomeModule.RecentIncome) { RecentIncomeModule(it) },
         HomeModuleSpec(HomeModule.Sponsoring) { SponsoringModule(it) },
         HomeModuleSpec(HomeModule.MarkedCreators) { MarkedCreatorsModule(it) },
         HomeModuleSpec(HomeModule.History) { HistoryModule(it) },

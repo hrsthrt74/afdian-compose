@@ -51,6 +51,18 @@ data class IncomeStatRecord(
         } else {
             dateStr
         }
+
+    /**
+     * 紧凑日期：只保留月/日（09/06），不显示年份。
+     * 首页「近5天收入」模块用——它的数据窗口只有 5 天，年份对用户没有信息量，
+     * 省下的宽度留给数值列。异常格式原样返回，与 [displayDate] 口径一致。
+     */
+    val displayMonthDay: String
+        get() = if (dateStr.length == 8) {
+            "${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}"
+        } else {
+            dateStr
+        }
 }
 
 /** 一次分页请求的结果：当前页数据 + 是否还有下一页（null=接口未返回，未知）。 */

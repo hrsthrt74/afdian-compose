@@ -17,17 +17,51 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 
-/** 首页可配置模块。字符串值用于 DataStore 持久化，后续新增模块可兼容旧版本配置。 */
-enum class HomeModule(val storageValue: String, val title: String, val summary: String) {
-    WithdrawalReminder("withdrawal_reminder", "提现提醒", "[创作者] 月底显示提现提醒"),
-    CreatorData("creator_data", "创作者数据", "[创作者] 今日收入等数据"),
-    Sponsoring("sponsoring", "我发电的", "快速访问已发电的创作者"),
-    MarkedCreators("marked_creators", "收藏的创作者", "快速访问收藏的创作者"),
-    History("history", "浏览历史", "快速访问最近浏览的创作者和动态");
+/**
+ * 首页可配置模块。字符串值用于 DataStore 持久化，后续新增模块可兼容旧版本配置。
+ *
+ * 声明顺序即新用户的默认模块顺序；[defaultEnabled] 为 false 的模块默认关闭，
+ * 需要用户在「自定义首页」里手动打开（读取端的初值也用它，避免首帧闪出默认关闭的模块）。
+ */
+enum class HomeModule(
+    val storageValue: String,
+    val title: String,
+    val summary: String,
+    val defaultEnabled: Boolean = true,
+) {
+    WithdrawalReminder("withdrawal_reminder", "提现提醒", "[创作者] 每月底提醒"),
+    CreatorData("creator_data", "创作者数据", "[创作者] 收入数据。长按卡片自定义"),
+    // 默认关闭：明细表占版面较高，是否上首页交给用户决定
+    RecentIncome("recent_income", "收入明细", "[创作者] 最近5天的每日收入明细", defaultEnabled = false),
+    Sponsoring("sponsoring", "我发电的", "已发电的创作者"),
+    MarkedCreators("marked_creators", "收藏的创作者", "收藏的创作者"),
+    History("history", "浏览历史", "最近浏览的创作者和动态"),
+    ;
 
     companion object {
         fun fromStorage(value: String): HomeModule? = entries.firstOrNull { it.storageValue == value }
+
+        /** 默认启用的模块集合：DataStore 尚未读到时的首帧初值，避免默认关闭的模块闪一帧。 */
+        val defaultEnabledSet: Set<HomeModule> = entries.filter { it.defaultEnabled }.toSet()
     }
+}
+
+/**
+ * 把用户已保存的模块顺序与全量枚举合并：
+ * 已保存的相对顺序不动，缺失的模块**插入到它在枚举里的前驱之后**（如新增模块插到「创作者数据」后面），
+ * 而不是一律追加到末尾——否则升级后新模块会莫名其妙跑到最后一位。
+ */
+internal fun mergeHomeModuleOrder(saved: List<HomeModule>): List<HomeModule> {
+    // 先去掉已保存列表里的重复项（存储值被手工改坏时也不会出现重复行）
+    val result = saved.distinct().toMutableList()
+    // 逐个补入缺失模块，保持枚举声明顺序
+    HomeModule.entries.forEachIndexed { index, module ->
+        if (module in result) return@forEachIndexed
+        // 前驱模块（声明顺序里的上一个）已在列表中时插到它后面，否则追加末尾
+        val anchor = result.indexOfFirst { it.ordinal == index - 1 }
+        if (anchor >= 0) result.add(anchor + 1, module) else result.add(module)
+    }
+    return result
 }
 
 /** 进程级单例的设置 DataStore，替代旧的 SharedPreferences("settings")。 */
@@ -191,18 +225,24 @@ class SettingsStore(private val context: Context) {
                     HomeModule.Sponsoring -> preferences[Keys.HOME_SPONSORING] ?: true
                     HomeModule.MarkedCreators -> preferences[Keys.HOME_MARKED_CREATORS] ?: true
                     HomeModule.WithdrawalReminder -> preferences[Keys.HOME_WITHDRAWAL_REMINDER] ?: true
+                    // 「近5天收入」没有旧版分散开关可比对，一律按枚举声明的默认值（关闭）
+                    HomeModule.RecentIncome -> module.defaultEnabled
                     HomeModule.History -> true
                 }
             }.toSet()
         }
     }
-    /** 首页模块顺序；过滤未知模块并补上未来新增模块，避免升级后模块消失。 */
+    /**
+     * 首页模块顺序；过滤未知模块并补上未来新增模块，避免升级后模块消失。
+     * 新补入的模块插到它在枚举声明顺序里的前驱之后（见 [mergeHomeModuleOrder]），
+     * 这样新增模块的位置符合预期，而不是一律排到末尾。
+     */
     val homeModuleOrder: Flow<List<HomeModule>> = context.settingsDataStore.data.map { preferences ->
         val saved = preferences[Keys.HOME_MODULE_ORDER]
             ?.split(",")
             ?.mapNotNull(HomeModule::fromStorage)
             .orEmpty()
-        (saved + HomeModule.entries).distinct()
+        mergeHomeModuleOrder(saved)
     }
 
     /** 管理页布局；未知卡片会被过滤，用户关闭的卡片不会被自动重新加入。 */

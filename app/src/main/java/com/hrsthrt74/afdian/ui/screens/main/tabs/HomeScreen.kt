@@ -67,6 +67,8 @@ fun HomeScreen(
     onOpenManagement: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenSponsoring: () -> Unit,
+    /** 打开「收入明细」页：首页「近5天收入」模块的标题点击入口。 */
+    onOpenIncomeDetail: () -> Unit,
     historyViewModel: HistoryViewModel,
     onOpenHistory: () -> Unit,
     onOpenHistoryEntry: (com.hrsthrt74.afdian.data.history.HistoryEntry) -> Unit,
@@ -89,11 +91,15 @@ fun HomeScreen(
         creatorCards.mapValues { (_, card) -> card.toDataCardItem(showIncomeUnit, showCountUnit) }
     }
     val charts by viewModel.creatorCharts.collectAsState()
+    // 「近5天收入」模块数据（随首页刷新一起拉取）
+    val recentIncomeRecords by viewModel.recentIncomeRecords.collectAsState()
     // dashboard 的未确认金额：结算窗口内作为「上月收入」供提现提醒卡展示
     val unconfirmedAmount by viewModel.unconfirmedAmount.collectAsState()
     val markedCreators by viewModel.markedCreators.collectAsState()
     val historyEntries by historyViewModel.entries.collectAsState()
-    val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
+    // 初值用「默认启用集合」而不是全部模块：默认关闭的模块（如近5天收入）
+    // 在 DataStore 读到真值前不应先闪一帧出来
+    val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.defaultEnabledSet)
     val moduleOrder by settingsStore.homeModuleOrder.collectAsState(initial = HomeModule.entries)
     var showCustomizeSheet by remember { mutableStateOf(false) }
     // 创作者数据是否处于整页编辑：为 true 时隐藏其它模块，只渲染可拖拽的编辑页。
@@ -147,6 +153,8 @@ fun HomeScreen(
         onOpenHistory = onOpenHistory,
         onOpenHistoryEntry = onOpenHistoryEntry,
         onEditCreatorData = { editingCreatorData = true },
+        recentIncomeRecords = recentIncomeRecords,
+        onOpenIncomeDetail = onOpenIncomeDetail,
     )
 
     Scaffold(
