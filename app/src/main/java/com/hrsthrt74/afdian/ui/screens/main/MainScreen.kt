@@ -42,7 +42,6 @@ import com.hrsthrt74.afdian.data.history.HistoryTarget
 import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.data.settings.SettingsStore
-import com.hrsthrt74.afdian.ui.components.RollingNumberSetting
 import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
@@ -228,12 +227,8 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
     val advancedTransition by settingsStore.advancedTransition.collectAsState(initial = true)
     val gestureBack by settingsStore.gestureBack.collectAsState(initial = true)
     val predictiveBack by settingsStore.predictiveBack.collectAsState(initial = true)
-    val rollingNumberEnabled by settingsStore.rollingNumberEnabled.collectAsState(initial = true)
     CreatorExpandOrigin.enabled = advancedTransition
     CreatorExpandOrigin.gestureBack = gestureBack
-    // 数字滚动动画总开关：订阅设置后写入全局状态，数据卡据此在「滚轮 / 普通文本」间切换。
-    // 用 SideEffect（提交后执行）而不是组合期直接赋值，避免在组合中写 state。
-    SideEffect { RollingNumberSetting.enabled = rollingNumberEnabled }
     // 根 entry 没有上一级页面时不注册拦截器，避免关闭开关后系统返回无法退出应用。
     val blockPredictiveBack = !predictiveBack && backStack.size > 1
 

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -59,16 +60,19 @@ import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 数字滚动动画总开关（进程级）。
+ * 数字滚动动画总开关（组合局部）。
  *
- * 由 MainScreen 订阅设置页的「数字滚动动画」开关后写入。用 state 支撑，
- * 切换时读取它的卡片会自动重组、立即切换渲染方式。
+ * 由 MainActivity 订阅设置页的「数字滚动动画」开关后，用 CompositionLocalProvider 向下提供。
  *
+ * 这里刻意用 CompositionLocal 而不是「进程级可变 state」：后者需要手动往全局对象写一次，
+ * 写入时机一旦没赶上（开关变化时恰好没有重组到写入方），卡片就会一直读着旧值继续播动画，
+ * 表现为「开关关了动画还在播」。CompositionLocal 则把开关变成正常的组合输入，
+ * 谁读谁订阅，开关一变必然重组，不依赖任何手动写入。
+ *
+ * 默认值为 true（未提供时按「开启动画」处理），与开关本身的默认值一致。
  * 关闭后数字回退为普通文本渲染（整串 Text + 自适应字号），也就是引入滚轮之前的显示逻辑。
  */
-internal object RollingNumberSetting {
-    var enabled by mutableStateOf(true)
-}
+internal val LocalRollingNumberEnabled = compositionLocalOf { true }
 
 /** 数字滚轮的相关日志标签。 */
 private const val OdometerLogTag = "Odometer"
@@ -341,7 +345,7 @@ private fun nextOdometerStop(from: Float, digit: Int): Float {
  *   - 其它文本（"--"、空格占位、含前导零等）→ 普通整串 [Text]，数值与单位按基线对齐。
  *
  * 是否走滚轮由两个开关共同决定：调用方的 [enabled]（这张卡要不要动画）
- * 与全局的 [RollingNumberSetting]（用户在设置页是否启用了滚动动画）。
+ * 与全局的 [LocalRollingNumberEnabled]（用户在设置页是否启用了滚动动画）。
  *
  * 单独抽一层 composable，是为了把「逐帧变化的 state 读取」限制在这个小节点里——
  * 若直接在 DataCard 体内读取动画值，动画期间整张卡片（背景、标题、单位、布局）都会每帧重组。
@@ -366,7 +370,7 @@ internal fun AnimatedValueText(
     minFontSize: TextUnit?,
     maxFontSize: TextUnit,
 ) {
-    if (enabled && RollingNumberSetting.enabled && value.isRollableValue()) {
+    if (enabled && LocalRollingNumberEnabled.current && value.isRollableValue()) {
         OdometerValueText(
             value = value,
             unit = unit,

@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -28,6 +29,7 @@ import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
 import com.hrsthrt74.afdian.data.storage.buildImageDiskCache
+import com.hrsthrt74.afdian.ui.components.LocalRollingNumberEnabled
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerDialog
 import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
@@ -129,6 +131,9 @@ private fun AfdianApp(
     // 调试日志开关：订阅 DataStore 并写入全局 AppLog，切换后即时生效、无需重启。
     // initial 跟随构建类型默认值，避免 internal 版首帧先按 false 误关一次再被 DataStore 读回 true
     val debugLogging by settingsStore.debugLogging.collectAsState(initial = BuildConfig.INTERNAL_BUILD)
+    // 数据卡数字滚动动画总开关：initial 与 DataStore 里的默认值（true）保持一致，
+    // 否则冷启动首帧会先按 false 渲染一次普通文本，再跳回滚轮。
+    val rollingNumberEnabled by settingsStore.rollingNumberEnabled.collectAsState(initial = true)
     SideEffect {
         if (AppLog.debugEnabled != debugLogging) {
             AppLog.debugEnabled = debugLogging
@@ -157,7 +162,14 @@ private fun AfdianApp(
                     // 注意组合顺序：先 MainScreen 后 LoginScreen，后者才能绘制在上层。
                     var mainReady by rememberSaveable { mutableStateOf(false) }
                     if (mainReady) appReady.value = true
-                    MainScreen(onReady = { mainReady = true }, onLogout = session::logout)
+                    // 数字滚动动画总开关在这里下发为组合局部（而不是让 MainScreen 往全局对象里写）：
+                    // 数据卡读到它就会订阅，开关一变必然重组并切换渲染方式，
+                    // 不会再出现「开关关了、卡片还在播动画」。
+                    CompositionLocalProvider(
+                        LocalRollingNumberEnabled provides rollingNumberEnabled,
+                    ) {
+                        MainScreen(onReady = { mainReady = true }, onLogout = session::logout)
+                    }
                     if (!mainReady) {
                         LoginScreen(onLogin = session::login, isLoggingIn = true, errorMessage = null)
                     }

@@ -193,9 +193,10 @@ class SettingsStore(private val context: Context) {
     /**
      * 数据卡数字是否播放「逐位滚动」动画，默认开启。
      *
-     * 关闭后数字回退为改动前的普通文本显示（整串 Text + 自适应字号），
-     * 开关由 MainScreen 订阅并写入 [com.hrsthrt74.afdian.ui.components.RollingNumberSetting]，
-     * 卡片据此切换渲染方式。
+     * 关闭后数字回退为改动前的普通文本显示（整串 Text + 自适应字号）。
+     * 由 MainActivity 订阅后以组合局部
+     * [com.hrsthrt74.afdian.ui.components.LocalRollingNumberEnabled] 下发，卡片直接读它，
+     * 开关一变就必然重组并切换渲染方式。
      */
     val rollingNumberEnabled: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.ROLLING_NUMBER] ?: true }
