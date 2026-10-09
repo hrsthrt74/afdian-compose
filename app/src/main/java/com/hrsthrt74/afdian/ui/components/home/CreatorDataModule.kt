@@ -141,7 +141,7 @@ fun CreatorDataEditPage(
                     layout = nextLayout
                     scope.launch { context.settingsStore.setHomeCreatorDataLayout(nextLayout) }
                 }
-                showAddSheet = false
+                // 不在这里收起：是否关闭由 Sheet 内的「连续放置」开关统一决定
             },
             onDismiss = { showAddSheet = false },
         )

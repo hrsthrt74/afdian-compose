@@ -143,6 +143,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 管理分区：整体概况（原「赞助者管理」占位 tab 已删除）；收到发电已独立为单独页面。
 - 数据卡片系统：`DataCardItem` + `DataCardGrid` + `ChartDataCard`（Vico 图表库）+ `IncomeDataCards`。
 - 可自定义布局：`ManagementAddCardSheet` 添加卡片，支持拖拽排序。
+- 添加卡片 Sheet 右上角 `endAction` 是「连续放置」开关（`AppChip`，无尾部图标）：关闭时添加完立即收起弹层（管理页与首页行为一致），开启时弹层保持打开可连续添加；开关为临时 UI 态，每次打开重置为关，不落 DataStore。
 
 ## 赞助者管理页（SponsorManageScreen）
 

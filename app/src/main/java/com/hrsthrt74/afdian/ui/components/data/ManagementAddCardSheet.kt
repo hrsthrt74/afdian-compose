@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -25,6 +27,7 @@ import com.hrsthrt74.afdian.data.settings.ManagementLayoutType
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
+import com.hrsthrt74.afdian.ui.components.AppChip
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -40,6 +43,10 @@ import top.yukonga.miuix.kmp.window.WindowBottomSheet
 /**
  * 编辑态的添加面板：按分组展示可添加的数据卡片，每个卡片显示真实数据值。
  * 标题和分割线作为独立的布局元素放在顶部。
+ *
+ * 右上角 `endAction` 是「连续放置」开关（[AppChip]，无尾部图标，靠选中底色表达状态）：
+ * 关闭时添加完立即收起弹层；开启时弹层保持打开，可连续添加多张。
+ * 「添加后要不要收起」在这里统一收口，调用方的 `onAdd` 只管改布局、不再各自决定收起。
  */
 @Composable
 fun ManagementAddCardSheet(
@@ -50,6 +57,12 @@ fun ManagementAddCardSheet(
     onAdd: (ManagementLayoutEntry) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // 连续放置开关：临时 UI 态，不落盘。
+    // 每次打开都重置为关，避免「上次忘了关 → 这次一口气加了一堆」的意外。
+    var continuous by remember { mutableStateOf(false) }
+    LaunchedEffect(show) {
+        if (show) continuous = false
+    }
     // 过滤掉已添加的卡片
     val availableCards = remember(layout) {
         DataCardCatalog.all.filterNot { card ->
@@ -72,10 +85,25 @@ fun ManagementAddCardSheet(
     // 连点计数器：每次点击立即自增，不依赖 recomposition，避免重复 key
     var dividerClickCount by remember { mutableIntStateOf(0) }
 
+    // 添加的统一出口：非连续模式下加完就收起弹层，连续模式下留在原地继续加。
+    // 小标题 / 分割线 / 图表卡 / 数据卡四类入口都走这里，保证「加一张收一次」行为一致。
+    val add: (ManagementLayoutEntry) -> Unit = { entry ->
+        onAdd(entry)
+        if (!continuous) onDismiss()
+    }
+
     WindowBottomSheet(
         show = show,
         title = "添加卡片",
         onDismissRequest = onDismiss,
+        // 右上角：连续放置开关，不传 trailingIcon（纯文字 Chip，选中态靠底色表达）
+        endAction = {
+            AppChip(
+                text = "连续放置",
+                selected = continuous,
+                onClick = { continuous = !continuous },
+            )
+        },
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxWidth().scrollEndHaptic(),
@@ -99,7 +127,7 @@ fun ManagementAddCardSheet(
                                     Button(
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(color = MiuixTheme.colorScheme.surface),
-                                        onClick = { onAdd(ManagementLayoutEntry(ManagementLayoutType.TITLE, title)) },
+                                        onClick = { add(ManagementLayoutEntry(ManagementLayoutType.TITLE, title)) },
                                         enabled = !alreadyAdded,
                                     ) { Text(title) }
                                 }
@@ -125,7 +153,7 @@ fun ManagementAddCardSheet(
                             .pressable(interactionSource = null)
                             .clickable {
                                 dividerClickCount++
-                                onAdd(ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_${layout.size}_$dividerClickCount"))
+                                add(ManagementLayoutEntry(ManagementLayoutType.DIVIDER, "divider_${layout.size}_$dividerClickCount"))
                             }
                         ) {
                             Row(
@@ -164,7 +192,7 @@ fun ManagementAddCardSheet(
                         key = chart.storageValue,
                         data = charts[chart.storageValue],
                         onClick = {
-                            onAdd(ManagementLayoutEntry(ManagementLayoutType.CHART, chart.storageValue))
+                            add(ManagementLayoutEntry(ManagementLayoutType.CHART, chart.storageValue))
                         },
                         modifier = Modifier.fillMaxWidth(),
                         // 弹层内 Card 统一配色：与 Sheet 背景拉开层次
@@ -191,7 +219,7 @@ fun ManagementAddCardSheet(
                             modifier = Modifier.fillMaxWidth(),
                             onItemClick = { item ->
                                 DataCardCatalog.find(item.id)?.let { card ->
-                                    onAdd(ManagementLayoutEntry(ManagementLayoutType.CARD, card.key.storageValue))
+                                    add(ManagementLayoutEntry(ManagementLayoutType.CARD, card.key.storageValue))
                                 }
                             },
                             cardColors = AfdianCardDefaults.overlayColors(),
