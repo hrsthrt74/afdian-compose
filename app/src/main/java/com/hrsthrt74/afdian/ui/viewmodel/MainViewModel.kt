@@ -22,6 +22,9 @@ import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
 import com.hrsthrt74.afdian.data.stats.CardValue
 import com.hrsthrt74.afdian.data.stats.DataCardModel
+import com.hrsthrt74.afdian.data.stats.IncomeStatRecord
+import com.hrsthrt74.afdian.data.stats.IncomeStatRepository
+import com.hrsthrt74.afdian.data.stats.IncomeStatType
 import com.hrsthrt74.afdian.data.stats.displayText
 import com.hrsthrt74.afdian.data.stats.removeLegacyUnitSuffix
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +47,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val searchHistoryStore = SearchHistoryStore(application)
     private val settingsStore = SettingsStore(application)
     private val statsRepository = CreatorStatsRepository(AuthTokenStore(application))
+    // 首页「近5天收入」模块的数据源：与收入明细页同一个 /api/my/stat 接口（按日维度）
+    private val incomeStatRepository = IncomeStatRepository(AuthTokenStore(application))
     // 个人资料磁盘缓存：冷启动先回填，消除「我的」页用户名/头像闪烁
     private val profileCache = ProfileCache(application)
     // 首页首屏快照缓存：只缓存可展示数据，不缓存加载状态和分页游标。
@@ -70,6 +75,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val creatorCharts = _creatorCharts.asStateFlow()
     private val _markedCreators = MutableStateFlow<List<FavoriteItem>>(emptyList())
     val markedCreators = _markedCreators.asStateFlow()
+    // 首页「近5天收入」模块的数据：/api/my/stat?type=day 第 1 页的前 5 条（接口按日期倒序返回）。
+    // 加载失败时保留旧值（与创作者数据同一容错口径），模块据此显示空态提示。
+    private val _recentIncomeRecords = MutableStateFlow<List<IncomeStatRecord>>(emptyList())
+    val recentIncomeRecords = _recentIncomeRecords.asStateFlow()
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
     private val _isLoadingMore = MutableStateFlow(false)
@@ -197,6 +206,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 创作者数据与主页内容并行加载，但共享同一个 isLoading 窗口：
             // 修复「刷新图标先停、创作者卡片晚一拍才更新」的错位问题
             val creatorJob = launch { refreshCreatorData() }
+            // 近5天收入模块：与创作者数据并发加载、共享同一个 isLoading 窗口，
+            // 这样下拉刷新/顶栏刷新会把两张表一起更新，加载动画停止时数据已就位。
+            val recentIncomeJob = launch { refreshRecentIncomeRecords() }
             try {
                 val result = withContext(Dispatchers.IO) {
                     kotlinx.coroutines.coroutineScope {
@@ -236,10 +248,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 AppLog.e("Discover", "refresh failed", e)
                 _error.value = e.message ?: "首页内容加载失败"
             } finally {
-                // 等创作者数据也结束后再关闭加载态，保证动画停止时首页所有模块都已更新
+                // 等创作者数据、近5天收入都结束后再关闭加载态，保证动画停止时首页所有模块都已更新
                 creatorJob.join()
+                recentIncomeJob.join()
                 _isLoading.value = false
             }
+        }
+    }
+
+    /**
+     * 近5天收入模块独立加载：拉 /api/my/stat 第 1 页（按日维度）取最近 5 条。
+     *
+     * 只取第 1 页即可满足「近 5 天」，不翻页；接口按日期倒序返回，前 5 条就是最近 5 天。
+     * 失败时保留旧值并告警，与 [refreshCreatorData] 同一容错口径：
+     * 首次失败时列表为空，模块显示「暂无统计数据」而不是整页报错。
+     */
+    private suspend fun refreshRecentIncomeRecords() {
+        try {
+            val page = withContext(Dispatchers.IO) {
+                incomeStatRepository.fetch(IncomeStatType.Day, page = 1)
+            }
+            val records = page.list.take(RECENT_INCOME_RECORD_COUNT)
+            _recentIncomeRecords.value = records
+            AppLog.d("Home", "近5天收入加载成功，天数=${records.size}")
+        } catch (e: Exception) {
+            // 保留旧值：网络抖动时不至于让首页表格整体清空
+            AppLog.w("Home", "近5天收入加载失败", e)
         }
     }
 
@@ -281,6 +315,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _creatorCards.value = emptyMap()
             _creatorCharts.value = emptyMap()
             _unconfirmedAmount.value = null
+            _recentIncomeRecords.value = emptyList()
         }
     }
 
@@ -350,6 +385,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _isLoadingMore.value = false
             }
         }
+    }
+
+    private companion object {
+        /** 首页「近5天收入」模块展示的天数；接口按日期倒序返回，第 1 页取前 N 条即为最近 N 天。 */
+        const val RECENT_INCOME_RECORD_COUNT = 5
     }
 }
 

@@ -680,6 +680,7 @@ private fun MainTabsContent(
                         onOpenManagement = { onNavigate(Route.Management) },
                         onOpenFavorites = { onNavigate(Route.Favorites) },
                         onOpenSponsoring = { onNavigate(Route.Sponsoring) },
+                        onOpenIncomeDetail = { onNavigate(Route.IncomeDetail) },
                         historyViewModel = historyViewModel,
                         onOpenHistory = { onNavigate(Route.History) },
                         onOpenHistoryEntry = { entry ->

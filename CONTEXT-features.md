@@ -22,17 +22,25 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 首页采用可配置模块系统，用户可自由排序和开关模块。
 
-已实现的 5 个模块：
+已实现的 6 个模块：
 1. **提现提醒** — 月末 7 天自动显示，点击跳转网页提现页。
 2. **创作者数据** — 展示今日收入等数据卡片，支持长按进入整页编辑网格。
-3. **我发电的** — 已发电创作者列表，横滑展示。
-4. **收藏的创作者** — 收藏的创作者列表，横滑展示。
-5. **浏览历史** — 最近浏览的创作者和动态，按时间分组。
+3. **近5天收入** — 最近 5 天每日收入明细表，样式照抄收入明细页，标题点击进入收入明细页。**默认关闭**。日期列只显示 `月/日`（`IncomeStatRecord.displayMonthDay`）：5 天窗口里年份没有信息量，省下的宽度留给数值列；收入明细页仍用全量 `年/月/日`。
+4. **我发电的** — 已发电创作者列表，横滑展示。
+5. **收藏的创作者** — 收藏的创作者列表，横滑展示。
+6. **浏览历史** — 最近浏览的创作者和动态，按时间分组。
 
 模块配置：
 - `HomeCustomizationSheet` 支持拖拽排序和显隐开关。
 - 配置持久化到 DataStore。
 - 首页底部有「自定义」按钮触发配置抽屉。
+- **默认开关**写在 `HomeModule.defaultEnabled`，首帧初值取 `HomeModule.defaultEnabledSet`：
+  枚举声明顺序即默认顺序，而 `defaultEnabled = false` 的模块（如近5天收入）不会在 DataStore
+  读到真值前闪一帧出来。
+- **默认顺序合并**用顶层纯函数 `mergeHomeModuleOrder`（`HomeModuleOrderTest` 覆盖）：
+  老配置里缺失的模块**插到它在枚举声明顺序里的前驱之后**，而不是旧实现那样一律追加末尾
+  ——否则新增模块升级后会莫名其妙跑到最后一位。
+- `homeEnabledModules` 在已存配置非空时**不会**自动补入新模块，所以新增模块对老用户天然是关闭的。
 
 创作者数据系统：
 - `CreatorStatsRepository` 拉取 4 个接口：`/api/my/dashboard`（总量摘要 + 可提现）、
@@ -60,6 +68,14 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   新增字段一律带默认值，旧快照反序列化为空集合而不是解析失败。
   图表刷新是**合并**语义（`_creatorCharts.value + overview.charts`）：数据源临时失败时该图键缺失，
   保留上一份好数据而不抹成加载占位，缓存里也就能留住上次的图。
+- 近5天收入模块（首页）：复用收入明细页的 `IncomeStatRepository.fetch(IncomeStatType.Day, 1)`，
+  只取第 1 页前 5 条（接口按日期倒序，前 5 条即最近 5 天），挂在 `MainViewModel.refresh()` 里
+  与创作者数据并发加载、共享同一个 `isLoading` 窗口，因此下拉刷新会一并更新。
+  失败时保留旧值并 `AppLog.w`，首次失败时列表为空 → 模块显示「暂无统计数据」而不是整页报错。
+  **与 `CreatorStatsRepository` 重复请求同一个 `/api/my/stat?type=day`**：那份按日序列是
+  私有聚合结构、不产出 `IncomeStatRecord`，为它开公开接口收益不抵，故各拉一次。
+  表格组件（表头 / 数据行 / 列宽）已从 `IncomeDetailScreen` 提取到
+  `ui/components/home/IncomeStatTable.kt`，两处共用；首页没有顶栏，表头放进 Card 内随内容滚动。
 - 按日图表（近30天收入 / 访问人数趋势）边界处理：`/api/my/stat` 对今天/昨天返回空值，`ChartModel.trimTrailingBlankDays` 只裁掉窗口末端（今天方向）连续的空/0 天，中间为 0 的天保留；全为 0/无数据时回退完整窗口。抓取时额外回溯 `CHART_TRAILING_TRIM_BUFFER_DAYS`(7) 天，保证裁剪后仍有 `CHART_DAILY_WINDOW_DAYS`(30) 个点。
 
 ## 发现页
@@ -456,7 +472,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `AppLog.kt`：全局日志门面（Logcat + 落盘 sink 注入点）。
 - `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage、Log、ApiProbe）。
 - `ui/screens/auth/`：登录、免责声明。
-- `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件。
+- `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件（`IncomeStatTable.kt` 为收入明细页与首页共用的表格行组件）。
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
 - `data/auth/`：认证状态、Token 存储、登录请求和加密载荷。
 - `data/content/`：领域接口服务（AccountService、MessageService、AffiliateService、FeedService、CreatorService、ReceivedSponsorService、ThankSponsorsService、OrderService、ManagementService），`AfadianContentService` 为兼容门面；消息解析集中在 `MessageParser`，模型见 `ContentModels` / `MessageModels`；缓存 `ProfileCache` / `HomeCache`。

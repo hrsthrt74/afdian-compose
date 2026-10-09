@@ -40,7 +40,8 @@ import top.yukonga.miuix.kmp.window.WindowBottomSheet
 @Composable
 fun HomeCustomizationSheet(settingsStore: SettingsStore, show: Boolean, onDismiss: () -> Unit) {
     val moduleOrder by settingsStore.homeModuleOrder.collectAsState(initial = HomeModule.entries)
-    val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.entries.toSet())
+    // 初值用默认启用集合，避免默认关闭的模块在读到真值前闪出「已勾选」
+    val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.defaultEnabledSet)
     val scope = rememberCoroutineScope()
 
     WindowBottomSheet(
