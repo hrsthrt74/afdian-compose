@@ -26,6 +26,7 @@ import com.hrsthrt74.afdian.data.stats.IncomeStatRecord
 import com.hrsthrt74.afdian.data.stats.IncomeStatRepository
 import com.hrsthrt74.afdian.data.stats.IncomeStatType
 import com.hrsthrt74.afdian.data.stats.displayText
+import com.hrsthrt74.afdian.data.stats.mergeCardFrame
 import com.hrsthrt74.afdian.data.stats.removeLegacyUnitSuffix
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -284,7 +285,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 订单多的账号不用陪账单翻页一起等最慢的接口。
             val overview = withContext(Dispatchers.IO) {
                 statsRepository.loadOverviewStreaming { partial ->
-                    _creatorCards.value = partial.cards
+                    // 中间帧只覆盖「本帧真正拿到值」的卡片：
+                    // 流式加载的早期帧里，账单/按日统计这些还没回来的数据源是 Unavailable，
+                    // 整份替换会让冷启动回填的缓存数字（今日收入等）先被抹成 “--”，
+                    // 真值到达后滚轮节点重建、动画还得从 0 重播一遍。
+                    _creatorCards.value = mergeCardFrame(_creatorCards.value, partial.cards)
                     // 未确认金额随帧写入：dashboard 帧之后就有值，后续帧重复同值无副作用。
                     // dashboard 失败时整个流式加载抛异常，回调不执行，旧值得以保留（与卡片容错口径一致）。
                     _unconfirmedAmount.value = partial.unconfirmedAmount
@@ -295,6 +300,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _creatorCharts.value = _creatorCharts.value + partial.charts
                 }
             }
+            // 最终快照兜底：中间帧为避免闪烁保留了旧值，这里再落一次权威结果，
+            // 让真正失败的数据源回到 “--”。成功路径上它与最后一帧内容相等，
+            // 会被 StateFlow 的相等合流直接吞掉，不产生任何额外重组。
+            _creatorCards.value = overview.cards
             // 磁盘缓存只在全部数据源结束后落盘一次，避免中间帧反复写文件
             saveHomeCache()
             AppLog.d("Home", "创作者数据加载成功，卡片=${overview.cards.size}，图表=${overview.charts.size}")

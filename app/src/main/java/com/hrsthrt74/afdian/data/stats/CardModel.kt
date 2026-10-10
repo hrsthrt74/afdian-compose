@@ -239,6 +239,37 @@ data class DataCardModel(
     val subtitle: String? = null,
 )
 
+/**
+ * 合并流式加载的中间帧：只接受本帧真正产出的值。
+ *
+ * [CreatorStatsRepository.loadOverviewStreaming] 推出的每一帧都是「全量快照」：
+ * 还没回来的数据源（账单 / 按日统计 / 月度账单）统一是 [CardValue.Unavailable]。
+ * 调用方若整份替换，已显示出来的值就会在中途被抹成 “--”——冷启动回填的缓存数字
+ * 先消失一次，真值到达后滚轮节点又要重建、动画从 0 重播一遍。
+ *
+ * 这里只在本帧确实是 [CardValue.Unavailable]、而上一帧已有可用值时保留旧卡，
+ * 其余一律取本帧值。等流式加载全部结束后，调用方再落一次最终快照兜底，
+ * 真正失败的数据源仍然回到 “--”，失败语义不变。
+ *
+ * @param previous 上一帧（可能是冷启动回填的缓存卡片，也可能为空）
+ * @param frame 本次收到的快照
+ */
+fun mergeCardFrame(
+    previous: Map<String, DataCardModel>,
+    frame: Map<String, DataCardModel>,
+): Map<String, DataCardModel> {
+    if (previous.isEmpty()) return frame
+    return buildMap(frame.size + previous.size) {
+        putAll(frame)
+        for ((id, old) in previous) {
+            val incoming = frame[id]
+            if (incoming?.value is CardValue.Unavailable && old.value !is CardValue.Unavailable) {
+                put(id, old)
+            }
+        }
+    }
+}
+
 /** 发电账单中参与统计的已支付订单。 */
 data class PaidOrderRecord(
     val userId: String?,

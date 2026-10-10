@@ -3,8 +3,11 @@ package com.hrsthrt74.afdian
 import com.hrsthrt74.afdian.data.stats.CardKey
 import com.hrsthrt74.afdian.data.stats.CardMetric
 import com.hrsthrt74.afdian.data.stats.CardPeriod
+import com.hrsthrt74.afdian.data.stats.CardValue
+import com.hrsthrt74.afdian.data.stats.DataCardModel
 import com.hrsthrt74.afdian.data.stats.DailyStatRecord
 import com.hrsthrt74.afdian.data.stats.PaidOrderRecord
+import com.hrsthrt74.afdian.data.stats.mergeCardFrame
 import com.hrsthrt74.afdian.data.stats.aggregateDailyStats
 import com.hrsthrt74.afdian.data.stats.aggregatePaidOrders
 import com.hrsthrt74.afdian.data.stats.toDateRange
@@ -76,5 +79,44 @@ class CardModelTest {
         assertEquals(2L, result.orderCount)
         assertEquals(4L, result.uv)
         assertEquals(5L, result.pv)
+    }
+
+    /**
+     * 流式中间帧里未完成的数据源是 Unavailable，合并时不能把已显示的缓存值抹掉，
+     * 否则冷启动时数字会先消失一次、真值到达后动画还得从 0 重播。
+     */
+    @Test
+    fun streamingFrameKeepsPreviousValueForPendingCards() {
+        val cached = DataCardModel("income:today", "今日收入", CardValue.Text("1280.00"))
+        val frame = mapOf(
+            // 账单接口还没回来：仍是 Unavailable
+            "income:today" to DataCardModel("income:today", "今日收入", CardValue.Unavailable),
+            // dashboard 已经拿到：本帧的新值应当覆盖缓存
+            "balance" to DataCardModel("balance", "可提现（抽成前）", CardValue.Money(BigDecimal("88.00"))),
+        )
+
+        val merged = mergeCardFrame(mapOf("income:today" to cached, "balance" to cached), frame)
+
+        assertEquals(cached, merged["income:today"])
+        assertEquals(CardValue.Money(BigDecimal("88.00")), merged["balance"]?.value)
+    }
+
+    /** 没有可保留的旧值时照常落到 Unavailable，首屏该显示 “--” 的仍然显示 “--”。 */
+    @Test
+    fun streamingFrameFallsBackToUnavailableWithoutPreviousValue() {
+        val pending = DataCardModel("income:today", "今日收入", CardValue.Unavailable)
+
+        val merged = mergeCardFrame(
+            previous = mapOf("income:today" to pending),
+            frame = mapOf("income:today" to pending),
+        )
+
+        assertEquals(CardValue.Unavailable, merged["income:today"]?.value)
+        // 上一帧没有这张卡：直接用本帧值，不凭空造出旧卡
+        val added = mergeCardFrame(
+            previous = emptyMap(),
+            frame = mapOf("income:today" to pending),
+        )
+        assertEquals(CardValue.Unavailable, added["income:today"]?.value)
     }
 }

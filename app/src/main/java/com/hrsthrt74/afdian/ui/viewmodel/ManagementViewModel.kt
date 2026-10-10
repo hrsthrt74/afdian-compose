@@ -10,6 +10,7 @@ import com.hrsthrt74.afdian.data.content.ManagementSection
 import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.CreatorStatsRepository
 import com.hrsthrt74.afdian.data.stats.DataCardModel
+import com.hrsthrt74.afdian.data.stats.mergeCardFrame
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
@@ -62,7 +63,9 @@ class ManagementViewModel(application: Application) : AndroidViewModel(applicati
                 val overview = withContext(Dispatchers.IO) {
                     statsRepository.loadOverviewStreaming { partial ->
                         if (generation == loadGeneration) {
-                            _cards.value = partial.cards
+                            // 只覆盖本帧真正拿到值的卡片：账单/按日统计没回来的早期帧是 Unavailable，
+                            // 整份替换会把已显示的数字抹成 “--”，真值到达后动画又从 0 重播一遍。
+                            _cards.value = mergeCardFrame(_cards.value, partial.cards)
                             _charts.value = partial.charts
                             _result.value = ManagementResult(section, emptyList())
                             // 首帧即含 dashboard 数据（本月收入、历史、可提现等），先上屏；
