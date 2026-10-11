@@ -190,7 +190,9 @@ fun HomeScreen(
                     context = moduleContext,
                     modifier = Modifier
                         .padding(top = paddingValues.calculateTopPadding())
-                        .padding(bottom = contentBottomPadding()),
+                        .nestedScroll(scrollBehavior.nestedScrollConnection)
+//                        .padding(bottom = contentBottomPadding())
+                        ,
                     onExit = { editingCreatorData = false },
                 )
             } else {
