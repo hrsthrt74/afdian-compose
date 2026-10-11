@@ -51,6 +51,7 @@ import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.BlocklistScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.DeveloperScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
@@ -63,6 +64,7 @@ import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.isDarkColorScheme
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
 import com.hrsthrt74.afdian.ui.viewmodel.BlocklistViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.DeveloperViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
@@ -487,6 +489,21 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                         )
                     )
                 },
+            )
+        }
+        entry<Route.Developer> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 开发者页：入口在「我的」页屏蔽与拒绝名单下方，展示 user_id、Webhook URL 与 API Token
+            val app = LocalContext.current.applicationContext as Application
+            val vm: DeveloperViewModel = viewModel(
+                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app),
+            )
+            DeveloperScreen(
+                viewModel = vm,
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                // 开发者文档入口：与「我的」页「创作者指南」同一套跳法，进动态详情页
+                onOpenDoc = { postId -> backStack.pushUnique(Route.PostDetailById(postId)) },
             )
         }
         entry<Route.Shop> {

@@ -259,6 +259,11 @@ private fun ProfileMainScreen(
                                 title = "屏蔽与拒绝名单",
                                 onClick = { onNavigate(Route.Blocklist) }
                             )
+                            // 开发者页：查看 user_id、配置 Webhook URL、生成 API Token
+                            ArrowPreference(
+                                title = "开发者",
+                                onClick = { onNavigate(Route.Developer) }
+                            )
                         }
                     }
                 }

@@ -47,6 +47,8 @@ sealed interface Route : NavKey {
     @Serializable data object ApiProbe : Route
     // 屏蔽 / 拒绝名单页（/api/my/blacked，TabRow 切换两个名单），入口在「我的」页设置上方
     @Serializable data object Blocklist : Route
+    // 开发者页（官网 /dashboard/dev：user_id、Webhook URL、API Token），入口在「我的」页屏蔽与拒绝名单下方
+    @Serializable data object Developer : Route
     // 售卖商品管理页（创作者后台 all-plans 的 sale_list），入口在「我的」页快捷入口占位
     @Serializable data object Shop : Route
 }
