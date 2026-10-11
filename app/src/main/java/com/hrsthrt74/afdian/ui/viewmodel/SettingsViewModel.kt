@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
@@ -63,6 +64,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val rollingNumberEnabled: StateFlow<Boolean> = store.rollingNumberEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    /** 数据卡数值是否使用窄体可变字体，默认关闭（关闭 = 系统默认字体）。 */
+    val dataCardCustomFontEnabled: StateFlow<Boolean> = store.dataCardCustomFontEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** 数据卡数值字体的 wdth（宽度）轴，默认 60。 */
+    val dataCardFontWidth: StateFlow<Int> = store.dataCardFontWidth
+        .stateIn(viewModelScope, SharingStarted.Eagerly, DATACARD_FONT_WIDTH_DEFAULT)
+
     /** 外部爱发电链接是否优先使用官方客户端，默认关闭即优先 Custom Tabs。 */
     val preferOfficialClient: StateFlow<Boolean> = store.preferOfficialClient
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -87,6 +96,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /** 切换数字滚动动画；DataStore 回推后 MainScreen 更新全局开关，卡片立即切换渲染方式 */
     fun setRollingNumberEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setRollingNumberEnabled(enabled) }
+    }
+
+    /** 切换数据卡数值窄体字体；DataStore 回推后 MainActivity 更新全局字体，卡片立即换字体 */
+    fun setDataCardCustomFontEnabled(enabled: Boolean) {
+        viewModelScope.launch { store.setDataCardCustomFontEnabled(enabled) }
+    }
+
+    /** 写入数据卡数值字体宽度（wdth）；只在滑块松手时调用，避免拖动过程每帧写库 */
+    fun setDataCardFontWidth(width: Int) {
+        viewModelScope.launch { store.setDataCardFontWidth(width) }
     }
 
     fun setPreferOfficialClient(enabled: Boolean) {

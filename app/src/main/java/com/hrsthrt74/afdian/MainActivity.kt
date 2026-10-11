@@ -25,6 +25,7 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.crossfade
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
+import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
@@ -36,6 +37,8 @@ import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
 import com.hrsthrt74.afdian.ui.screens.main.MainScreen
 import com.hrsthrt74.afdian.ui.theme.AfdianBrandColor
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
+import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
+import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -134,6 +137,15 @@ private fun AfdianApp(
     // 数据卡数字滚动动画总开关：initial 与 DataStore 里的默认值（true）保持一致，
     // 否则冷启动首帧会先按 false 渲染一次普通文本，再跳回滚轮。
     val rollingNumberEnabled by settingsStore.rollingNumberEnabled.collectAsState(initial = true)
+    // 数据卡数值窄体字体：开关 + wdth 宽度。
+    // initial 与 DataStore 默认值保持一致，避免冷启动首帧先按系统字体渲染一次再换字体。
+    val dataCardCustomFontEnabled by settingsStore.dataCardCustomFontEnabled.collectAsState(initial = false)
+    val dataCardFontWidth by settingsStore.dataCardFontWidth
+        .collectAsState(initial = DATACARD_FONT_WIDTH_DEFAULT)
+    // 字体族始终构建（本身只是轻量数据对象，真正派生 Typeface 只发生在数值实际排版时）；
+    // 开关关闭时下发 null，语义即「数值用系统默认字体」。
+    val dataCardFontFamily = rememberMiSansCondensedFontFamily(dataCardFontWidth)
+    val providedDataCardFontFamily = if (dataCardCustomFontEnabled) dataCardFontFamily else null
     SideEffect {
         if (AppLog.debugEnabled != debugLogging) {
             AppLog.debugEnabled = debugLogging
@@ -167,6 +179,8 @@ private fun AfdianApp(
                     // 不会再出现「开关关了、卡片还在播动画」。
                     CompositionLocalProvider(
                         LocalRollingNumberEnabled provides rollingNumberEnabled,
+                        // 数值窄体字体同样以组合局部下发：卡片读到它就订阅，开关/宽度一变必然重组
+                        LocalDataCardFontFamily provides providedDataCardFontFamily,
                     ) {
                         MainScreen(onReady = { mainReady = true }, onLogout = session::logout)
                     }

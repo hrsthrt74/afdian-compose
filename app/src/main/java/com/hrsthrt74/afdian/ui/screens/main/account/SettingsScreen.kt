@@ -17,10 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,6 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.BuildConfig
+import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MAX
+import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MIN
+import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_SLIDER_STEPS
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.resolveForSdk
 import com.hrsthrt74.afdian.ui.components.DataCard
@@ -49,14 +54,17 @@ import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.ThemeColorTransition
+import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -75,9 +83,11 @@ import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.math.roundToInt
 
 // 「通用」分组里启动页的下拉选项
 private val startupPageNames = listOf(
@@ -219,8 +229,23 @@ private fun SettingsScreenContent(
     val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
     val showCountUnit by viewModel.showCountUnit.collectAsState()
     val rollingNumberEnabled by viewModel.rollingNumberEnabled.collectAsState()
+    val dataCardCustomFontEnabled by viewModel.dataCardCustomFontEnabled.collectAsState()
+    val dataCardFontWidth by viewModel.dataCardFontWidth.collectAsState()
     val preferOfficialClient by viewModel.preferOfficialClient.collectAsState()
     val themeSettings = LocalThemeSettings.current
+
+    // 字体宽度拖动的本地草稿：只在松手时落盘，避免拖动过程每一帧都写一次 DataStore。
+    // 以已落盘的 dataCardFontWidth 为 key：首次读出或别处改动时重新同步到真实值。
+    var draftFontWidth by remember(dataCardFontWidth) {
+        mutableFloatStateOf(dataCardFontWidth.toFloat())
+    }
+    // 预览卡专用字体族：直接跟随草稿宽度构建，于是拖动滑块时两张预览卡会实时变宽变窄。
+    // 它只覆盖设置页这一小片子树（见下方嵌套 Provider），不影响全局下发值。
+    val previewFontFamily = if (dataCardCustomFontEnabled) {
+        rememberMiSansCondensedFontFamily(draftFontWidth.roundToInt())
+    } else {
+        null
+    }
 
     // 预览卡的重播令牌：0 = 首次渲染不播放，数字直接落位。
     // 自增会让 key(replayToken) 重建预览卡，从而重新触发一次完整滚动
@@ -413,36 +438,41 @@ private fun SettingsScreenContent(
 
                 item { SmallTitle(text = "数据卡片", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    // 这两张预览卡身兼两职：
+                    // 这两张预览卡身兼三职：
                     //   1) 切换下面两个单位开关时，单位会立即出现/消失；
                     //   2) 兼作数字滚动动画的预览 —— 进页面时直接落位、不播放（动画只有约 460ms，
                     //      自动播很容易被错过），只有把「数字滚动动画」开关从关打到开时才播一次。
-                    // 令牌一变就重建预览卡，滚轮随之从 0 重新滚一遍。
-                    key(replayToken) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .padding(bottom = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            DataCard(
-                                title = "收入预览",
-                                value = "1280.00",
-                                unit = "元".takeIf { showIncomeUnit },
-                                modifier = Modifier.weight(1f),
-                                // 开关关掉时这里回退成普通文本，顺带预览了「关闭后」的效果
-                                animateValue = rollingNumberEnabled,
-                                autoPlay = replayToken > 0,
-                            )
-                            DataCard(
-                                title = "人数预览",
-                                value = "256",
-                                unit = "人".takeIf { showCountUnit },
-                                modifier = Modifier.weight(1f),
-                                animateValue = rollingNumberEnabled,
-                                autoPlay = replayToken > 0,
-                            )
+                    //      令牌一变就重建预览卡，滚轮随之从 0 重新滚一遍。
+                    //   3) 兼作数值字体的预览 —— 开着字体开关时，下面拖宽度滑块能实时看到变化。
+                    // 字体 Provider 刻意套在 key(replayToken) 外面：宽度变化只该让数字「重新量算」，
+                    // 不该触发滚轮重播（重播只属于「数字滚动动画」开关从关到开那一下）。
+                    CompositionLocalProvider(LocalDataCardFontFamily provides previewFontFamily) {
+                        key(replayToken) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                DataCard(
+                                    title = "收入预览",
+                                    value = "1280.00",
+                                    unit = "元".takeIf { showIncomeUnit },
+                                    modifier = Modifier.weight(1f),
+                                    // 开关关掉时这里回退成普通文本，顺带预览了「关闭后」的效果
+                                    animateValue = rollingNumberEnabled,
+                                    autoPlay = replayToken > 0,
+                                )
+                                DataCard(
+                                    title = "人数预览",
+                                    value = "256",
+                                    unit = "人".takeIf { showCountUnit },
+                                    modifier = Modifier.weight(1f),
+                                    animateValue = rollingNumberEnabled,
+                                    autoPlay = replayToken > 0,
+                                )
+                            }
                         }
                     }
                 }
@@ -467,6 +497,43 @@ private fun SettingsScreenContent(
                             title = "显示人次单位",
 //                            summary = "发电人数、发电次数、访问人次等卡片显示「人」「次」",
                         )
+                        // 数值窄体字体：默认关闭，关闭时数值完全沿用系统默认字体
+                        SwitchPreference(
+                            checked = dataCardCustomFontEnabled,
+                            onCheckedChange = viewModel::setDataCardCustomFontEnabled,
+                            title = "数值窄字体",
+                            summary = "MiSans Condensed 2T",
+                        )
+                        // 宽度滑块只在开关打开时出现，避免留一个拖了没反应的无效选项。
+                        // 用 AnimatedVisibility（而不是裸 if）让它随开关展开/收起，
+                        // 与上面「渐进模糊」「主题色」几处的显隐动画保持一致。
+                        // 拖动走本地草稿（预览卡实时变宽），松手才落盘。
+                        AnimatedVisibility(visible = dataCardCustomFontEnabled) {
+                            SliderPreference(
+                                title = "字体宽度",
+                                value = draftFontWidth,
+                                onValueChange = { draftFontWidth = it },
+                                onValueChangeFinished = {
+                                    val picked = draftFontWidth.roundToInt()
+                                    if (picked != dataCardFontWidth) viewModel.setDataCardFontWidth(picked)
+                                },
+                                valueRange = DATACARD_FONT_WIDTH_MIN.toFloat()..DATACARD_FONT_WIDTH_MAX.toFloat(),
+                                // 每 10 个单位一档（10–100 共 10 档）。steps 是「两端点之间的档位数」，
+                                // 所以是 档位数 - 2 = 8，换算见常量注释。
+                                steps = DATACARD_FONT_WIDTH_SLIDER_STEPS,
+                                // 当前档位显示在标题行右侧，拖动时能直接读出数值
+                                valueText = draftFontWidth.roundToInt().toString(),
+                                // 10 个档位全部画点、逐档震动。
+                                //
+                                // **这里刻意不传 keyPoints**：miuix 只要拿到非空 keyPoints，就会把震动用的
+                                // 「关键点集合」（allKeyPointFractions）整个换成 keyPoints。而 keyPoints 一旦
+                                // 覆盖了全部档位，边沿触发（"从非关键点进入关键点才震"）就再也触发不了 ——
+                                // 吸附后的值每一帧都停在关键点上，Step 会整体失效、只剩两端 Edge。
+                                // 「每档都震」因此要走 steps + showKeyPoints，而不是 keyPoints。
+                                showKeyPoints = true,
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                            )
+                        }
                     }
                 }
 

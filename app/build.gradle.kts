@@ -48,6 +48,13 @@ android {
         buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "true")
     }
 
+    // assets 下的可变字体（MiSans Condensed）保持不压缩：
+    // noCompress 是按扩展名作用于整个 APK 的，assets 与 res 都覆盖 ——
+    // 不压缩时 Typeface.Builder 能直接 mmap 字体文件；压缩了就只能整份读进内存。
+    androidResources {
+        noCompress += "ttf"
+    }
+
     // 维度声明顺序决定变体名拼接顺序：distribution 在前，edition 在后。
     flavorDimensions += "distribution"
     // edition 维度：standard=完整版，legacy=低配兼容版（minSdk 29、无模糊）

@@ -16,6 +16,56 @@ import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import kotlin.math.roundToInt
+
+/**
+ * 数据卡数值字体（MiSans Condensed 可变字体）的 wdth（宽度）轴合法区间与默认值。
+ *
+ * 字体自身的 fvar 轴是 10–200，这里刻意只放开**偏窄的一半（10–100）**：
+ * 该字体定位就是窄体数字，100 以上越走越宽、与「窄体」的意图相悖；
+ * 上限收到 100 也让滑块的每一档都落在有意义的区间里。
+ * 默认值 60 是产品选定的视觉档位，比 100 更窄，符合「窄体数字」的预期。
+ * 定义在数据层，UI 侧（ui/theme/DataCardFont.kt）与渲染侧统一引用，避免多处各写一份魔数。
+ */
+const val DATACARD_FONT_WIDTH_MIN = 10
+const val DATACARD_FONT_WIDTH_MAX = 100
+const val DATACARD_FONT_WIDTH_DEFAULT = 60
+
+/**
+ * 数据卡字体宽度滑块的**档位间隔**（wdth 单位）：每 10 个单位一档。
+ *
+ * 于是 10–100 一共 10 个可选档位（10 / 20 / … / 100）。
+ * 为什么是 10 而不是 1：可变轴的视觉差异要跨到 10 个单位才明显，
+ * 1 单位一档对用户来说是「拖到哪都一样」，手感黏、也停不准想要的档位。
+ */
+const val DATACARD_FONT_WIDTH_STEP = 10
+
+/**
+ * 传给 miuix `Slider(steps = ...)` 的值。
+ *
+ * miuix 的 `steps` 指的是**两端点之间的档位数**，所以要减 2：
+ * 档位数 =(MAX - MIN) / STEP = 9 段 → steps = 8（对应 10 个可选档位）。
+ * 单独抽成常量是为了让「档位间隔 → steps」的换算只写一处，并由单测锁住。
+ */
+const val DATACARD_FONT_WIDTH_SLIDER_STEPS =
+    (DATACARD_FONT_WIDTH_MAX - DATACARD_FONT_WIDTH_MIN) / DATACARD_FONT_WIDTH_STEP - 1
+
+/**
+ * 把任意宽度值**归一化**到合法档位：先夹进 [DATACARD_FONT_WIDTH_MIN]..[DATACARD_FONT_WIDTH_MAX]，
+ * 再吸附到最近的 [DATACARD_FONT_WIDTH_STEP] 整数倍档位。
+ *
+ * 读取 DataStore、写入 DataStore、构建字体族三处都调用它，于是「存储值 / 滑块显示的档位 /
+ * 字体实际用的轴值」三者永远一致。归一化而不是单纯夹取的原因：
+ * 档位本身是 10 单位一档，非档位值（例如上个版本 1 单位滑块留下的 63）属于非法值 ——
+ * 若只是夹取，界面会显示一个滑块停不住的 63，看着像档位设置没生效。
+ */
+fun normalizeDataCardFontWidth(width: Int): Int {
+    val clamped = width.coerceIn(DATACARD_FONT_WIDTH_MIN, DATACARD_FONT_WIDTH_MAX)
+    val stepsFromMin = ((clamped - DATACARD_FONT_WIDTH_MIN).toFloat() / DATACARD_FONT_WIDTH_STEP)
+        .roundToInt()
+    return (DATACARD_FONT_WIDTH_MIN + stepsFromMin * DATACARD_FONT_WIDTH_STEP)
+        .coerceIn(DATACARD_FONT_WIDTH_MIN, DATACARD_FONT_WIDTH_MAX)
+}
 
 /**
  * 首页可配置模块。字符串值用于 DataStore 持久化，后续新增模块可兼容旧版本配置。
@@ -97,6 +147,10 @@ class SettingsStore(private val context: Context) {
     val SHOW_COUNT_UNIT = booleanPreferencesKey("show_count_unit")
     // 数据卡数字动画：是否使用「逐位滚动」的滚轮效果；关闭则回退为普通文本显示
     val ROLLING_NUMBER = booleanPreferencesKey("rolling_number")
+        // 数据卡数值是否使用窄体可变字体 MiSans Condensed（默认关闭 = 系统默认字体）
+        val DATACARD_CUSTOM_FONT = booleanPreferencesKey("datacard_custom_font")
+        // 数据卡窄体字体的 wdth 宽度轴（10–100，默认 60）
+        val DATACARD_FONT_WIDTH = intPreferencesKey("datacard_font_width")
         // 浏览历史开关：关闭后不再写入新的历史记录或头像缓存
         val HISTORY_ENABLED = booleanPreferencesKey("history_enabled")
         val HOME_CREATOR_DATA = booleanPreferencesKey("home_creator_data")
@@ -202,6 +256,28 @@ class SettingsStore(private val context: Context) {
      */
     val rollingNumberEnabled: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.ROLLING_NUMBER] ?: true }
+
+    /**
+     * 数据卡数值是否使用窄体可变字体 MiSans Condensed，默认关闭。
+     *
+     * 关闭时 [dataCardFontWidth] 不参与渲染，数值沿用系统默认字体（与改动前完全一致）。
+     * 由 MainActivity 订阅后以组合局部
+     * [com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily] 下发，
+     * 卡片读到它就会订阅，开关一变必然重组并换字体。
+     */
+    val dataCardCustomFontEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.DATACARD_CUSTOM_FONT] ?: false }
+
+    /**
+     * 数据卡窄体字体的 wdth（宽度）轴，默认 [DATACARD_FONT_WIDTH_DEFAULT]。
+     *
+     * 读取时归一化到合法档位（夹取 + 吸附到 10 单位档），
+     * 于是旧版本 1 单位滑块留下的非档位值（如 63）在这里就被收成 60，
+     * 界面显示的档位与字体实际轴值不会打架。
+     */
+    val dataCardFontWidth: Flow<Int> = context.settingsDataStore.data.map {
+        normalizeDataCardFontWidth(it[Keys.DATACARD_FONT_WIDTH] ?: DATACARD_FONT_WIDTH_DEFAULT)
+    }
 
     /** 首页模块开关，默认全部开启；新账号无需额外初始化配置。 */
     val homeCreatorData: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_CREATOR_DATA] ?: true }
@@ -357,6 +433,19 @@ class SettingsStore(private val context: Context) {
     suspend fun setRollingNumberEnabled(enabled: Boolean) {
         AppLog.d("Settings", "数字滚动动画已${if (enabled) "开启" else "关闭"}")
         context.settingsDataStore.edit { it[Keys.ROLLING_NUMBER] = enabled }
+    }
+
+    /** 写入「数据卡数值窄体字体」开关；生效链路见 [dataCardCustomFontEnabled] 注释。 */
+    suspend fun setDataCardCustomFontEnabled(enabled: Boolean) {
+        AppLog.d("Settings", "数据卡数值字体已${if (enabled) "开启" else "关闭"}")
+        context.settingsDataStore.edit { it[Keys.DATACARD_CUSTOM_FONT] = enabled }
+    }
+
+    /** 写入数据卡数值字体宽度（wdth）；写入前归一化到合法档位，避免非法/非档位值落盘。 */
+    suspend fun setDataCardFontWidth(width: Int) {
+        val safe = normalizeDataCardFontWidth(width)
+        AppLog.d("Settings", "保存数据卡字体宽度，wdth=$safe")
+        context.settingsDataStore.edit { it[Keys.DATACARD_FONT_WIDTH] = safe }
     }
 
     suspend fun setAdvancedTransition(enabled: Boolean) {
