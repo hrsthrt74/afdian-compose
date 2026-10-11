@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -27,11 +26,12 @@ import com.hrsthrt74.afdian.data.stats.CardPeriod
 import com.hrsthrt74.afdian.data.stats.CardValue
 import com.hrsthrt74.afdian.data.stats.WithdrawalSchedule
 import com.hrsthrt74.afdian.data.stats.displayText
+import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 
 /** 月末提现提醒模块：每月最后 7 天展示，无关闭入口。 */
 @Composable
 fun WithdrawalReminderModule(context: HomeModuleContentContext) {
-    val uriHandler = LocalUriHandler.current
+    val appLinkNavigator = LocalAppLinkNavigator.current
     val now = remember { LocalDateTime.now() }
     val status = remember(now) { WithdrawalSchedule.calculate(now) }
     AppLog.d(
@@ -78,7 +78,7 @@ fun WithdrawalReminderModule(context: HomeModuleContentContext) {
             Modifier
                 .background(MiuixTheme.colorScheme.primaryContainer)
                 .fillMaxWidth()
-                .clickable { uriHandler.openUri("https://ifdian.net/withdraw") }
+                .clickable { appLinkNavigator.open("https://ifdian.net/withdraw") }
                 .padding(start = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

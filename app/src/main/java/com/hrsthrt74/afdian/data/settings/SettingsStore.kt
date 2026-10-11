@@ -113,6 +113,8 @@ class SettingsStore(private val context: Context) {
         val MSG_SHOW_SPONSOR_DETAIL = booleanPreferencesKey("msg_show_sponsor_detail")
         // 图片缓存（Coil 全局磁盘缓存）的体积上限，存 ImageCacheLimit.storageValue
         val IMAGE_CACHE_LIMIT = androidx.datastore.preferences.core.stringPreferencesKey("image_cache_limit")
+        // 外部爱发电链接是否优先交给官方客户端，默认关闭（优先使用 Custom Tabs）
+        val PREFER_OFFICIAL_CLIENT = booleanPreferencesKey("prefer_official_client")
     }
 
     /** 启动页索引，未设置时默认第 0 页 */
@@ -315,9 +317,18 @@ class SettingsStore(private val context: Context) {
     val imageCacheLimit: Flow<ImageCacheLimit> =
         context.settingsDataStore.data.map { ImageCacheLimit.fromStorage(it[Keys.IMAGE_CACHE_LIMIT]) }
 
+    /** 外部爱发电链接默认使用 Custom Tabs；开启后优先尝试官方客户端。 */
+    val preferOfficialClient: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.PREFER_OFFICIAL_CLIENT] ?: false }
+
     suspend fun setImageCacheLimit(limit: ImageCacheLimit) {
         AppLog.d("Settings", "保存图片缓存上限，limit=${limit.storageValue}（重启后生效）")
         context.settingsDataStore.edit { it[Keys.IMAGE_CACHE_LIMIT] = limit.storageValue }
+    }
+
+    suspend fun setPreferOfficialClient(enabled: Boolean) {
+        AppLog.d("Settings", "官方客户端链接跳转已${if (enabled) "开启" else "关闭"}")
+        context.settingsDataStore.edit { it[Keys.PREFER_OFFICIAL_CLIENT] = enabled }
     }
 
     suspend fun setDebugLogging(enabled: Boolean) {

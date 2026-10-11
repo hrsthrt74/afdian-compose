@@ -107,6 +107,7 @@ fun ShopScreen(
     onBack: () -> Unit,
     backStack: NavBackStack,
     onOpenUrl: (String) -> Unit,
+    initialPlanId: String? = null,
 ) {
     val app = LocalContext.current.applicationContext as Application
     val viewModel: ShopViewModel = viewModel(
@@ -185,7 +186,7 @@ fun ShopScreen(
             }
         },
     )
-    var selectedPlanId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedPlanId by rememberSaveable { mutableStateOf(initialPlanId) }
     PlanDetailSheet(
         show = selectedPlanId != null,
         planId = selectedPlanId,

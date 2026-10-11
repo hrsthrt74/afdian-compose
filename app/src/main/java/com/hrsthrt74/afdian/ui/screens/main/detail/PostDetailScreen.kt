@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +53,7 @@ import com.hrsthrt74.afdian.ui.components.post.PostHeader
 import com.hrsthrt74.afdian.ui.components.post.PostPaidBlock
 import com.hrsthrt74.afdian.ui.components.post.normalizeImageUrl
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
+import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.PostDetailViewModel
 import com.kyant.shapes.Capsule
@@ -110,7 +110,7 @@ fun PostDetailScreen(
     val loading by vm.loading.collectAsState()
 
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
+    val appLinkNavigator = LocalAppLinkNavigator.current
     val origin = rememberCreatorOrigin()
     // 与底部导航栏同款的「实时模糊」：backdrop 负责采样背后内容，
     // 操作栏通过 textureBlur 把采样结果糊化后垫在自己底下
@@ -234,7 +234,7 @@ fun PostDetailScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         HtmlContent(
                             html = detail.content.orEmpty().ifBlank { detail.summary },
-                            onUrlClick = onOpenUrl ?: uriHandler::openUri,
+                            onUrlClick = onOpenUrl ?: appLinkNavigator::open,
                         )
                         error?.let {
                             Text(

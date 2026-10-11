@@ -2,13 +2,13 @@ package com.hrsthrt74.afdian.ui.screens.main
 
 // AFDIAN_CUSTOMER_SERVICE_ID / _AVATAR 与本文件同包（MessagesScreen.kt 的包名是 ui.screens.main），无需 import
 import android.app.Application
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -28,7 +28,6 @@ import com.hrsthrt74.afdian.R
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -46,9 +45,12 @@ import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
+import com.hrsthrt74.afdian.ui.navigation.AppLinkNavigator
 import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
+import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.navigation.rememberCustomTabsBranding
 import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.BlocklistScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.DeveloperScreen
@@ -73,9 +75,6 @@ import com.hrsthrt74.afdian.ui.viewmodel.MonthlySummaryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.SponsorManageViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
@@ -177,55 +176,28 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
 
     // 高级过渡动画开关：订阅设置后写入全局状态，由 CreatorDetailTransition 运行时切换
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
     val contentService = remember {
         AfadianContentService(AuthTokenStore(context.applicationContext as Application))
     }
-
-    // 拦截爱发电新旧两种公开创作者主页链接；其他 URL 保持原行为交给系统浏览器。
-    val handleContentUrl: (String) -> Unit = urlHandler@{ url ->
-        val uri = runCatching { Uri.parse(url) }.getOrNull()
-        val host = uri?.host?.lowercase()
-        val segments = uri?.pathSegments.orEmpty()
-
-        // 动态链接：https://afdian.com/p/{post_id}，使用已有的按 ID 详情路由。
-        val postId = segments.getOrNull(1)?.takeIf {
-            segments.size == 2 && segments[0] == "p" && it.isNotBlank()
-        }
-        if (host in setOf("ifdian.net", "afdian.com") && postId != null) {
-            backStack.pushUnique(Route.PostDetailById(postId))
-            return@urlHandler
-        }
-
-        val slug = when {
-            // 新格式：https://afdian.com/a/username
-            segments.size == 2 && segments[0] == "a" -> segments[1].takeIf { it.isNotBlank() }
-            // 旧格式：https://afdian.com/@username
-            segments.size == 1 && segments[0].startsWith("@") ->
-                segments[0].removePrefix("@").takeIf { it.isNotBlank() }
-            else -> null
-        }
-        if (host !in setOf("ifdian.net", "afdian.com") || slug == null) {
-            uriHandler.openUri(url)
-        } else {
-            coroutineScope.launch {
-                AppLog.d("MainScreen", "拦截创作者链接并解析 slug=$slug")
-                runCatching {
-                    withContext(Dispatchers.IO) { contentService.fetchProfileBySlug(slug) }
-                }.onSuccess { user ->
-                    if (user.user_id.isBlank()) {
-                        AppLog.w("MainScreen", "创作者链接解析成功但缺少 user_id，slug=$slug")
-                    } else {
-                        backStack.pushUnique(Route.CreatorDetail(user))
-                    }
-                }.onFailure { error ->
-                    AppLog.e("MainScreen", "创作者链接解析失败，slug=$slug", error)
-                }
-            }
-        }
-    }
     val settingsStore = remember { SettingsStore(context) }
+    val preferOfficialClient by settingsStore.preferOfficialClient.collectAsState(initial = false)
+    var requestedMainTab by remember { mutableStateOf<Int?>(null) }
+    val customTabsBranding = rememberCustomTabsBranding()
+    val appLinkNavigator = remember(coroutineScope, contentService, preferOfficialClient, customTabsBranding) {
+        AppLinkNavigator(
+            context = context,
+            scope = coroutineScope,
+            contentService = contentService,
+            preferOfficialClient = preferOfficialClient,
+            branding = customTabsBranding,
+            onNavigate = { route -> backStack.pushUnique(route) },
+            onOpenMainTab = { tab ->
+                requestedMainTab = tab
+                while (backStack.size > 1) backStack.removeLastOrNull()
+            },
+        )
+    }
     val advancedTransition by settingsStore.advancedTransition.collectAsState(initial = true)
     val gestureBack by settingsStore.gestureBack.collectAsState(initial = true)
     val predictiveBack by settingsStore.predictiveBack.collectAsState(initial = true)
@@ -244,6 +216,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         onLogout()
     }
 
+    CompositionLocalProvider(LocalAppLinkNavigator provides appLinkNavigator) {
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
@@ -265,6 +238,8 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 // 动态卡片点击 → 动态详情页（携带列表页已有数据秒开）
                 onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
                 onOpenConversation = { userId, userName, avatarUrl -> backStack.pushUnique(Route.MessageConversation(userId, userName, avatarUrl)) },
+                requestedTab = requestedMainTab,
+                onRequestedTabConsumed = { requestedMainTab = null },
                 // 「我的」的二级路由（收藏/我发电的/订单/管理/设置）统一走外层栈全屏覆盖，
                 // 不再在 Pager 页内嵌套 NavDisplay，避免过渡层平移溢出泄漏到相邻 tab
                 onNavigate = { route -> backStack.pushUnique(route) },
@@ -288,7 +263,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 backStack = backStack,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
-                onOpenUrl = handleContentUrl,
+                onOpenUrl = appLinkNavigator::open,
             )
         }
         // 按 id 打开动态详情：用只占 post_id 的占位 post 复用详情页，
@@ -301,7 +276,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 backStack = backStack,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
-                onOpenUrl = handleContentUrl,
+                onOpenUrl = appLinkNavigator::open,
             )
         }
         entry<Route.MessageConversation> { route ->
@@ -512,8 +487,17 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             ShopScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
-                // 查看商品页 / 网页端编辑器：交给外层链接处理（item 链接不在拦截范围，走系统浏览器）
-                onOpenUrl = handleContentUrl,
+                onOpenUrl = appLinkNavigator::open,
+            )
+        }
+        entry<Route.ProductDetail> { route ->
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 商品链接直接复用商品管理页的详情 Sheet，避免为同一商品详情维护两套加载逻辑。
+            ShopScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+                onOpenUrl = appLinkNavigator::open,
+                initialPlanId = route.productId,
             )
         }
         entry<Route.History> {
@@ -529,6 +513,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 },
             )
         }
+        }
     }
 }
 
@@ -542,6 +527,8 @@ private fun MainTabsContent(
     onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
     onOpenConversation: (String, String, String?) -> Unit,
     onNavigate: (Route) -> Unit,
+    requestedTab: Int?,
+    onRequestedTabConsumed: () -> Unit,
 ) {
     val context = LocalContext.current
     // 启动页订阅 DataStore；加载完成（null -> 值）之前不创建 pager，
@@ -554,6 +541,13 @@ private fun MainTabsContent(
         pageCount = { mainTabs.size }
     )
     val mainPagerState = rememberMainPagerState(pagerState)
+
+    LaunchedEffect(requestedTab) {
+        requestedTab?.coerceIn(0, mainTabs.lastIndex)?.let {
+            mainPagerState.animateToPage(it)
+            onRequestedTabConsumed()
+        }
+    }
 
     // 横滑翻页后把当前页回写到导航栏高亮
     LaunchedEffect(pagerState.currentPage) {

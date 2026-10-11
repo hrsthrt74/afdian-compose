@@ -9,6 +9,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android 11+ 包可见性：允许 CustomTabsClient 查询默认浏览器的 CCT 服务。 -->
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".AfdianApplication"
         android:allowBackup="true"

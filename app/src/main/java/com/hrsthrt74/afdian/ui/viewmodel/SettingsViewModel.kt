@@ -63,6 +63,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val rollingNumberEnabled: StateFlow<Boolean> = store.rollingNumberEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    /** 外部爱发电链接是否优先使用官方客户端，默认关闭即优先 Custom Tabs。 */
+    val preferOfficialClient: StateFlow<Boolean> = store.preferOfficialClient
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     fun setHistoryEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setHistoryEnabled(enabled) }
     }
@@ -83,6 +87,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /** 切换数字滚动动画；DataStore 回推后 MainScreen 更新全局开关，卡片立即切换渲染方式 */
     fun setRollingNumberEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setRollingNumberEnabled(enabled) }
+    }
+
+    fun setPreferOfficialClient(enabled: Boolean) {
+        viewModelScope.launch { store.setPreferOfficialClient(enabled) }
     }
 
     /** 重置管理页卡片布局为默认顺序；成功/失败都给 Toast 反馈，失败额外记警告日志。 */

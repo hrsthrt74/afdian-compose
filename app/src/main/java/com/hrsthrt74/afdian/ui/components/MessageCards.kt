@@ -28,7 +28,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
@@ -40,6 +39,7 @@ import com.hrsthrt74.afdian.data.content.ComplaintNotice
 import com.hrsthrt74.afdian.data.content.MessageGroup
 import com.hrsthrt74.afdian.data.content.MessageObjectContent
 import com.hrsthrt74.afdian.data.content.ShipmentNotice
+import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -397,8 +397,8 @@ fun ShipmentNoticeCard(
     notice: ShipmentNotice,
     modifier: Modifier = Modifier,
 ) {
-    // 「查看订单详情」用系统浏览器打开
-    val uriHandler = LocalUriHandler.current
+    // 「查看订单详情」统一交给 AppLinkNavigator
+    val appLinkNavigator = LocalAppLinkNavigator.current
     val haptic = LocalHapticFeedback.current
 
     Card(modifier = modifier) {
@@ -449,7 +449,7 @@ fun ShipmentNoticeCard(
                         .fillMaxWidth()
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            uriHandler.openUri(url)
+                            appLinkNavigator.open(url)
                         }
                         .padding(16.dp, 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -507,7 +507,7 @@ fun ComplaintCard(
     val complaintSuffix = if (complaint.isUpgradeComplaint) "升级投诉" else "投诉"
     val title = complaint.platform?.let { "${it}${complaintSuffix}" } ?: complaintSuffix
     val amount = complaint.amount?.takeIf { it.isNotBlank() }
-    val uriHandler = LocalUriHandler.current
+    val appLinkNavigator = LocalAppLinkNavigator.current
     val haptic = LocalHapticFeedback.current
     val upgradeTextColor = if (complaint.isUpgradeComplaint) {
         MiuixTheme.colorScheme.error
@@ -582,7 +582,7 @@ fun ComplaintCard(
                             .fillMaxWidth()
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                uriHandler.openUri(url)
+                                appLinkNavigator.open(url)
                             }
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,

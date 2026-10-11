@@ -18,7 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.LinkInteractionListener
 import androidx.compose.ui.text.SpanStyle
@@ -37,6 +36,7 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.ui.components.post.normalizeImageUrl
+import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -51,7 +51,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 用 Jsoup 把爱发电动态正文（HTML）解析成节点树，再映射为 Compose 组件：
  * - <p>/<br>                      → 段落 / 换行
  * - <strong>/<b>/<em>/<i>/<u>/<s> → AnnotatedString 内联样式
- * - <a href>                      → 可点击链接（系统浏览器打开）
+ * - <a href>                      → 可点击链接（站内页面优先，否则 Custom Tabs）
  * - <img> / <figure>              → AsyncImage（coil 加载，宽度撑满、圆角）
  * - <blockquote>                  → 左侧竖线 + 缩进的引用块
  * - <h1>~<h6>                     → 不同字号字重的标题
@@ -73,9 +73,8 @@ fun HtmlContent(
 ) {
     // 空白正文直接不占布局
     if (html.isBlank()) return
-    val uriHandler = LocalUriHandler.current
-    // 有自定义处理器时交给上层，否则保持原有行为：用系统方式打开链接。
-    val handleUrl: (String) -> Unit = { url -> onUrlClick?.invoke(url) ?: uriHandler.openUri(url) }
+    val appLinkNavigator = LocalAppLinkNavigator.current
+    val handleUrl: (String) -> Unit = { url -> onUrlClick?.invoke(url) ?: appLinkNavigator.open(url) }
     // parseBodyFragment：按片段解析并包一层 <body>，取其子节点即为顶层内容
     Column(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -182,7 +181,7 @@ private fun InlineParagraph(nodes: List<Node>, onUrlClick: (String) -> Unit) {
                         fontFamily = if (code) FontFamily.Monospace else null,
                     )
                     if (linkUrl != null) {
-                        // 链接：用 LinkAnnotation.Url，Compose 会自动调起系统浏览器打开
+                        // 链接：统一交给 AppLinkNavigator，站内链接优先进入原生页面
                         // 自定义监听器让上层可以拦截创作者主页等特殊链接。
                         // 未被拦截的 URL 仍由上层回退到系统浏览器处理。
                         withLink(

@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -35,6 +34,7 @@ import com.hrsthrt74.afdian.ui.components.basic.HtmlContent
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
+import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import com.hrsthrt74.afdian.ui.viewmodel.PlanDetailViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -64,7 +64,7 @@ fun PlanDetailSheet(
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
     val purchaseDialogState = rememberDialogState()
-    val uriHandler = LocalUriHandler.current
+    val appLinkNavigator = LocalAppLinkNavigator.current
 
     WindowBottomSheet(
         show = show,
@@ -107,7 +107,7 @@ fun PlanDetailSheet(
                     onConfirm = {
                         val plan = loadedDetail.plan
                         val path = if (plan?.product_type == 2) "bundle" else "item"
-                        uriHandler.openUri("https://ifdian.net/$path/${plan?.plan_id.orEmpty()}")
+                        appLinkNavigator.open("https://ifdian.net/$path/${plan?.plan_id.orEmpty()}")
                     },
                 )
             }

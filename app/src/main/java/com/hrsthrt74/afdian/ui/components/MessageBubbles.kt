@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.hrsthrt74.afdian.data.content.MessageTextLink
@@ -36,6 +35,7 @@ import com.hrsthrt74.afdian.data.content.AutoMessageKind
 import com.hrsthrt74.afdian.data.content.MessageContent
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
+import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Text
@@ -122,7 +122,7 @@ fun MessageContentBubble(
     val selectionColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.35f) // 高亮
     val selectionHandleColor = MiuixTheme.colorScheme.primary               // 手柄
 
-    val uriHandler = LocalUriHandler.current
+    val appLinkNavigator = LocalAppLinkNavigator.current
 
     when (content) {
         is MessageContent.Text -> {
@@ -164,7 +164,7 @@ fun MessageContentBubble(
                                 text = content.text,
                                 links = content.links,
                                 linkColor = linkColor.toArgb(),
-                                onLinkClick = uriHandler::openUri,
+                                onLinkClick = appLinkNavigator::open,
                             ), TextView.BufferType.SPANNABLE)
                         },
                         modifier = Modifier.widthIn(max = 270.dp)

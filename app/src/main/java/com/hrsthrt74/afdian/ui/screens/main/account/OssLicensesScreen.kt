@@ -16,10 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
@@ -50,7 +50,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
  *
  * 数据来自 AboutLibraries 构建期生成的 `res/raw/aboutlibraries.json`，
  * 本页只负责用 Miuix 风格渲染：每个依赖一张 Card + ArrowPreference，
- * summary 为「作者 · 许可证」，点击直接用系统浏览器打开仓库/主页。
+ * summary 为「作者 · 许可证」，点击通过统一链接入口打开仓库/主页。
  */
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
@@ -60,7 +60,7 @@ fun OssLicensesScreen(onBack: () -> Unit, backStack: NavBackStack) {
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
-    val uriHandler = LocalUriHandler.current
+    val appLinkNavigator = LocalAppLinkNavigator.current
     val context = LocalContext.current
 
     // 解析 aboutlibraries.json（本地 raw 资源，体积小，remember 内同步解析即可）
@@ -130,10 +130,9 @@ fun OssLicensesScreen(onBack: () -> Unit, backStack: NavBackStack) {
                                 enabled = repoUrl != null,
                                 onClick = repoUrl?.let { url ->
                                     {
-                                        // 关键路径：跳转外部浏览器打开依赖仓库
+                                        // 关键路径：统一使用 Custom Tabs 打开依赖仓库
                                         AppLog.d("OssLicenses", "打开仓库: ${library.name} -> $url")
-                                        runCatching { uriHandler.openUri(url) }
-                                            .onFailure { e -> AppLog.e("OssLicenses", "打开仓库失败: $url", e) }
+                                        appLinkNavigator.open(url)
                                     }
                                 },
                             )

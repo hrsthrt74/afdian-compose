@@ -51,4 +51,6 @@ sealed interface Route : NavKey {
     @Serializable data object Developer : Route
     // 售卖商品管理页（创作者后台 all-plans 的 sale_list），入口在「我的」页快捷入口占位
     @Serializable data object Shop : Route
+    // 外部商品链接打开商品详情 Sheet，底层复用商品管理页的数据与弹层实现
+    @Serializable data class ProductDetail(val productId: String) : Route
 }

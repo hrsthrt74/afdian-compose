@@ -104,6 +104,10 @@ private val colorModeNames = listOf("跟随系统", "浅色", "深色")
 // 底栏样式选项，索引与 SettingsStore 的 bottomBarStyle（0/1）约定一致
 private val bottomBarStyleNames = listOf("常规", "悬浮")
 
+// 链接打开方式选项，索引与底层 preferOfficialClient 布尔值的约定一致：
+// 0 = Custom Tabs（默认）、1 = 优先官方客户端
+private val linkOpenModeNames = listOf("系统浏览器", "官方客户端")
+
 /**
  * 「跟随系统壁纸」那一项的颜色球用的色轮。
  *
@@ -215,6 +219,7 @@ private fun SettingsScreenContent(
     val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
     val showCountUnit by viewModel.showCountUnit.collectAsState()
     val rollingNumberEnabled by viewModel.rollingNumberEnabled.collectAsState()
+    val preferOfficialClient by viewModel.preferOfficialClient.collectAsState()
     val themeSettings = LocalThemeSettings.current
 
     // 预览卡的重播令牌：0 = 首次渲染不播放，数字直接落位。
@@ -274,19 +279,29 @@ private fun SettingsScreenContent(
                 item { SmallTitle(text = "通用", modifier = Modifier.padding(start = 4.dp)) }
                 item {
                     Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        // 启动页
                         OverlaySpinnerPreference(
                             title = "打开 App 后默认进入",
                             items = startupPageNames,
                             selectedIndex = startupPage,
                             onSelectedIndexChange = viewModel::setStartupPage
                         )
-                        // 记录历史：从原来的「其他」分组挪过来，和启动页选择同属通用行为设置
+                        // 记录历史
                         SwitchPreference(
                             checked = historyEnabled,
                             onCheckedChange = viewModel::setHistoryEnabled,
                             title = "记录历史",
                             summary = "最近访问、最近搜索等" +
                                     "（仅保存在本地）",
+                        )
+                        // 链接打开方式：0=Custom Tabs、1=优先官方客户端（失败仍回退 Custom Tabs）
+                        OverlayDropdownPreference(
+                            title = "链接打开方式",
+                            items = linkOpenModeNames,
+                            selectedIndex = if (preferOfficialClient) 1 else 0,
+                            onSelectedIndexChange = { index ->
+                                viewModel.setPreferOfficialClient(index == 1)
+                            },
                         )
                     }
                 }
