@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.data.content
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** 收藏列表中的统一条目。 */
@@ -235,6 +236,43 @@ data class AffiliateSelectablePlan(
     val price: String = "0",
     val product_type: Int = 0,
 )
+
+/**
+ * 自动回复菜单（FAQ）条目，对应 /api/faq/list 的 data.list 元素。
+ *
+ * 与会话页快捷回复使用的 MessageFAQ（只有 id + title）区分：
+ * 这里的 content 是「自动回复的正文」，只有管理页的编辑弹层才需要。
+ *
+ * @param id 条目 id；0 表示尚未保存（新增态）
+ * @param stat 状态：1 = 启用
+ * @param createTime 服务端返回的 "yyyy-MM-dd HH:mm:ss" 创建时间文本
+ * @param updateTime 服务端返回的更新时间文本，暂不参与展示（保留字段以备后续启用）
+ */
+@Serializable
+data class FaqItem(
+    val id: Int = 0,
+    val user_id: String = "",
+    val stat: Int = 1,
+    val title: String = "",
+    val content: String = "",
+    @SerialName("create_time") val createTime: String = "",
+    @SerialName("update_time") val updateTime: String = "",
+)
+
+/** 服务端缺失时间时可能填这个全零串，展示时要当成「无」 */
+private const val FAQ_ZERO_TIME = "0000-00-00 00:00:00"
+
+/**
+ * 条目的创建时间文案。
+ *
+ * 只展示创建时间：编辑动作发生得太频繁，标「更新于」反而是噪音。
+ * 服务端缺失时兜底为「--」，避免出现空白行。
+ */
+val FaqItem.timeLabel: String
+    get() {
+        val created = createTime.takeIf { it.isNotBlank() && it != FAQ_ZERO_TIME } ?: "--"
+        return "创建于 $created"
+    }
 
 /** 收到发电卡片所需的最小订单模型。 */
 data class ReceivedSponsor(

@@ -84,6 +84,7 @@ import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Redo
 import top.yukonga.miuix.kmp.icon.extended.Reply
@@ -237,7 +238,22 @@ fun MessagesScreen(
                                         ),
                                     ),
                                 ),
-                                // 第二组：官方客服对话，与社区通知分组隔开
+                                // 第二组：FAQ 设置（创作者维护自动回复菜单），与社区通知分组隔开。
+                                // miuix 的 CascadingListPopupLayout 会在非末组之间自动插入分割线，
+                                // 所以这里只要多给一个 DropdownEntry，组间分割线自然出现。
+                                DropdownEntry(
+                                    items = listOf(
+                                        // 图标用 Regular.Help，与会话页 FAQ 快捷回复按钮同款，语义一致
+                                        DropdownItem(
+                                            text = "FAQ 设置",
+                                            icon = {
+                                                MenuIconWithBadge(it, icon = MiuixIcons.Regular.Help)
+                                            },
+                                            onClick = { onNavigate(Route.FaqSetting) },
+                                        ),
+                                    ),
+                                ),
+                                // 第三组：官方客服对话，与上方分组隔开
                                 DropdownEntry(
                                     items = listOf(
                                         // 客服对话固定跳转；名字与头像用官方客服音酱的信息

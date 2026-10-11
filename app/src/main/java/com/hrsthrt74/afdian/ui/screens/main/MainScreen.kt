@@ -414,6 +414,14 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 backStack = backStack,
             )
         }
+        entry<Route.FaqSetting> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // FAQ 设置页（/api/faq/list 增删改查）；入口在消息页三点菜单，位于「爱发电客服」上方
+            FaqScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+            )
+        }
         entry<Route.Settings> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SettingsScreen(
@@ -722,6 +730,8 @@ private fun MainTabsContent(
                     2 -> MessagesScreen(messagesViewModel) { route ->
                         when (route) {
                             is Route.MessageConversation -> onOpenConversation(route.userId, route.userName, route.avatarUrl)
+                            // FAQ 设置：创作者维护自动回复菜单（三点菜单入口）
+                            Route.FaqSetting -> onNavigate(route)
                             // 「收到的喜欢」弹层：点击卡片跳转动态详情
                             is Route.PostDetailById -> onNavigate(route)
                             // 其余路由暂不放行
