@@ -74,7 +74,6 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application),
     )
     val section by viewModel.section.collectAsState()
-    val result by viewModel.result.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
     val cardModels by viewModel.cards.collectAsState()
@@ -99,6 +98,11 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
     val cardItems = remember(cardModels, showIncomeUnit, showCountUnit) {
         cardModels.mapValues { (_, card) -> card.toDataCardItem(showIncomeUnit, showCountUnit) }
     }
+    // 首屏判定：是否已经有任何卡片数据可展示。
+    // 仅用于区分「冷启动首屏」与「下拉刷新」——刷新时 VM 用 mergeCardFrame 保留上一帧，
+    // cardModels 非空，因此这里为 true，卡片不参与 loading 门控、原地常驻，不会再闪空。
+    // 依据：仓库的 buildSnapshot() 按 DataCardCatalog.all 构建 cards，成功出过一帧后必然非空。
+    val hasCards = cardModels.isNotEmpty()
     var showCustomization by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var editableLayout by remember(managementLayout) { mutableStateOf(managementLayout) }
@@ -210,10 +214,12 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                         bottom = contentBottomPadding(),
                     ),
                 ) {
-                    // 加载错误提示
+                    // 加载状态提示：只在「首屏还没有任何卡片数据」时占位
                     item {
                         when {
-                            loading -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
+                            // 首屏加载中：刷新期间 hasCards 为 true，不会命中这里，
+                            // 因此刷新只靠顶部下拉指示器，页面内不再闪转圈
+                            loading && !hasCards -> LoadingComponent(modifier = Modifier.padding(horizontal = 12.dp))
                             error != null -> {
                                 // 加载失败：空状态视图 + 重试按钮
                                 ErrorStateView(
@@ -222,11 +228,14 @@ fun ManagementScreen(onBack: () -> Unit, backStack: NavBackStack, providedViewMo
                                     summary = error!!,
                                 )
                             }
-                            result == null -> Text("暂无数据")
+                            // 加载完成但确实没有卡片数据（注意不能用 result == null 判定：
+                            // VM 每次 load 都会把 result 置空，刷新期间会误判成「暂无数据」）
+                            !hasCards -> Text("暂无数据")
                         }
                     }
 
-                    if (!loading && error == null) {
+                    // 数据卡布局：只要有卡片数据就常驻，刷新期间不再被 loading 摘掉
+                    if (error == null && hasCards) {
                         // 数据卡布局
                         item {
                             ManagementDataLayout(
