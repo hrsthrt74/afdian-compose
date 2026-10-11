@@ -62,6 +62,7 @@ import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SliderDefaults
@@ -77,6 +78,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Home
+import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
@@ -483,7 +485,27 @@ private fun SettingsScreenContent(
                             checked = rollingNumberEnabled,
                             onCheckedChange = viewModel::setRollingNumberEnabled,
                             title = "数字滚动动画",
-//                            summary = "数字逐位滚动到位；关闭后按普通文本显示",
+                            // 尾部补一个「重播」按钮：自增 replayToken 会让上方两张预览卡重建
+                            // （见 key(replayToken)），从而重新滚一遍，方便反复看效果
+                            endActions = {
+                                IconButton(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        replayToken++
+                                    },
+                                    minWidth = 28.dp,
+                                    minHeight = 28.dp,
+                                    enabled = rollingNumberEnabled,
+                                ) {
+                                    Icon(
+                                        imageVector = MiuixIcons.Demibold.Play,
+                                        contentDescription = "重播数字滚动动画",
+                                        tint = if (rollingNumberEnabled) { MiuixTheme.colorScheme.onSurfaceVariantActions }
+                                               else { MiuixTheme.colorScheme.disabledOnSecondaryVariant },
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            },
                         )
                         SwitchPreference(
                             checked = showIncomeUnit,
