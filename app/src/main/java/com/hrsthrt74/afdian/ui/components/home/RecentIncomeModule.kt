@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Text
@@ -34,9 +34,13 @@ fun RecentIncomeModule(context: HomeModuleContentContext) {
         ClickableSmallTitle(title = "收入明细", onClick = context.onOpenIncomeDetail)
         Card(modifier = Modifier.padding(horizontal = 16.dp)) {
             when {
-                // 首次加载中且没有任何历史数据：占位文案，不画空表格
+                // 首次加载中且没有任何历史数据：标准加载组件，不画空表格
                 context.loading && records.isEmpty() -> {
-                    TablePlaceholder("加载中…")
+                    // 用 App 统一加载组件；小尺寸（24dp）适配卡片内的紧凑高度
+                    LoadingComponent(
+                        modifier = Modifier.padding(vertical = 64.dp),
+                        size = 24.dp,
+                    )
                 }
                 // 无数据（未开通创作者、近 5 天无统计、接口失败）：空态提示，保留模块位置便于用户理解
                 records.isEmpty() -> {
@@ -74,8 +78,8 @@ fun RecentIncomeModule(context: HomeModuleContentContext) {
 }
 
 /**
- * 表格区的占位/空态文案：加载中与空数据共用同一套排版（居中、脚注字号、三级次色），
- * 与收入明细页的「暂无统计数据」视觉保持一致。
+ * 表格区的空态文案：居中、脚注字号、三级次色，
+ * 与收入明细页的「暂无统计数据」视觉保持一致。（加载中已改用统一的 LoadingComponent）
  */
 @Composable
 private fun TablePlaceholder(text: String) {
