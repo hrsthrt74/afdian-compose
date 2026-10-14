@@ -158,7 +158,7 @@ fun MessageConversationScreen(
     val focusRequester = remember { FocusRequester() }
     // 焦点管理器：点击输入框以外区域时用 clearFocus() 收起键盘
     val focusManager = LocalFocusManager.current
-    // 触觉反馈：顶栏操作按钮点击时给轻量震动
+    // 触觉反馈
     val haptic = LocalHapticFeedback.current
 
     // 赞助详情 Sheet 状态：数据首次打开时拉取并缓存，之后复用
@@ -184,6 +184,16 @@ fun MessageConversationScreen(
 
     // Toast / 上下文：屏蔽与拒绝操作的轻量结果反馈
     val context = LocalContext.current
+
+    // ===== 气泡操作菜单 =====
+    // 状态、动作执行与菜单项组装都在 MessageBubbleMenu.kt（同包，无需 import）：
+    // 这里只创建状态，把气泡点击/实时边界回调接到下方消息列表
+    val bubbleMenu = rememberMessageBubbleMenuState(
+        userId = userId,
+        userName = userName,
+        avatarUrl = avatarUrl,
+        backStack = backStack,
+    )
 
     // 「音酱」链接：收起弹窗与 Sheet 后进入与爱发电客服（Lain音酱）的会话
     val openCustomerService: () -> Unit = {
@@ -473,7 +483,11 @@ fun MessageConversationScreen(
                         item = item,
                         userName = userName,
                         avatarUrl = avatarUrl,
-                        myAvatarUrl = myAvatarUrl
+                        myAvatarUrl = myAvatarUrl,
+                        // 点击气泡弹出操作菜单（携带气泡窗口坐标供挖洞对位）
+                        onBubbleTapped = bubbleMenu.onBubbleTapped,
+                        // 气泡实时边界上报：弹层打开期间洞与菜单跟随气泡防错位
+                        onLiveBounds = bubbleMenu.onBubbleLiveBounds,
                     )
                 }
             }
@@ -516,8 +530,14 @@ fun MessageConversationScreen(
                     }
                 },
             )
+
         }
-}
+
+        // 气泡操作菜单：状态 / 动作执行 / 菜单项组装都在 MessageBubbleMenu.kt。
+        // 必须位于本 Scaffold 组合作用域内：弹层注册机制依赖本 Scaffold 提供的
+        // LocalPopupStates（放到 Scaffold 外会注册进无人消费的孤儿列表，永不显示）
+        MessageBubbleMenu(state = bubbleMenu)
+    }
 
 // 赞助详情 Sheet：展示「我发电了 TA」与「TA 发电了我」两组数据；
 // 底部提供「加入屏蔽列表 / 加入拒绝列表」快捷操作（客服会话不显示，避免误屏蔽官方客服）
