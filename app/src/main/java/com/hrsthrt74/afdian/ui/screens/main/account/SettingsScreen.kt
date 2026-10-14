@@ -30,15 +30,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.BuildConfig
+import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MAX
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MIN
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_SLIDER_STEPS
@@ -77,7 +80,6 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
-import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
@@ -94,7 +96,7 @@ import kotlin.math.roundToInt
 // 「通用」分组里启动页的下拉选项
 private val startupPageNames = listOf(
     DropdownItem(
-        icon = { Icon(MiuixIcons.Home, null, modifier = Modifier.padding(end = 12.dp)) },
+        icon = { Icon(ImageVector.vectorResource(R.drawable.home_outlined), null, modifier = Modifier.padding(end = 12.dp)) },
         text = "首页"
     ),
     DropdownItem(
