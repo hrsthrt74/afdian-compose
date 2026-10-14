@@ -424,7 +424,7 @@ private fun SettingsScreenContent(
                             checked = gestureBack,
                             onCheckedChange = viewModel::setGestureBack,
                             title = "手势返回",
-                            summary = "向右滑动即可返回（退出设置后生效）",
+                            summary = "页面任意位置向右滑动以返回",
                         )
                         // legacy 低配版不支持系统预测性返回（SUPPORT_PREDICTIVE_BACK=false），
                         // 开关直接隐藏，避免出现永不生效的选项

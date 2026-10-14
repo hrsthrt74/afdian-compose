@@ -45,10 +45,12 @@ import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
+import com.hrsthrt74.afdian.ui.navigation.AppNavTransitionWithoutSwipe
 import com.hrsthrt74.afdian.ui.navigation.AppLinkNavigator
 import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
+import com.hrsthrt74.afdian.ui.navigation.NavSwipeGate
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.navigation.rememberCustomTabsBranding
 import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
@@ -206,6 +208,17 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
     // 根 entry 没有上一级页面时不注册拦截器，避免关闭开关后系统返回无法退出应用。
     val blockPredictiveBack = !predictiveBack && backStack.size > 1
 
+    // 滑动返回手势的运行时生效过渡：NavDisplay 内部以 transition 实例为缓存键
+    // 解析滑动方向，换实例即实时重算。两种情况替换为「无滑动」过渡：
+    // 1) 气泡操作菜单等浮层打开期间（NavSwipeGate.blockedByPopup），避免页面
+    //    被滑动平移导致浮层的挖洞遮罩与气泡错位；
+    // 2) 设置关闭「滑动返回」时——此前依赖过渡对象内部读状态，但被 NavDisplay
+    //    的 remember 缓存挡住、对已打开页面不生效，这里改为实例级切换真正实时。
+    val effectiveTransition = if (NavSwipeGate.blockedByPopup || !gestureBack) {
+        AppNavTransitionWithoutSwipe
+    } else {
+        AppNavTransition
+    }
     // 读取设备屏幕圆角，供「主页展开」过渡在全屏停稳时对齐（直角屏为 0.dp）
     CreatorExpandOrigin.screenCorner = rememberNavSystemCornerRadius()
 
@@ -221,8 +234,9 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
         // 全局默认过渡：AppNavTransition 在视觉上等同 MiuixDefault，
-        // 但滑动关闭方向随「手势返回」开关动态声明（二级路由统一继承）
-        transition = AppNavTransition,
+        // 但滑动关闭方向随「手势返回」开关动态声明（二级路由统一继承）；
+        // effectiveTransition 会在弹层打开/设置切换时替换为无滑动实例（见上）
+        transition = effectiveTransition,
         // 顶层 entry 过渡期间以设备屏幕圆角裁剪前缘（官方推荐做法）；
         // 平台报告圆角为 0 的直角屏上等于不裁剪，无需设置项控制
         effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius()),
