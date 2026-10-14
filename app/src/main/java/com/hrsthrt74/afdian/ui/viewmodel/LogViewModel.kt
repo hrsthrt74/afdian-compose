@@ -54,6 +54,10 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     val debugLogging: StateFlow<Boolean> = settingsStore.debugLogging
         .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.INTERNAL_BUILD)
 
+    /** 「数字滚轮日志」开关：滚轮动画日志量极大，默认关闭；仅在「调试日志」开启时有意义 */
+    val odometerLogging: StateFlow<Boolean> = settingsStore.odometerLogging
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     private val _uiState = MutableStateFlow<LogUiState>(LogUiState.Loading)
     val uiState: StateFlow<LogUiState> = _uiState.asStateFlow()
 
@@ -100,6 +104,11 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     /** 写入「调试日志」开关（D 级日志的 Logcat 输出与落盘都受它控制）。 */
     fun setDebugLogging(enabled: Boolean) {
         viewModelScope.launch { settingsStore.setDebugLogging(enabled) }
+    }
+
+    /** 写入「数字滚轮日志」开关（MainActivity 组装进 AppLog.mutedTags，进程内即时生效）。 */
+    fun setOdometerLogging(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setOdometerLogging(enabled) }
     }
 
     /**

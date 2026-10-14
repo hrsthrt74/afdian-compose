@@ -7,6 +7,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -76,7 +77,9 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
  * 分工：
  * - 「写入日志文件」控制运行日志（app-*.log）是否落盘，按天保留 3 天；
  * - 崩溃报告（crash-*.log）**始终记录**、不受开关控制——它是闪退排查的最后防线；
- * - 「调试日志」开关从设置页「关于」分组迁移至此：它与日志导出是同一套排查工作流。
+ * - 「调试日志」开关从设置页「关于」分组迁移至此：它与日志导出是同一套排查工作流；
+ * - 调试日志之下还有「分类日志」开关（如数字滚轮日志）：量大但偶发需要的 D 级日志
+ *   单独给一个开关、默认静音，避免整个调试日志被它们刷穿；仅在调试日志开启时出现。
  */
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
@@ -103,6 +106,7 @@ fun LogScreen(
     val uiState by viewModel.uiState.collectAsState()
     val fileLogging by viewModel.fileLogging.collectAsState()
     val debugLogging by viewModel.debugLogging.collectAsState()
+    val odometerLogging by viewModel.odometerLogging.collectAsState()
 
     // 导出进行中标志：分享 / 保存共用，防连点重复生成导出文件
     var exporting by remember { mutableStateOf(false) }
@@ -192,13 +196,24 @@ fun LogScreen(
                                 SwitchPreference(
                                     checked = debugLogging,
                                     onCheckedChange = { enabled ->
+                                        // DataStore 写入后 MainActivity 的订阅会把开关推进 AppLog，
+                                        // 进程内即时生效，无需重启（见 AppLog.debugEnabled 注释）
                                         viewModel.setDebugLogging(enabled)
-                                        // 开关状态仅在进程启动时读取一次，运行中切换不会即时生效，切换后主动提醒
-                                        Toast.makeText(context, "重启应用后生效", Toast.LENGTH_SHORT).show()
                                     },
                                     title = "调试日志",
-                                    summary = "额外记录网络请求、耗时等详细日志，重启应用后生效",
+                                    summary = "额外记录网络请求、耗时等详细日志，切换后即时生效",
                                 )
+                                // 分类日志开关组：调试日志关着时整组收起——总闸没开，
+                                // 这些 D 级日志根本不会输出，开关没有意义，露出来只会让人困惑。
+                                // 以后新增「量大但偶发需要」的日志分类时在此继续追加
+                                AnimatedVisibility(visible = debugLogging) {
+                                    SwitchPreference(
+                                        checked = odometerLogging,
+                                        onCheckedChange = viewModel::setOdometerLogging,
+                                        title = "数字滚轮日志",
+                                        summary = "数据卡滚轮动画（Odometer）",
+                                    )
+                                }
                             }
                         }
 

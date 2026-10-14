@@ -74,8 +74,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 internal val LocalRollingNumberEnabled = compositionLocalOf { true }
 
-/** 数字滚轮的相关日志标签。 */
-private const val OdometerLogTag = "Odometer"
+// 数字滚轮的日志 tag 收归 AppLog.TAG_ODOMETER 统一定义：
+// 日志页的「数字滚轮日志」开关按这个 tag 静音，两边必须共用同一常量。
 
 /** 数字滚轮：主滚动时长（毫秒）。加上回弹落位后总时长约 460ms。 */
 private const val OdometerRollDurationMillis = 340
@@ -456,7 +456,7 @@ private fun OdometerValueText(
     LaunchedEffect(Unit) {
         if (!seenBefore) {
             seenBefore = true
-            AppLog.d(OdometerLogTag, "数字滚轮动画开始：$value")
+            AppLog.d(AppLog.TAG_ODOMETER, "数字滚轮动画开始：$value")
         }
     }
 
@@ -481,7 +481,7 @@ private fun OdometerValueText(
         // 把量算结果打一条日志：数字还是不显示时，这条能直接看出字号/格子尺寸是否算歪了
         LaunchedEffect(metrics) {
             AppLog.d(
-                OdometerLogTag,
+                AppLog.TAG_ODOMETER,
                 "滚轮量算：可用宽=${availableWidth}px 字号=${metrics.fontSize} " +
                     "格高=${metrics.cellHeight} 数字宽=${
                         metrics.digitWidths.joinToString("/") { it.value.toInt().toString() }
@@ -623,7 +623,7 @@ private fun DigitReel(
         // 错峰：首位（最左边第一位）先动、往右依次跟上，收尾时也是首位先落位。
         // 用 delay 而不是 tween 的 delayMillis，因为下面要跑两段动画，错峰只该作用在开头一次。
         if (staggerSteps > 0) delay((staggerSteps * OdometerRollStaggerMillis).toLong())
-        AppLog.d(OdometerLogTag, "数字滚轮：第 $place 位从第 $from 格滚到第 $target 格")
+        AppLog.d(AppLog.TAG_ODOMETER, "数字滚轮：第 $place 位从第 $from 格滚到第 $target 格")
         val overshoot = OdometerRollOvershootLines
 
         // 第一段：带着惯性滚过目标一点点

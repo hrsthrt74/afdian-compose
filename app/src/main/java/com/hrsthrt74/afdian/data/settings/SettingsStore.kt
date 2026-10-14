@@ -139,6 +139,9 @@ class SettingsStore(private val context: Context) {
         val BOTTOM_BAR_STYLE = intPreferencesKey("bottom_bar_style")
     // 调试日志总开关：开启后 AppLog 才输出 D 级详细日志（网络请求、耗时等）
     val DEBUG_LOGGING = booleanPreferencesKey("debug_logging")
+    // 分类日志开关：数字滚轮动画日志（tag=Odometer）默认关闭——每个数字位都打一条，量极大，
+    // 排查滚动动画问题时再打开。后续新增的「量大但偶发需要」的日志分类在此继续追加 key
+    val ODOMETER_LOGGING = booleanPreferencesKey("odometer_logging")
     // 日志落盘开关：开启后运行日志（D/W/E）追加写入 files/logs/ 按天文件（崩溃报告不受此开关控制）
     val LOG_TO_FILE = booleanPreferencesKey("log_to_file")
     // 数据卡单位：金额类（收入、可提现）是否显示「元」
@@ -225,6 +228,15 @@ class SettingsStore(private val context: Context) {
      */
     val debugLogging: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.DEBUG_LOGGING] ?: BuildConfig.INTERNAL_BUILD }
+
+    /**
+     * 数字滚轮日志开关，默认关闭：滚轮动画每次数值刷新都会给每个数字位打一条 D 日志，
+     * 随便滑两页首页就是上千行，正常排查用不上、还会稀释其他日志，故默认静音，
+     * 排查滚动动画问题时再打开。仅当调试日志开启时才有意义；
+     * 由 MainActivity 订阅后组装进 AppLog.mutedTags，进程内即时生效。
+     */
+    val odometerLogging: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.ODOMETER_LOGGING] ?: false }
 
     /**
      * 日志落盘开关，默认值同 [debugLogging]：internal 内测版默认开启、正式版默认关闭。
@@ -409,6 +421,11 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setDebugLogging(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.DEBUG_LOGGING] = enabled }
+    }
+
+    /** 写入「数字滚轮日志」开关；生效链路见 [odometerLogging] 注释。 */
+    suspend fun setOdometerLogging(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.ODOMETER_LOGGING] = enabled }
     }
 
     /** 写入「日志落盘」开关；生效链路见 [logToFile] 注释。 */

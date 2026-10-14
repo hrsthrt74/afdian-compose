@@ -25,6 +25,24 @@ import android.util.Log
 object AppLog {
 
     /**
+     * 数字滚轮（Odometer 动画）日志的统一 tag，`AnimatedValueText` 的动画流程都用它。
+     * 定义在此供「数字滚轮日志」开关按 tag 静音：调用方与静音开关共用这一个常量，
+     * 避免两边各写一份字符串、改 tag 时悄悄失同步。
+     */
+    const val TAG_ODOMETER = "Odometer"
+
+    /**
+     * 被静音的调试日志 tag 集合：命中集合的 D 级日志不输出（Logcat 与落盘都不输出）。
+     * 用途：「调试日志」开着、但某类日志量大到刷屏（如数字滚轮动画，每个数字位都打一条，
+     * 动辄上千行），不值得一刀切关掉整个调试日志，就按 tag 单独静音。
+     * 默认空集 = 全部照常输出；由 MainActivity 按日志页各「分类日志开关」组装写入，
+     * @Volatile 保证 UI 线程写入后，网络/IO 线程立即读到。
+     * 只作用于 D 级：W/E 是报错时的最后线索，无论如何都要留。
+     */
+    @Volatile
+    var mutedTags: Set<String> = emptySet()
+
+    /**
      * 是否输出调试级（D）日志。
      * 初值按构建类型：internal 内测版默认开启——用户设置要等 DataStore 读出后才写入本字段，
      * 若初值固定 false，启动最初几百毫秒（恰恰是崩溃多发段）的 D 日志会缺席。
@@ -44,17 +62,17 @@ object AppLog {
     @Volatile
     internal var sink: ((level: Char, tag: String, message: String, tr: Throwable?) -> Unit)? = null
 
-    /** 调试日志：仅在开关打开时输出（Logcat + 落盘） */
+    /** 调试日志：仅在开关打开、且 tag 未被分类开关静音时输出（Logcat + 落盘） */
     fun d(tag: String, message: String) {
-        if (debugEnabled) {
+        if (debugEnabled && tag !in mutedTags) {
             Log.d(tag, message)
             sink?.invoke('D', tag, message, null)
         }
     }
 
-    /** 调试日志（带异常堆栈）：仅在开关打开时输出 */
+    /** 调试日志（带异常堆栈）：仅在开关打开、且 tag 未被分类开关静音时输出 */
     fun d(tag: String, message: String, tr: Throwable?) {
-        if (debugEnabled) {
+        if (debugEnabled && tag !in mutedTags) {
             Log.d(tag, message, tr)
             sink?.invoke('D', tag, message, tr)
         }

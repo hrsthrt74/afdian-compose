@@ -134,6 +134,9 @@ private fun AfdianApp(
     // 调试日志开关：订阅 DataStore 并写入全局 AppLog，切换后即时生效、无需重启。
     // initial 跟随构建类型默认值，避免 internal 版首帧先按 false 误关一次再被 DataStore 读回 true
     val debugLogging by settingsStore.debugLogging.collectAsState(initial = BuildConfig.INTERNAL_BUILD)
+    // 数字滚轮日志开关：滚轮动画日志量极大（每个数字位都打一条），默认关闭 = 静音该类 D 日志。
+    // initial 与 DataStore 默认值（false）一致，避免首帧按 true 误放行一次
+    val odometerLogging by settingsStore.odometerLogging.collectAsState(initial = false)
     // 数据卡数字滚动动画总开关：initial 与 DataStore 里的默认值（true）保持一致，
     // 否则冷启动首帧会先按 false 渲染一次普通文本，再跳回滚轮。
     val rollingNumberEnabled by settingsStore.rollingNumberEnabled.collectAsState(initial = true)
@@ -151,6 +154,14 @@ private fun AfdianApp(
             AppLog.debugEnabled = debugLogging
             // 开关状态本身也打一条，方便在 Logcat 里确认当前档位
             AppLog.d("AppLog", "调试日志已${if (debugLogging) "开启" else "关闭"}")
+        }
+        // 分类日志静音集合：各分类开关默认关 = 对应 tag 静音，按需组装后一次性写入。
+        // 以后新增「量大但偶发需要」的日志分类时，在此追加一行即可
+        val mutedTags = buildSet {
+            if (!odometerLogging) add(AppLog.TAG_ODOMETER)
+        }
+        if (AppLog.mutedTags != mutedTags) {
+            AppLog.mutedTags = mutedTags
         }
     }
 
