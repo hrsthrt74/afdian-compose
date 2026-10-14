@@ -23,10 +23,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 
 /**
- * 收入明细页的列宽分配：日期列略宽（要放 `2026/09/06`），最后一列（老客数）略窄。
+ * 收入明细页的列宽分配：日期列略宽（要放 `26/09/06`），最后一列（老客数）略窄。
  * 首页「近5天收入」模块用另一套（见 [CompactIncomeStatColumnWeights]），不要改这里。
  */
-val IncomeStatColumnWeights = listOf(1.4f, 1f, 1f, 1f, 1f, 0.8f)
+val IncomeStatColumnWeights = listOf(1.2f, 1f, 1f, 1f, 1f, 0.8f)
 
 /**
  * 首页「近5天收入」模块的列宽分配：日期只有 `09/06`，不再需要为年份留位置，
@@ -65,8 +65,8 @@ fun IncomeStatTableHeader(
  * 表格数据行：一行一条统计记录，金额保留两位小数。
  *
  * @param compactDate 是否用「去掉年份」的紧凑日期（09/06）。
- *   收入明细页展示全量历史、需要年份，故传 false（默认）；首页「近5天收入」只有 5 天窗口，
- *   年份没有信息量，传 true 省下的宽度留给数值列。
+ *   收入明细页展示短年份日期（26/09/06），传 false（默认）；
+ *   首页「近5天收入」只有 5 天窗口，年份没有信息量，传 true 省下的宽度留给数值列。
  * @param columnWeights 六列宽度分配，必须与表头传入的是同一份，否则表头与数据错位。
  * @param insidePadding 行内边距，收入明细页与首页模块共用同一套数值。
  */
@@ -80,7 +80,8 @@ fun IncomeStatTableRow(
 ) {
     // 格式化金额：直接用 BigDecimal 的两位小数字符串（接口本身形如 13.99）
     val cells = listOf(
-        if (compactDate) record.displayMonthDay else record.displayDate,
+        // 日期：紧凑模式显示月/日（09/06），否则显示短年份日期（26/09/06，省略年份前两位）
+        if (compactDate) record.displayMonthDay else record.displayShortYearDate,
         record.uv.toString(),
         record.amount.toPlainString(),
         record.orderCount.toString(),

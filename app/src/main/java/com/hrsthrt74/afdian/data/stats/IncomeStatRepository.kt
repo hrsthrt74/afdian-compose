@@ -44,10 +44,26 @@ data class IncomeStatRecord(
     // 老客发电人数
     val oldUserCount: Long,
 ) {
-    /** 展示用日期：把 20260906 格式化成 2026/09/06；异常格式原样返回。 */
+    /**
+     * 完整日期：把 20260906 格式化成 2026/09/06；异常格式原样返回。
+     * 「收入明细」页表格已改用短年份的 [displayShortYearDate]，
+     * 本属性目前只用于 CSV 导出与「问 AI」的 Markdown——导出数据保留完整年份，避免歧义。
+     */
     val displayDate: String
         get() = if (dateStr.length == 8) {
             "${dateStr.substring(0, 4)}/${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}"
+        } else {
+            dateStr
+        }
+
+    /**
+     * 短年份日期：把 20260906 格式化成 26/09/06，省略年份前两位「20」。
+     * 「收入明细」页表格用——比完整年份窄，近几十年内不会产生歧义。
+     * 异常格式原样返回，与 [displayDate] 口径一致。
+     */
+    val displayShortYearDate: String
+        get() = if (dateStr.length == 8) {
+            "${dateStr.substring(2, 4)}/${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}"
         } else {
             dateStr
         }
