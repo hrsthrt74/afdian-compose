@@ -63,7 +63,7 @@ fun ClickableSmallTitle(
             )
             // 箭头图标
             Icon(
-                MiuixIcons.ChevronForward,
+                MiuixIcons.Demibold.ChevronForward,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.onBackgroundVariant,
                 modifier = Modifier.size(12.dp),
