@@ -52,8 +52,8 @@ import com.hrsthrt74.afdian.ui.components.post.PostActionBar
 import com.hrsthrt74.afdian.ui.components.post.PostHeader
 import com.hrsthrt74.afdian.ui.components.post.PostPaidBlock
 import com.hrsthrt74.afdian.ui.components.post.normalizeImageUrl
-import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
+import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.PostDetailViewModel
 import com.kyant.shapes.Capsule
@@ -440,6 +440,7 @@ private fun CardNavItem(
                 text = title ?: "—",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurface,
+                minLines = 2,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
