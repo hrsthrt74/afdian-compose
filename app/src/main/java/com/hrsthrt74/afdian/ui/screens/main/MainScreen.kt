@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -41,6 +42,7 @@ import com.hrsthrt74.afdian.data.history.HistoryTarget
 import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.ui.components.PlanDetailSheet
 import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
@@ -74,6 +76,7 @@ import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MonthlySummaryViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.PlanDetailViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.SponsorManageViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
@@ -514,12 +517,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         }
         entry<Route.ProductDetail> { route ->
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 商品链接直接复用商品管理页的详情 Sheet，避免为同一商品详情维护两套加载逻辑。
-            ShopScreen(
-                onBack = { backStack.removeLastOrNull() },
-                backStack = backStack,
-                onOpenUrl = appLinkNavigator::open,
-                initialPlanId = route.productId,
+            // 商品链接的轻量详情宿主：不复用商品管理页（点商品互链不该露出创作者后台），
+            // 页面本体只承载一个自动弹出的 PlanDetailSheet，收起后自动退出页面
+            ProductDetailHost(
+                planId = route.productId,
+                onExit = { backStack.removeLastOrNull() },
             )
         }
         entry<Route.History> {
@@ -537,6 +539,49 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         }
         }
     }
+}
+
+/**
+ * 商品链接的轻量详情宿主。
+ *
+ * 「商品互链」（如 A 商品简介里指向 B 商品的链接）经 AppLinkNavigator 压栈到
+ * [Route.ProductDetail]，本页面即该路由的宿主：页面本体只有一层主题背景，
+ * 进入即弹出 [PlanDetailSheet]，Sheet 完全收起后自动退出页面——
+ * 视觉上等同「在任意位置直接弹出商品详情」，不再以商品管理页作外壳。
+ */
+@Composable
+private fun ProductDetailHost(
+    planId: String,
+    onExit: () -> Unit,
+) {
+    val app = LocalContext.current.applicationContext as Application
+    // 详情弹层的 ViewModel：与商品管理页 / 创作者主页同款工厂，只维护一套加载逻辑
+    val planDetailViewModel: PlanDetailViewModel = viewModel(
+        key = "product-detail-host",
+        factory = remember {
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    PlanDetailViewModel(app) as T
+            }
+        },
+    )
+    // 页面存活期间 Sheet 常显；收到关闭请求先收起 Sheet（播放关闭动画），
+    // 动画结束（onDismissFinished）才真正出栈，避免转场截断收起动画
+    var sheetVisible by rememberSaveable { mutableStateOf(true) }
+    // 页面本体：仅主题背景，平时被 Sheet 的压暗层盖住，只在压栈转场瞬间可见
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background),
+    )
+    PlanDetailSheet(
+        show = sheetVisible,
+        planId = planId,
+        viewModel = planDetailViewModel,
+        onDismiss = { sheetVisible = false },
+        onDismissFinished = onExit,
+    )
 }
 
 @Composable

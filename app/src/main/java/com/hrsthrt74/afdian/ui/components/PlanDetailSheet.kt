@@ -35,6 +35,7 @@ import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.ui.viewmodel.PlanDetailViewModel
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -56,6 +57,8 @@ fun PlanDetailSheet(
     planId: String?,
     viewModel: PlanDetailViewModel,
     onDismiss: () -> Unit,
+    // Sheet 完全收起（关闭动画播完）后的回调；独立详情宿主页靠它实现「关掉 Sheet 即退出页面」
+    onDismissFinished: (() -> Unit)? = null,
 ) {
     LaunchedEffect(show, planId) {
         if (show) planId?.let(viewModel::load)
@@ -70,6 +73,7 @@ fun PlanDetailSheet(
         show = show,
         title = "详情",
         onDismissRequest = onDismiss,
+        onDismissFinished = onDismissFinished,
     ) {
         when {
             // 各兜底态统一撑满剩余高度，避免弹层高度随内容跳变
@@ -107,7 +111,11 @@ fun PlanDetailSheet(
                     onConfirm = {
                         val plan = loadedDetail.plan
                         val path = if (plan?.product_type == 2) "bundle" else "item"
-                        appLinkNavigator.open("https://ifdian.net/$path/${plan?.plan_id.orEmpty()}")
+                        // 购买 URL 会被 AppLinkRegistry 命中 item/bundle 规则弹回详情 Sheet，
+                        // 必须绕过站内解析强制外部打开（官方客户端 → Custom Tabs → 系统浏览器）
+                        val url = "https://ifdian.net/$path/${plan?.plan_id.orEmpty()}"
+                        AppLog.d("PlanDetail", "发电确认，强制外部打开: $url")
+                        appLinkNavigator.openExternal(url)
                     },
                 )
             }

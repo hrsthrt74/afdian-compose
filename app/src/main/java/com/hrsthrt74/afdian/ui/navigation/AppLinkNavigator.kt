@@ -161,12 +161,22 @@ class AppLinkNavigator(
                     avatarUrl = "https://pic1.afdiancdn.com/user/27f7cea2370d11e8ae8852540025c377/avatar/2d9659585fc4798068efbb652e56c08a.jpg",
                 )
             )
-            is AppLinkDestination.Product -> onNavigate(Route.ProductDetail(destination.productId))
+            is AppLinkDestination.Product -> {
+                AppLog.d("AppLinkNavigator", "打开 App 内商品详情: ${destination.productId}")
+                onNavigate(Route.ProductDetail(destination.productId))
+            }
             null -> openExternal(url)
         }
     }
 
-    private fun openExternal(url: String) {
+    /**
+     * 绕过站内解析、强制走外部打开（官方客户端优先 → Custom Tabs → 系统浏览器）。
+     *
+     * 供「明确要离开 App」的动作使用（如跳转官方支付页）：
+     * 这类 URL（如 /item/{id}、/bundle/{id}）会被 AppLinkRegistry 命中站内规则，
+     * 必须绕过 [open] 的统一解析，避免被误拦截回 App 内页面。
+     */
+    fun openExternal(url: String) {
         val uri = runCatching { URI(url) }.getOrNull()
         if (uri == null || uri.scheme !in setOf("http", "https")) {
             AppLog.w("AppLinkNavigator", "拒绝打开无效链接: $url")
