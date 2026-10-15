@@ -1,14 +1,16 @@
 package com.hrsthrt74.afdian.ui.theme
 
+import androidx.annotation.FontRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontLoadingStrategy
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.settings.normalizeDataCardFontWidth
 
 /**
@@ -29,19 +31,22 @@ import com.hrsthrt74.afdian.data.settings.normalizeDataCardFontWidth
 val LocalDataCardFontFamily = compositionLocalOf<FontFamily?> { null }
 
 /**
- * 数值字体在 assets 里的路径（**从 assets 目录算起**，不含 "assets/" 前缀）。
+ * 数值字体在 `res/font` 下的资源 id（`app/src/main/res/font/misans_condensed.ttf`）。
  *
- * 为什么放 assets 而不是 `res/font`：
- * - 走 `Font(path, assetManager, ...)` 这条重载时，Compose 内部用的是 `AndroidAssetFont`，
- *   它继承 `AndroidPreloadedFont` → 加载策略是 **Blocking**，不会异步重排（这点对滚轮量算很重要，
- *   否则首帧会先按兜底字体测一遍、字体到达后再跳一次）；API 26+ 同样经
- *   `Typeface.Builder(...).setFontVariationSettings(...)` 应用可变轴。
- * - 不受资源表/资源压缩（shrinkResources）的影响。
+ * 为什么用 `res/font` 而不是 assets：
+ * - 资源 id 由 R 类生成，引用处是编译期常量，重命名/移动文件时构建期就会报编译错误；
+ *   assets 版写的是字符串路径，文件被改名/挪走只会在运行时悄悄回退成系统字体。
+ * - `Font(resId, ...)` 这条重载默认就是 `FontLoadingStrategy.Blocking`，同样在组合期就
+ *   同步加载完（见下方注释），滚轮量算不会先按兜底字体测一遍再跳一次。
  *
- * 注意：assets 里的 `.ttf` 需要靠 `androidResources { noCompress += "ttf" }` 保持不压缩，
+ * 可变轴照旧生效：Compose 内部把 variationSettings 交给
+ * `Typeface.Builder(...).setFontVariationSettings(...)`（API 26+）。
+ *
+ * 注意：`res/font` 下的 `.ttf` 需要靠 `androidResources { noCompress += "ttf" }` 保持不压缩，
  * 否则 `Typeface.Builder` 只能把整个字体读进内存、无法 mmap。
  */
-const val DATACARD_VALUE_FONT_ASSET_PATH = "fonts/misans_condensed.ttf"
+@FontRes
+val DATACARD_VALUE_FONT_RES_ID: Int = R.font.misans_condensed
 
 /**
  * 数值字体要显式关闭的 OpenType 特性：`calt`（上下文替换）。
@@ -87,17 +92,15 @@ const val DATACARD_VALUE_FONT_FEATURE_SETTINGS = "\"calt\" 0"
 @Composable
 fun rememberMiSansCondensedFontFamily(width: Int): FontFamily {
     val safeWidth = normalizeDataCardFontWidth(width)
-    // assets 字体需要 AssetManager；applicationContext 是进程级的，取它可避免把 Activity 泄漏进 remember。
-    val assetManager = LocalContext.current.applicationContext.assets
-    return remember(safeWidth, assetManager) {
+    return remember(safeWidth) {
         FontFamily(
             Font(
-                // assets/fonts/misans_condensed.ttf：可变字体，见上方注释。
-                // 注意这个重载的参数顺序是 (path, assetManager, weight, style, variationSettings)，
-                // 与资源版 Font(resId, weight, style, loadingStrategy, variationSettings) 不同，务必用具名参数。
-                path = DATACARD_VALUE_FONT_ASSET_PATH,
-                assetManager = assetManager,
+                // res/font/misans_condensed.ttf：可变字体，见 DATACARD_VALUE_FONT_RES_ID 的注释。
+                resId = DATACARD_VALUE_FONT_RES_ID,
                 weight = FontWeight.Normal,
+                // 显式声明 Blocking：数值要先量算、再绘制（滚轮路径还要做数字宽度比），
+                // 异步加载会让首帧先按兜底字体排一遍、字体到位后再重排一次，表现为数字跳一下。
+                loadingStrategy = FontLoadingStrategy.Blocking,
                 variationSettings = FontVariation.Settings(
                     // 常规字重（400）：系统的 fontWeightAdjustment 会在此基础上叠加
                     FontWeight.Normal,

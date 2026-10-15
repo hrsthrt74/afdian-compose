@@ -48,9 +48,9 @@ android {
         buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "true")
     }
 
-    // assets 下的可变字体（MiSans Condensed）保持不压缩：
-    // noCompress 是按扩展名作用于整个 APK 的，assets 与 res 都覆盖 ——
-    // 不压缩时 Typeface.Builder 能直接 mmap 字体文件；压缩了就只能整份读进内存。
+    // res/font 下的可变字体（MiSans Condensed）保持不压缩：
+    // noCompress 是按扩展名作用于整个 APK 的 —— 不压缩时 Typeface.Builder 能直接 mmap 字体文件；
+    // 压缩了就只能整份读进内存。
     androidResources {
         noCompress += "ttf"
     }
