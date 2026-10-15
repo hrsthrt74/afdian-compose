@@ -767,6 +767,8 @@ private fun MainTabsContent(
                         onOpenIncomeDetail = { onNavigate(Route.IncomeDetail) },
                         historyViewModel = historyViewModel,
                         onOpenHistory = { onNavigate(Route.History) },
+                        // 「快捷方式」模块的预设入口统一走外层栈全屏覆盖
+                        onNavigate = onNavigate,
                         onOpenHistoryEntry = { entry ->
                             when (val target = entry.target) {
                                 is HistoryTarget.CreatorDetailTarget -> onOpenCreator(target.toAfadianUser())

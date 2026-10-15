@@ -1,0 +1,105 @@
+package com.hrsthrt74.afdian.ui.components.home
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.hrsthrt74.afdian.ui.components.basic.QuickEntry
+import com.hrsthrt74.afdian.ui.navigation.normalizeQuickEntries
+import com.hrsthrt74.afdian.ui.navigation.resolveIcon
+import com.kyant.shapes.Capsule
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ChevronForward
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.pressable
+
+/**
+ * 首页「快捷方式」模块：一行最多 4 个自定义入口。
+ *
+ * 入口来自预设目录 [com.hrsthrt74.afdian.ui.navigation.QuickEntryPreset]，
+ * 选哪几个、什么顺序存在 DataStore，由 [QuickEntryPickerSheet] 负责改。
+ */
+@Composable
+fun QuickEntriesModule(context: HomeModuleContentContext) {
+    // 用可空状态等待 DataStore 真值：真值到之前不渲染模块，
+    // 避免首页先用默认的 4 个入口闪一帧再跳成用户配置（与创作者数据模块同一处理）。
+    var savedKeys by remember { mutableStateOf<List<String>?>(null) }
+    LaunchedEffect(context.settingsStore) {
+        context.settingsStore.homeQuickEntryKeys.collect { savedKeys = it }
+    }
+    val entries = savedKeys?.let { normalizeQuickEntries(it) } ?: return
+
+    Column {
+        // 标题行
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SmallTitle("快捷方式", modifier = Modifier.padding(start = 4.dp))
+            // 编辑
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 28.dp, vertical = 8.dp)
+                    .clickable(
+                        onClick = context.onEditQuickEntries,
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "编辑",
+                    style = MiuixTheme.textStyles.subtitle,
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                )
+                Icon(   // 箭头
+                    MiuixIcons.Demibold.ChevronForward,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+
+        }
+        // 入口行：均分宽度
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            entries.forEach { preset ->
+                QuickEntry(
+                    title = preset.title,
+                    modifier = Modifier.weight(1f),
+                    icon = preset.resolveIcon(),
+                    onClick = { context.onNavigate(preset.route) },
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))  // 因为上面是文字所以多留一点
+    }
+}

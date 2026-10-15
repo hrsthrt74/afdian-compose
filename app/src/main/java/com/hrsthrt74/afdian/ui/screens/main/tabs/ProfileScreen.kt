@@ -1,7 +1,5 @@
 package com.hrsthrt74.afdian.ui.screens.main.tabs
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,72 +10,42 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.History
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
+import com.hrsthrt74.afdian.ui.components.basic.QuickEntry
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.navigation.QuickEntryGroup
+import com.hrsthrt74.afdian.ui.navigation.QuickEntryPreset
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.navigation.presets
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
+import com.hrsthrt74.afdian.ui.navigation.resolveIcon
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.All
-import top.yukonga.miuix.kmp.icon.extended.Backup
-import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
-import top.yukonga.miuix.kmp.icon.extended.Favorites
-import top.yukonga.miuix.kmp.icon.extended.ListView
-import top.yukonga.miuix.kmp.icon.extended.MindMap
-import top.yukonga.miuix.kmp.icon.extended.Notes
-import top.yukonga.miuix.kmp.icon.extended.Rename
-import top.yukonga.miuix.kmp.icon.extended.Store
-import top.yukonga.miuix.kmp.icon.extended.Th1
-import top.yukonga.miuix.kmp.icon.extended.Th10
-import top.yukonga.miuix.kmp.icon.extended.Th11
-import top.yukonga.miuix.kmp.icon.extended.Th12
-import top.yukonga.miuix.kmp.icon.extended.Th2
-import top.yukonga.miuix.kmp.icon.extended.Th3
-import top.yukonga.miuix.kmp.icon.extended.Th4
-import top.yukonga.miuix.kmp.icon.extended.Th5
-import top.yukonga.miuix.kmp.icon.extended.Th6
-import top.yukonga.miuix.kmp.icon.extended.Th7
-import top.yukonga.miuix.kmp.icon.extended.Th8
-import top.yukonga.miuix.kmp.icon.extended.Th9
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import java.time.YearMonth
+
+/** 一行快捷入口放几个；与首页「快捷方式」模块的槽位数一致。 */
+private const val QUICK_ENTRY_PER_ROW = 4
 
 /**
  * 「我的」tab 的内容页。
@@ -148,102 +116,27 @@ private fun ProfileMainScreen(
                     bottom = contentBottomPadding()
                 )
             ) {
-                // 快捷入口
+                // 快捷入口：直接铺预设目录，「我的」页与首页「快捷方式」模块共用同一份，
+                // 以后新增入口这里自动多出一格，不用再回来补页面
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        ProfileQuickEntry(
-                            title = "我发电的",
-                            icon = MiuixIcons.Demibold.Favorites,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.Sponsoring) },
-                        )
-                        ProfileQuickEntry(
-                            title = "我的收藏",
-                            icon = Icons.Filled.BookmarkBorder,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.Favorites) },
-                        )
-                        ProfileQuickEntry(
-                            title = "我的订单",
-                            icon = MiuixIcons.Medium.Notes,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.Orders) },
-                        )
-                        ProfileQuickEntry(
-                            title = "浏览历史",
-                            icon = Icons.Filled.History,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.History) },
-                        )
-                    }
-                }
-
-                item { SmallTitle(text = "创作者", modifier = Modifier.padding(bottom = 4.dp, top = 24.dp)) }
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        ProfileQuickEntry(
-                            title = "管理面板",
-                            icon = MiuixIcons.Demibold.All,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.Management) },
-                        )
-                        ProfileQuickEntry(
-                            title = "收入明细",
-                            icon = MiuixIcons.Demibold.ListView,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.IncomeDetail) },
-                        )
-                        ProfileQuickEntry(
-                            title = "收到发电",
-                            icon = MiuixIcons.Demibold.Store,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.ReceivedSponsors) },
-                        )
-                        ProfileQuickEntry(
-                            title = "赞助者管理",
-                            icon = MiuixIcons.Demibold.ContactsCircle,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.SponsorManage) },
-                        )
-                    }
+                    QuickEntryRows(
+                        presets = QuickEntryGroup.COMMON.presets(),
+                        onNavigate = onNavigate,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 }
 
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 20.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        ProfileQuickEntry(
-                            title = "售卖商品",
-                            icon = MiuixIcons.Demibold.Backup,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.Shop) },
-                        )
-                        ProfileQuickEntry(
-                            title = "优惠码",
-                            icon = MiuixIcons.Demibold.Rename,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.Affiliates) },
-                        )
-                        ProfileQuickEntry(
-                            title = "每月汇总",
-                            icon = monthlySummaryEntryIcon(),   // 「上月」的数字图标
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.MonthlySummary) },
-                        )
-                        ProfileQuickEntry(
-                            title = "创作者指南",
-                            icon = MiuixIcons.Demibold.MindMap,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Route.PostDetailById("2da755247a8911e8ad6d52540025c377")) },
-                        )
-                    }
+                    SmallTitle(
+                        text = QuickEntryGroup.CREATOR.title,
+                        modifier = Modifier.padding(bottom = 4.dp, top = 24.dp),
+                    )
+                }
+                item {
+                    QuickEntryRows(
+                        presets = QuickEntryGroup.CREATOR.presets(),
+                        onNavigate = onNavigate,
+                    )
                 }
 
                 item { Spacer(Modifier.height(36.dp)) }
@@ -273,74 +166,34 @@ private fun ProfileMainScreen(
 }
 
 /**
- * 「每月汇总」快捷入口的图标：取 Miuix 的 ThN 数字图标。
+ * 快捷入口区：按预设目录的顺序铺成每行 [QUICK_ENTRY_PER_ROW] 个圆形入口。
  *
- * 取上个月（本月 9 月 → 8）。
- */
-private fun monthlySummaryEntryIcon(): ImageVector =
-    when (YearMonth.now().minusMonths(1).monthValue) {
-        1 -> MiuixIcons.Th1
-        2 -> MiuixIcons.Th2
-        3 -> MiuixIcons.Th3
-        4 -> MiuixIcons.Th4
-        5 -> MiuixIcons.Th5
-        6 -> MiuixIcons.Th6
-        7 -> MiuixIcons.Th7
-        8 -> MiuixIcons.Th8
-        9 -> MiuixIcons.Th9
-        10 -> MiuixIcons.Th10
-        11 -> MiuixIcons.Th11
-        // 剩下只可能是 12 月
-        else -> MiuixIcons.Th12
-    }
-
-/**
- * 「我的」页的圆形快捷入口：上面圆形底 + 图标，下面标题。
- * 图标可选，未传时显示同尺寸 Spacer 占位。
+ * 末行凑不满时补等宽空位，否则那一行的入口会挤在左边、和上面几行对不齐。
  */
 @Composable
-private fun ProfileQuickEntry(
-    title: String,
+private fun QuickEntryRows(
+    presets: List<QuickEntryPreset>,
+    onNavigate: (Route) -> Unit,
     modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-    onClick: () -> Unit,
-    containerColor: Color = MiuixTheme.colorScheme.surfaceContainer,
-    iconTint: Color = MiuixTheme.colorScheme.primary,
 ) {
-    val haptic = LocalHapticFeedback.current
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // 圆形裁切的 Box：图标坐里面居中；点击范围限定在圆形内（clip 在前，水波纹也被裁成圆形）
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(containerColor)
-                .clickable(onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onClick()
-                }),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = iconTint,
-                    modifier = Modifier.size(32.dp),
-                )
-            } else {
-                Spacer(modifier = Modifier.size(32.dp))
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        presets.chunked(QUICK_ENTRY_PER_ROW).forEach { rowPresets ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                rowPresets.forEach { preset ->
+                    QuickEntry(
+                        title = preset.title,
+                        modifier = Modifier.weight(1f),
+                        icon = preset.resolveIcon(),
+                        onClick = { onNavigate(preset.route) },
+                    )
+                }
+                repeat(QUICK_ENTRY_PER_ROW - rowPresets.size) {
+                    Spacer(Modifier.weight(1f))
+                }
             }
         }
-        Text(
-            text = title,
-            style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            textAlign = TextAlign.Center
-            )
     }
 }

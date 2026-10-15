@@ -79,6 +79,7 @@ enum class HomeModule(
     val summary: String,
     val defaultEnabled: Boolean = true,
 ) {
+    QuickEntries("quick_entries", "快捷方式", "自定义 4 个常用入口"),
     WithdrawalReminder("withdrawal_reminder", "提现提醒", "[创作者] 每月底提醒"),
     CreatorData("creator_data", "创作者数据", "[创作者] 收入数据。长按卡片自定义"),
     // 默认关闭：明细表占版面较高，是否上首页交给用户决定
@@ -163,6 +164,8 @@ class SettingsStore(private val context: Context) {
         val HOME_CREATOR_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("home_creator_layout")
         val HOME_ENABLED_MODULES = androidx.datastore.preferences.core.stringPreferencesKey("home_enabled_modules")
         val HOME_MODULE_ORDER = androidx.datastore.preferences.core.stringPreferencesKey("home_module_order")
+        // 首页「快捷方式」模块选中的入口，存 QuickEntryPreset.storageValue（逗号拼接）
+        val HOME_QUICK_ENTRY_KEYS = androidx.datastore.preferences.core.stringPreferencesKey("home_quick_entries")
         val MANAGEMENT_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("management_layout")
         // 「每月汇总」页的金额口径：抽成前 / 抽成后（存 IncomeAmountMode.storageValue）
         val MONTHLY_SUMMARY_AMOUNT_MODE = androidx.datastore.preferences.core.stringPreferencesKey("monthly_summary_amount_mode")
@@ -312,6 +315,7 @@ class SettingsStore(private val context: Context) {
         } else {
             HomeModule.entries.filter { module ->
                 when (module) {
+                    HomeModule.QuickEntries -> true
                     HomeModule.CreatorData -> preferences[Keys.HOME_CREATOR_DATA] ?: true
                     HomeModule.Sponsoring -> preferences[Keys.HOME_SPONSORING] ?: true
                     HomeModule.MarkedCreators -> preferences[Keys.HOME_MARKED_CREATORS] ?: true
@@ -334,6 +338,19 @@ class SettingsStore(private val context: Context) {
             ?.mapNotNull(HomeModule::fromStorage)
             .orEmpty()
         mergeHomeModuleOrder(saved)
+    }
+
+    /**
+     * 首页「快捷方式」模块选中的入口，按顺序存 [com.hrsthrt74.afdian.ui.navigation.QuickEntryPreset.storageValue]。
+     *
+     * 这里只当字符串存取，不认识具体预设：过滤未知值、去重、截断到 4 个与默认值回落
+     * 统一交给 `normalizeQuickEntries`（与预设目录同文件、可单测），设置层不必依赖 UI 枚举。
+     */
+    val homeQuickEntryKeys: Flow<List<String>> = context.settingsDataStore.data.map { preferences ->
+        preferences[Keys.HOME_QUICK_ENTRY_KEYS]
+            ?.split(",")
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
     }
 
     /** 管理页布局；未知卡片会被过滤，用户关闭的卡片不会被自动重新加入。 */
@@ -370,6 +387,12 @@ class SettingsStore(private val context: Context) {
     }
     suspend fun setHomeModuleOrder(order: List<HomeModule>) {
         context.settingsDataStore.edit { it[Keys.HOME_MODULE_ORDER] = order.joinToString(",") { module -> module.storageValue } }
+    }
+
+    /** 保存首页「快捷方式」模块选中的入口，参数是预设的 storageValue（顺序即展示顺序）。 */
+    suspend fun setHomeQuickEntryKeys(keys: List<String>) {
+        AppLog.d("Settings", "保存首页快捷方式，入口数=${keys.size}")
+        context.settingsDataStore.edit { it[Keys.HOME_QUICK_ENTRY_KEYS] = keys.joinToString(",") }
     }
 
     suspend fun setManagementLayout(layout: List<ManagementLayoutEntry>) {

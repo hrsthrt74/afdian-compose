@@ -106,6 +106,7 @@ Text(
 - 卡片底部操作栏 → `CardActionBar`（N 个动作均分一行，「图标 + 文字」居中，触觉先震后动；`onClick = null` 表示纯展示/禁用，视觉为次要色；激活态由调用方显式传 `primary`，`tint = null` 为次要色。带点赞/收藏业务状态时用 `PostActionBar`，不要手写均分列底栏）
 - 环形占比图 → `DonutChart`（`ui/components/data/DonutChart.kt`，基于 Vico；圆心可放内容；颜色由调用方按业务含义固定给出，不要按扇区下标轮转取色；`minSweepDegrees` 保证小占比分类也看得见，默认 5 度）
 - 创作者卡（长条形） → `CreatorListItem`
+- 圆形快捷入口 → `QuickEntry`（圆形底 + 图标 + 下方标题，触感反馈内聚；`containerSize`/`iconSize` 可调紧凑档，面板网格与页面入口共用同一个组件）
 - 创作者卡（矩形） → `CreatorLargeCard` / `CreatorSmallCard`
 - 双击顶栏回顶 → `DoubleTapToTop`（包住 `BlurredBar` + `TopAppBar`，双击栏身平滑回顶并展开大标题；输入框形态的栏传 `enabled = false`，固定小标题栏 `scrollBehavior` 传 `null`）
 - 说明按钮（ⓘ） → `TooltipInfoButton`（点击与长按都弹 Miuix Tooltip，气泡 `focusable`，点外部/返回键关闭，再次点击收起；预设 `TooltipInfoButtonStyle.Tiny/Small/Default` 成套给图标尺寸 + 字重 + 热区，与 `CopyButtonStyle` 同构，`Tiny` 档用于表格等行高敏感的位置；不需要手写 `TooltipBox` + `state.show()` 那套样板）

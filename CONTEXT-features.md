@@ -22,13 +22,14 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 首页采用可配置模块系统，用户可自由排序和开关模块。
 
-已实现的 6 个模块：
-1. **提现提醒** — 月末 7 天自动显示，点击跳转网页提现页。
-2. **创作者数据** — 展示今日收入等数据卡片，支持长按进入整页编辑网格。
-3. **近5天收入** — 最近 5 天每日收入明细表，样式照抄收入明细页，标题点击进入收入明细页。**默认关闭**。日期列只显示 `月/日`（`IncomeStatRecord.displayMonthDay`）：5 天窗口里年份没有信息量，省下的宽度留给数值列；收入明细页仍用全量 `年/月/日`。
-4. **我发电的** — 已发电创作者列表，横滑展示。
-5. **收藏的创作者** — 收藏的创作者列表，横滑展示。
-6. **浏览历史** — 最近浏览的创作者和动态，按时间分组。
+已实现的 7 个模块：
+1. **快捷方式** — 一行最多 4 个自定义入口，预设目录里的条目随便挑、随便换顺序。
+2. **提现提醒** — 月末 7 天自动显示，点击跳转网页提现页。
+3. **创作者数据** — 展示今日收入等数据卡片，支持长按进入整页编辑网格。
+4. **近5天收入** — 最近 5 天每日收入明细表，样式照抄收入明细页，标题点击进入收入明细页。**默认关闭**。日期列只显示 `月/日`（`IncomeStatRecord.displayMonthDay`）：5 天窗口里年份没有信息量，省下的宽度留给数值列；收入明细页仍用全量 `年/月/日`。
+5. **我发电的** — 已发电创作者列表，横滑展示。
+6. **收藏的创作者** — 收藏的创作者列表，横滑展示。
+7. **浏览历史** — 最近浏览的创作者和动态，按时间分组。
 
 模块配置：
 - `HomeCustomizationSheet` 支持拖拽排序和显隐开关。
@@ -41,6 +42,22 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   老配置里缺失的模块**插到它在枚举声明顺序里的前驱之后**，而不是旧实现那样一律追加末尾
   ——否则新增模块升级后会莫名其妙跑到最后一位。
 - `homeEnabledModules` 在已存配置非空时**不会**自动补入新模块，所以新增模块对老用户天然是关闭的。
+
+快捷方式（`QuickEntries`）：
+- 预设目录 `QuickEntryPreset`（`ui/navigation/QuickEntryPreset.kt`）是「入口 → 标题/图标/路由」的
+  **唯一来源**，共 15 条分三组（常用 / 创作者 / 账号），「我的」页快捷入口区与首页该模块共用；
+  新增入口只加一行，两处自动同步。
+- 目录只收「点一下 = 压一个 `Route`」的入口；刷新、开外链这类特殊动作不进目录，
+  在调用点直接用 `QuickEntry` 手写 `onClick`。
+- 图标为 `null` 的条目（只有「每月汇总」）由 `resolveIcon()` 每次组合时算「上个月」数字图标——
+  枚举构造参数只求值一次，写死会跨月不换。
+- 存储：DataStore `home_quick_entries` 存逗号拼接的 `storageValue`；`SettingsStore` 只存字符串，
+  过滤未知值 / 去重 / 截断到 `QUICK_ENTRY_SLOTS`(4) / 默认回落都在 `normalizeQuickEntries`
+  （`QuickEntryPresetTest` 覆盖）。
+- 面板 `QuickEntryPickerSheet` 挂在 `HomeScreen` 底部而非模块内部：模块滚出视口被 LazyColumn 回收时，
+  弹层不能跟着消失。面板两段布局不同是刻意的：「已添加」只有 4 条，用可拖拽列表顺手把手柄放行尾；
+  「可添加」15 条铺成列表太长，用四列网格。面板里混着不可拖动的小标题与网格，
+  reorderable 的下标对不上「已添加」的下标，一律按 key 反查。
 
 创作者数据系统：
 - `CreatorStatsRepository` 拉取 4 个接口：`/api/my/dashboard`（总量摘要 + 可提现）、
@@ -505,6 +522,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 - `EmptyStateView`（`ui/components/EmptyStateView.kt`）：通用空状态视图，96dp 图标（默认 `Light.Info`）+ title2 标题 + body2 引导语 + 可选 action 槽位（重试按钮）+ 可选 `iconModifier`（图标变换），组合时自带 0.8→1 缩放淡入动画（`animated = false` 可关）。
 - `ErrorStateView`（同文件）：错误态预设，标题固定「加载失败」+ 内置 fillMaxWidth「重试」按钮，参数 `onRetry` / `summary` / `modifier`；图标默认是 Info 旋转 180°（miuix 无错误语义图标，`iconRotation` 可调），内部直接复用 `EmptyStateView`。
+- `QuickEntry`（`ui/components/basic/QuickEntry.kt`）：圆形快捷入口（圆形底 + 图标 + 下方标题），触感反馈内聚在组件内。`containerSize` / `iconSize` 可调出紧凑档（面板网格用），`enabled = false` 可挡住重复点击；`icon` 传 null 用同尺寸 Spacer 占位。预设入口的标题/图标/目标来自 `QuickEntryPreset`，非预设的特殊动作在调用点手写 `onClick`。
 
 ## 关键文件
 

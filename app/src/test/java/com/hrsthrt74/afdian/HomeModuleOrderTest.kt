@@ -17,6 +17,9 @@ class HomeModuleOrderTest {
     /**
      * 老用户配置里缺「近5天收入」时，它必须补到「创作者数据」之后，
      * 而不是像旧的 `(saved + entries).distinct()` 那样被追加到最末尾。
+     *
+     * 「快捷方式」是枚举首项、没有前驱，走的是「追加末尾」那条兜底分支——
+     * 老用户默认会看到它排在最后，需要的话在「自定义首页」里拖到上面即可。
      */
     @Test
     fun missingModuleInsertedAfterPredecessor() {
@@ -36,6 +39,7 @@ class HomeModuleOrderTest {
                 HomeModule.Sponsoring,
                 HomeModule.MarkedCreators,
                 HomeModule.History,
+                HomeModule.QuickEntries,
             ),
             merged,
         )
@@ -47,8 +51,8 @@ class HomeModuleOrderTest {
         val saved = listOf(HomeModule.History, HomeModule.RecentIncome, HomeModule.CreatorData)
         val merged = mergeHomeModuleOrder(saved)
         // 已有三项的相对顺序不动；缺失项按「前驱在列表中的位置」插入：
-        // WithdrawalReminder 是首项、无前驱 → 追加末尾；Sponsoring 前驱是 RecentIncome → 插到其后；
-        // MarkedCreators 前驱是 Sponsoring → 再插到其后
+        // QuickEntries 是首项、无前驱 → 先追加末尾；WithdrawalReminder 前驱是 QuickEntries → 插到其后；
+        // Sponsoring 前驱是 RecentIncome → 插到其后；MarkedCreators 前驱是 Sponsoring → 再插到其后
         assertEquals(
             listOf(
                 HomeModule.History,
@@ -56,6 +60,7 @@ class HomeModuleOrderTest {
                 HomeModule.Sponsoring,
                 HomeModule.MarkedCreators,
                 HomeModule.CreatorData,
+                HomeModule.QuickEntries,
                 HomeModule.WithdrawalReminder,
             ),
             merged,

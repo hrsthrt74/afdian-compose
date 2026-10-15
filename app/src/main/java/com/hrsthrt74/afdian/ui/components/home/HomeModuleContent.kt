@@ -10,6 +10,7 @@ import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.stats.ChartDataItem
 import com.hrsthrt74.afdian.data.stats.IncomeStatRecord
 import com.hrsthrt74.afdian.ui.components.data.DataCardItem
+import com.hrsthrt74.afdian.ui.navigation.Route
 import java.math.BigDecimal
 
 /** 首页模块渲染上下文。模块之间通过明确的数据和回调通信，避免直接依赖 HomeScreen。 */
@@ -34,6 +35,10 @@ data class HomeModuleContentContext(
     val onOpenHistoryEntry: (HistoryEntry) -> Unit,
     /** 请求进入“创作者数据”整页编辑（首页会隐藏其它模块）。 */
     val onEditCreatorData: () -> Unit,
+    /** 通用路由跳转：「快捷方式」模块点任意预设入口都走它。 */
+    val onNavigate: (Route) -> Unit,
+    /** 请求打开「快捷方式」的自定义面板。 */
+    val onEditQuickEntries: () -> Unit,
     /**
      * 「近5天收入」模块的最近 5 天按日统计，由 MainViewModel 随首页刷新一起拉取。
      * 空列表表示尚未拿到数据（加载中、未开通创作者或接口失败），模块据此显示占位/空态。

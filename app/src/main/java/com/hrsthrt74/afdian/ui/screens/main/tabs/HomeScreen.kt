@@ -42,6 +42,8 @@ import com.hrsthrt74.afdian.ui.components.home.CreatorDataEditPage
 import com.hrsthrt74.afdian.ui.components.home.HomeCustomizationSheet
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContent
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContentContext
+import com.hrsthrt74.afdian.ui.components.home.QuickEntryPickerSheet
+import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
@@ -72,6 +74,8 @@ fun HomeScreen(
     historyViewModel: HistoryViewModel,
     onOpenHistory: () -> Unit,
     onOpenHistoryEntry: (com.hrsthrt74.afdian.data.history.HistoryEntry) -> Unit,
+    /** 通用路由跳转：「快捷方式」模块点任意入口都走它。 */
+    onNavigate: (Route) -> Unit,
 ) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
@@ -102,6 +106,9 @@ fun HomeScreen(
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.defaultEnabledSet)
     val moduleOrder by settingsStore.homeModuleOrder.collectAsState(initial = HomeModule.entries)
     var showCustomizeSheet by remember { mutableStateOf(false) }
+    // 「快捷方式」模块的挑选面板：同样挂在页面底部而非模块内部，
+    // 否则模块滚出视口被 LazyColumn 回收时，正在显示的弹层会跟着消失
+    var showQuickEntrySheet by remember { mutableStateOf(false) }
     // 创作者数据是否处于整页编辑：为 true 时隐藏其它模块，只渲染可拖拽的编辑页。
     var editingCreatorData by remember { mutableStateOf(false) }
 
@@ -155,6 +162,8 @@ fun HomeScreen(
         onEditCreatorData = { editingCreatorData = true },
         recentIncomeRecords = recentIncomeRecords,
         onOpenIncomeDetail = onOpenIncomeDetail,
+        onNavigate = onNavigate,
+        onEditQuickEntries = { showQuickEntrySheet = true },
     )
 
     Scaffold(
@@ -243,4 +252,5 @@ fun HomeScreen(
         }
     }
     HomeCustomizationSheet(settingsStore, showCustomizeSheet) { showCustomizeSheet = false }
+    QuickEntryPickerSheet(settingsStore, showQuickEntrySheet) { showQuickEntrySheet = false }
 }
