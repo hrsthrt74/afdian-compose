@@ -30,7 +30,11 @@ import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -43,11 +47,18 @@ fun HomeCustomizationSheet(settingsStore: SettingsStore, show: Boolean, onDismis
     // 初值用默认启用集合，避免默认关闭的模块在读到真值前闪出「已勾选」
     val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.defaultEnabledSet)
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     WindowBottomSheet(
         show = show,
         title = "自定义首页",
         onDismissRequest = onDismiss,
+        endAction = {
+            IconButton({
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                onDismiss() })
+            { Icon(MiuixIcons.Ok, null) }
+        },
         insideMargin = DpSize(12.dp, 0.dp))
     {
         val listState = rememberLazyListState()
