@@ -149,6 +149,12 @@ class AfadianContentService(tokenStore: AuthTokenStore, client: OkHttpClient = s
     suspend fun fetchMessages(userID: String, type: String = "old", messageID: String = ""): MessageConversation =
         messageService.fetchMessages(userID, type, messageID)
 
+    /** 「一键已读」：拉取全部未读会话，作为批量标记的权威清单。 */
+    suspend fun fetchUnreadDialogs(): List<MessageDialog> = messageService.fetchUnreadDialogs()
+
+    /** 「一键已读」：读取单个会话以触发服务端清零未读。 */
+    suspend fun markDialogRead(userID: String) = messageService.markDialogRead(userID)
+
     suspend fun fetchSponsorInfo(userID: String): SponsorInfo = messageService.fetchSponsorInfo(userID)
 
     suspend fun fetchFAQs(userID: String): List<MessageFAQ> = messageService.fetchFAQs(userID)

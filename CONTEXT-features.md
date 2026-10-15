@@ -122,6 +122,21 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 - 消息列表页（含未读数 Badge）和会话详情页（聊天记录、FAQ、发送消息）。
 
+### 全部标为已读（MessagesScreen）
+
+- 爱发电**没有**标记已读接口：网页端只有 `dialogs`/`messages`/`send`/`can-send`/`delete-dialog` 五个消息接口，
+  无 `read` 类接口，网页版自己也没有一键已读。实现方式是**逐个读取未读会话**，借服务端「加载历史消息即清未读」的行为顺带清零。
+- 实测结论（2026-10，Cookie 认证验证）：
+  - `GET /api/message/messages?user_id=X&type=old` **有效**；
+  - `type=new&message_id=<latest_msg_id>`（返回空列表，60 字节）**无效**，未读数不变 —— 不要试图用它省流量；
+  - 执行后 `/api/my/check` 的 `unread_count.message` 同步归零。
+- 流程：先用 `GET /api/message/dialogs?unread=1` 分页取权威未读清单（**不能用 `/api/my/check` 判断**，它有缓存延迟，
+  实测出现过 check 显示 0 而 dialogs 实际有 2 条未读）→ 以 `MARK_ALL_CONCURRENCY=3` 并发逐个读取 → 每个成功后立刻
+  复用 `MessagesViewModel.markConversationRead` 本地清 badge（乐观更新）→ 结束后 `refreshUnreadCount()` 以服务端状态为准。
+- 响应体对标记已读无用，`MessageService.markDialogRead` 只用正则抠 `ec` 校验后即丢弃，不构建 JSON DOM。
+- UI：三点菜单**第一组**「全部标为已读」（`MiuixIcons.Ok`，无徽标），点击先弹 `AppDialog` 确认，
+  说明文字如实告知「会依次读取每个未读会话」并写明并发上限；执行中确认按钮置灰。结果用 Toast 反馈（全成功 / 部分失败报数）。
+
 ### 会话页 FAQ 快捷回复（MessageConversationScreen）
 
 - FAQ 不常驻：输入框尾部 `trailingIcon` 放 `MiuixIcons.Help` 按钮，点击切换 FAQ 横排的显示。

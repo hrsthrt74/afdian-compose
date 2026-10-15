@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.viewmodel
 
 import android.app.Application
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
@@ -15,6 +16,7 @@ import com.hrsthrt74.afdian.data.content.SponsorInfo
 import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.history.HistoryStore
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,10 +28,24 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicInteger
 
 class MessagesViewModel(application: Application) : AndroidViewModel(application) {
+
+    internal companion object {
+        /**
+         * 「全部标为已读」同时处理的会话数。
+         *
+         * 并发再高收益有限：未读会话通常只有个位数，而每个会话都要拉一整页消息，
+         * 并发过大会造成流量尖峰，也更容易触发服务端限流。
+         */
+        internal const val MARK_ALL_CONCURRENCY = 3
+    }
     private val service = AfadianContentService(AuthTokenStore(application))
     private val settingsStore = SettingsStore(application)
     // 浏览历史仓库：打开会话时写入「私信对话」记录，开关关闭时仓库内部会忽略
@@ -49,6 +65,10 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
 
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+
+    /** 「全部标为已读」是否正在执行，用于禁用确认按钮并防止重复触发 */
+    private val _isMarkingAllRead = MutableStateFlow(false)
+    val isMarkingAllRead = _isMarkingAllRead.asStateFlow()
 
     // ── 过滤状态 ──
     private val _showUnreadOnly = MutableStateFlow(false)
@@ -199,6 +219,79 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         if (clearedCount > 0) {
             AppLog.d("Messages", "conversation marked read locally: unread=$clearedCount")
         }
+    }
+
+    /**
+     * 「全部标为已读」：把每个未读会话依次读一遍，借此让服务端清零未读。
+     *
+     * 爱发电没有一键已读接口（网页端也只有 dialogs/messages/send 等五个），
+     * 服务端仅在加载历史消息时清除该会话未读，因此这里只能逐个读取：
+     * 1. 先用 dialogs?unread=1 拿权威未读清单——/api/my/check 有缓存延迟，不能用来判断；
+     * 2. 以 [MARK_ALL_CONCURRENCY] 的并发逐个读取，单个失败不影响其余会话；
+     * 3. 每个成功后立刻本地清 badge，让用户看到进度而不是干等；
+     * 4. 全部结束后用 refreshUnreadCount() 以服务端状态为准，避免本地推断与服务端不一致。
+     */
+    fun markAllRead() {
+        // 菜单点击后弹层会收起，这里再挡一次，防止重复触发
+        if (_isMarkingAllRead.value) return
+        viewModelScope.launch {
+            _isMarkingAllRead.value = true
+            try {
+                // 未读清单以服务端为准，不信任本地列表已加载的部分
+                val unread = withContext(Dispatchers.IO) { service.fetchUnreadDialogs() }
+                if (unread.isEmpty()) {
+                    toast("没有未读消息")
+                    return@launch
+                }
+
+                // Dispatchers.IO 是多线程池，成功/失败计数必须用原子变量，普通 var 并发自增会丢数
+                val succeeded = AtomicInteger(0)
+                val failed = AtomicInteger(0)
+                val semaphore = Semaphore(MARK_ALL_CONCURRENCY)
+                unread.map { dialog ->
+                    launch(Dispatchers.IO) {
+                        semaphore.withPermit {
+                            runCatching { service.markDialogRead(dialog.user.user_id) }
+                                .onSuccess {
+                                    succeeded.incrementAndGet()
+                                    // 服务端已清零，本地乐观同步（StateFlow 赋值线程安全，可在 IO 线程直接改）
+                                    markConversationRead(dialog.user.user_id)
+                                }
+                                .onFailure { error ->
+                                    failed.incrementAndGet()
+                                    AppLog.w("Messages", "markDialogRead failed: userId=${dialog.user.user_id}", error)
+                                }
+                        }
+                    }
+                }.joinAll()
+
+                // 关键路径日志：一次标记的总量、成功数与失败数
+                AppLog.d(
+                    "Messages",
+                    "markAllRead done: total=${unread.size}, ok=${succeeded.get()}, failed=${failed.get()}"
+                )
+                // 以服务端为准刷新全局未读数（底部 Tab badge / 三点菜单徽标都读它）
+                refreshUnreadCount()
+                toast(
+                    if (failed.get() == 0) "已完成全部已读"
+                    // 部分失败要如实报数，剩余未读仍会显示在列表徽标上，用户可重试
+                    else "已标记 ${succeeded.get()}/${unread.size} 个会话，${failed.get()} 个失败"
+                )
+            } catch (e: CancellationException) {
+                // 页面销毁导致的正常取消不算错误，静默处理
+                throw e
+            } catch (e: Exception) {
+                AppLog.e("Messages", "markAllRead failed", e)
+                toast("标记已读失败，请稍后重试")
+            } finally {
+                _isMarkingAllRead.value = false
+            }
+        }
+    }
+
+    /** 轻量提示；项目内 Toast 一律用 ViewModel 直接弹，不做额外封装 */
+    private fun toast(message: String) {
+        Toast.makeText(getApplication(), message, Toast.LENGTH_SHORT).show()
     }
 
     suspend fun fetchMessages(userID: String): List<MessageItem> {

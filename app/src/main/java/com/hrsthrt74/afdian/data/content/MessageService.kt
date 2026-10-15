@@ -41,6 +41,17 @@ internal class MessageService(
         const val AFDIAN_HOST = "https://afdian.com"
         const val IFDIAN_HOST = "https://ifdian.net"
         const val TAG = "MessageService"
+
+        /** 未读会话清单的分页上限，仅用于防止服务端 has_more 异常导致死循环 */
+        const val UNREAD_PAGE_LIMIT = 20
+
+        /**
+         * 从响应体里抠出业务码。
+         *
+         * 标记已读只需要确认服务端认了这次请求，不关心消息内容，因此不走
+         * parseToJsonElement，避免为一整页消息构建 JSON DOM。
+         */
+        val EC_REGEX = Regex("\"ec\"\\s*:\\s*(\\d+)")
     }
 
     suspend fun fetchMessageDialogs(page: Int = 1, unread: Int = 0): MessageDialogPage {
@@ -122,6 +133,62 @@ internal class MessageService(
             ).also {
                 AppLog.d(TAG, "/api/message/messages user_id=$userID type=$type message_id=$messageID -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms），返回 ${list.size} 条消息，has_more=${it.hasMore}")
             }
+        }
+    }
+
+    /**
+     * 「一键已读」的第一步：拉取全部未读会话。
+     *
+     * unread=1 时服务端只返回未读会话，所以这份清单不受列表已翻到第几页影响，
+     * 是「全部标为已读」的权威依据（/api/my/check 有缓存延迟，不能用来判断）。
+     * 正常未读会话数很少，一页就够，这里仍然按 has_more 翻完并加了页数上限兜底。
+     */
+    suspend fun fetchUnreadDialogs(): List<MessageDialog> {
+        val unread = mutableListOf<MessageDialog>()
+        var page = 1
+        while (page <= UNREAD_PAGE_LIMIT) {
+            val dialogPage = fetchMessageDialogs(page = page, unread = 1)
+            // 双保险：服务端已经只返未读，但仍按 unread_count 过滤一次，防止混进已读会话
+            unread += dialogPage.dialogs.filter { it.unread_count > 0 }
+            if (!dialogPage.hasMore) break
+            page++
+        }
+        AppLog.d(TAG, "fetchUnreadDialogs -> ${unread.size} 个未读会话（共请求 $page 页）")
+        return unread
+    }
+
+    /**
+     * 「一键已读」的第二步：读取单个会话，借此让服务端清零该会话的未读。
+     *
+     * 爱发电没有「标记已读」接口，服务端只在加载历史消息时才把未读清掉。
+     * 实测结论（2026-10）：type=old 拉首页有效；type=new（返回空列表）**无效**，
+     * 所以这里必须传 type="old"，不要试图用 latest_msg_id 做「空拉」省流量。
+     *
+     * 响应体（可能有一整页消息）对本操作毫无用处，这里只校验业务码就丢弃，
+     * 不做任何解析。
+     */
+    suspend fun markDialogRead(userID: String) {
+        val url = (AFDIAN_HOST + "/api/message/messages").toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("user_id", userID)
+            .addQueryParameter("type", "old")
+            .addQueryParameter("message_id", "")
+            .build()
+        val request = Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .build()
+        val start = System.currentTimeMillis()
+        http.execute(request).use { response ->
+            if (!response.isSuccessful) {
+                AppLog.e(TAG, "/api/message/messages 标记已读 user_id=$userID -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+                error("标记已读失败 (${response.code})")
+            }
+            val ec = EC_REGEX.find(response.body.string())?.groupValues?.get(1)?.toIntOrNull()
+            if (ec != 200) {
+                AppLog.w(TAG, "/api/message/messages 标记已读 user_id=$userID 业务失败 ec=$ec")
+                error("标记已读失败")
+            }
+            AppLog.d(TAG, "/api/message/messages 标记已读 user_id=$userID -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
         }
     }
 

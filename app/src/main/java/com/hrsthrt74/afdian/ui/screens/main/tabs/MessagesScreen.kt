@@ -49,6 +49,7 @@ import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.NoticeAction
 import com.hrsthrt74.afdian.ui.components.AppChip
 import com.hrsthrt74.afdian.ui.components.ReceivedNoticeSheet
+import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
@@ -57,6 +58,7 @@ import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
@@ -86,6 +88,7 @@ import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Redo
 import top.yukonga.miuix.kmp.icon.extended.Reply
 import top.yukonga.miuix.kmp.icon.extended.Undo
@@ -119,6 +122,9 @@ fun MessagesScreen(
     // 未读评论/喜欢数（来自 /api/my/check），显示在三点菜单对应项的图标徽标上
     val unreadCommentCount by viewModel.unreadCommentCount.collectAsState()
     val unreadLikeCount by viewModel.unreadLikeCount.collectAsState()
+    // 「全部标为已读」的执行中状态：执行期间禁用确认按钮，防止重复触发
+    val isMarkingAllRead by viewModel.isMarkingAllRead.collectAsState()
+    val markAllDialogState = rememberDialogState()
 
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
@@ -209,7 +215,21 @@ fun MessagesScreen(
                             // 必须显式开启，否则点击菜单项（如跳转客服会话）后弹层不会自动收起
                             collapseOnSelection = true,
                             entries = listOf(
-                                // 第一组：收到的评论 / 收到的喜欢（评论暂只展示，不支持回复等操作）
+                                // 第一组：全部标为已读。会话级的批量操作，与下方通知/设置分组隔开，
+                                // 放在最前是因为它是消息页最高频的操作；点击后先弹确认框再执行
+                                DropdownEntry(
+                                    items = listOf(
+                                        DropdownItem(
+                                            text = "全部已读",
+                                            icon = {
+                                                // 不传 badgeCount 即不带徽标，仅占位以与其他菜单项图标对齐
+                                                MenuIconWithBadge(it, icon = MiuixIcons.Ok)
+                                            },
+                                            onClick = { markAllDialogState.show() },
+                                        ),
+                                    ),
+                                ),
+                                // 第二组：收到的评论 / 收到的喜欢（评论暂只展示，不支持回复等操作）
                                 DropdownEntry(
                                     items = listOf(
                                         // 收到的评论：图标带未读数徽标，点击弹出评论通知弹层
@@ -238,7 +258,7 @@ fun MessagesScreen(
                                         ),
                                     ),
                                 ),
-                                // 第二组：FAQ 设置（创作者维护自动回复菜单），与社区通知分组隔开。
+                                // 第三组：FAQ 设置（创作者维护自动回复菜单），与社区通知分组隔开。
                                 // miuix 的 CascadingListPopupLayout 会在非末组之间自动插入分割线，
                                 // 所以这里只要多给一个 DropdownEntry，组间分割线自然出现。
                                 DropdownEntry(
@@ -253,7 +273,7 @@ fun MessagesScreen(
                                         ),
                                     ),
                                 ),
-                                // 第三组：官方客服对话，与上方分组隔开
+                                // 第四组：官方客服对话，与上方分组隔开
                                 DropdownEntry(
                                     items = listOf(
                                         // 客服对话固定跳转；名字与头像用官方客服音酱的信息
@@ -484,6 +504,18 @@ fun MessagesScreen(
             },
         )
     }
+
+    // 「全部标为已读」确认弹窗：爱发电没有一键已读接口，实现方式是逐个读取未读会话，
+    // 每个会话都会拉一整页消息，因此在这里如实告知代价与并发上限，由用户确认后再执行。
+    AppDialog(
+        state = markAllDialogState,
+        title = "全部标为已读",
+        summary = "将依次读取每个未读会话的消息以清除未读标记，最多同时处理 ${MessagesViewModel.MARK_ALL_CONCURRENCY} 个会话。",
+        confirmText = "标记已读",
+        // 执行期间置灰，避免用户重复点击叠加请求
+        confirmEnabled = !isMarkingAllRead,
+        onConfirm = { viewModel.markAllRead() },
+    )
 }
 
 /* 三点菜单项图标:
