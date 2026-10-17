@@ -25,6 +25,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +37,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
@@ -57,11 +61,13 @@ import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.theme.DATACARD_VALUE_FONT_FEATURE_SETTINGS
 import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.ThemeColorTransition
 import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -70,6 +76,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -250,6 +257,14 @@ private fun SettingsScreenContent(
     } else {
         null
     }
+    // 「数值窄字体」这一项 summary 专用的字体族：**恒用** MiSans Condensed、恒跟随草稿宽度，
+    // 与上面的开关状态无关 —— 于是这段描述本身就是一条活字体样本：
+    // 开关关着也能提前看到字体长什么样，拖动滑块时样例同步变宽变窄。
+    // 必须和 previewFontFamily 分开构建：后者在开关关闭时得是 null（预览卡要回到系统字体），
+    // 而这里要的正是「始终」。
+    // 宽度相同时 remember 会命中复用，与 previewFontFamily 各持一份对象也不会重复解析字体，
+    // 因为 Typeface 缓存在字体解析器里按 (resId, weight, style, variationSettings) 命中。
+    val summaryFontFamily = rememberMiSansCondensedFontFamily(draftFontWidth.roundToInt())
 
     // 预览卡的重播令牌：0 = 首次渲染不播放，数字直接落位。
     // 自增会让 key(replayToken) 重建预览卡，从而重新触发一次完整滚动
@@ -521,12 +536,15 @@ private fun SettingsScreenContent(
                             title = "显示人次单位",
 //                            summary = "发电人数、发电次数、访问人次等卡片显示「人」「次」",
                         )
-                        // 数值窄体字体：默认关闭，关闭时数值完全沿用系统默认字体
-                        SwitchPreference(
+                        // 数值窄体字体：默认关闭，关闭时数值完全沿用系统默认字体。
+                        // 用自写的 CondensedFontSwitchPreference（而不是 miuix 的 SwitchPreference）：
+                        // 只有它能把 MiSans Condensed 注入到 summary 上，让描述文字自己变成字体样本。
+                        CondensedFontSwitchPreference(
                             checked = dataCardCustomFontEnabled,
                             onCheckedChange = viewModel::setDataCardCustomFontEnabled,
                             title = "数值窄字体",
                             summary = "MiSans Condensed 2T",
+                            summaryFontFamily = summaryFontFamily,
                         )
                         // 宽度滑块只在开关打开时出现，避免留一个拖了没反应的无效选项。
                         // 用 AnimatedVisibility（而不是裸 if）让它随开关展开/收起，
@@ -670,6 +688,89 @@ private fun SettingsScreenContent(
             "确定要恢复默认布局吗？当前自定义的卡片顺序将丢失。",
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
+    }
+}
+
+/**
+ * 「数值窄字体」那一项专用的开关偏好项。
+ *
+ * **为什么自己写一个**：miuix 的 `SwitchPreference` 只收 `summary: String`，
+ * 内部固定用主题字体渲染，没有任何入口能把 `FontFamily` 注入到 summary；
+ * 而这里要的正是「让描述文字自己变成 MiSans Condensed 的样本」。
+ *
+ * **怎么写的**：结构完全照抄 miuix 源码 `miuix-preference/.../SwitchPreference.kt` ——
+ * 同一个 `BasicComponent` + 右侧 `Switch` + `Role.Switch` + 整行点击翻转，
+ * 连 `rememberUpdatedState` 包一层回调的细节也一致。
+ * 差别只有一处：改用 `BasicComponent` 的 content 插槽重载
+ * （`miuix-ui/.../basic/Component.kt` 里 `content: @Composable ColumnScope.() -> Unit` 那个版本），
+ * title / summary 由我们自己画，于是 summary 想用什么 TextStyle 都行。
+ * 行高、内边距、右侧区域宽度上限（60% 硬上限）、无障碍语义仍由 BasicComponent 负责，
+ * 所以外观与相邻的原生偏好项不会有任何偏差。
+ *
+ * 不做成通用组件的理由：只有设置页这一处调用，多一层参数化只是噪音。
+ *
+ * @param checked 开关状态
+ * @param onCheckedChange 开关状态变化回调
+ * @param title 标题（字号/字重与 miuix 一致：headline1 字号 + Medium）
+ * @param summary 描述文字，用 [summaryFontFamily] 渲染
+ * @param summaryFontFamily summary 使用的字体族（调用方按当前宽度构建，随滑块变化）
+ * @param modifier 修饰符
+ * @param enabled 是否可用
+ */
+@Composable
+private fun CondensedFontSwitchPreference(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    title: String,
+    summary: String,
+    summaryFontFamily: FontFamily,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    // 与 miuix 一致：用 rememberUpdatedState 包一层，避免每次重组都把新 lambda 捕获进 clickable
+    val currentOnCheckedChange by rememberUpdatedState(onCheckedChange)
+    // 标题 / 描述配色：miuix 取的是 BasicComponentDefaults.titleColor()/summaryColor() 的默认值，
+    // 这里直接读同一组色板。它们内部用的 BasicComponentColors.color(enabled) 是 internal，
+    // 跨模块不可见，所以按 enabled 自己选一遍。
+    val titleColor = if (enabled) MiuixTheme.colorScheme.onBackground
+                     else MiuixTheme.colorScheme.disabledOnSecondaryVariant
+    val summaryColor = if (enabled) MiuixTheme.colorScheme.onSurfaceVariantSummary
+                       else MiuixTheme.colorScheme.disabledOnSecondaryVariant
+
+    BasicComponent(
+        modifier = modifier,
+        // 右侧：开关本体（对应 miuix 的 SwitchPreferenceEndActions）
+        endActions = {
+            Switch(
+                checked = checked,
+                onCheckedChange = currentOnCheckedChange,
+                enabled = enabled,
+            )
+        },
+        // 整行点击翻转，语义角色为 Switch
+        onClick = { currentOnCheckedChange(!checked) },
+        role = Role.Switch,
+        enabled = enabled,
+    ) {
+        // 标题
+        Text(
+            text = title,
+            fontSize = MiuixTheme.textStyles.headline1.fontSize,
+            fontWeight = FontWeight.Medium,
+            color = titleColor,
+        )
+        // 描述：本组件存在的意义 —— 换成 MiSans Condensed。
+        // fontFeatureSettings 一并关掉 calt：这个字体的 calt 会把小数点错换成冒号字形
+        //（详见 DATACARD_VALUE_FONT_FEATURE_SETTINGS 的注释）。当前文案里没有小数点，
+        // 但留着这行，将来把文案换成数字样例（如 1280.00）时不会踩坑。
+        Text(
+            text = summary,
+            color = summaryColor,
+            style = MiuixTheme.textStyles.body2.copy(
+                fontFamily = summaryFontFamily,
+                fontFeatureSettings = DATACARD_VALUE_FONT_FEATURE_SETTINGS,
+            ),
         )
     }
 }
