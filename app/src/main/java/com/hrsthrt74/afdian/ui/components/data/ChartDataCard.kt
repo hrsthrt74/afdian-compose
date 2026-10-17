@@ -1,6 +1,11 @@
 package com.hrsthrt74.afdian.ui.components.data
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.Interaction
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -12,18 +17,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastForEach
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
@@ -77,6 +91,7 @@ import java.math.RoundingMode
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlinx.coroutines.flow.Flow
 
 /** 底轴标签列表存在图表 model 的 extraStore，供 valueFormatter 按下标取字符串。 */
 private val ChartLabelKey = ExtraStore.Key<List<String>>()
@@ -198,6 +213,115 @@ private val SafeBottomAxisItemPlacer = object : HorizontalAxis.ItemPlacer {
 }
 
 /**
+ * 记录卡片与图表在根坐标系里的位置，用来判断一次按压是否落在图表区域上。
+ *
+ * 故意用普通对象而不是 snapshot state：这些值只在手势回调里读取，
+ * 放在布局回调里写状态会触发无谓的重组/重排。
+ */
+private class ChartBounds {
+    /** 卡片左上角在根坐标系中的位置。 */
+    var cardOrigin: Offset = Offset.Zero
+
+    /** 图表所在的矩形（根坐标系）。 */
+    var chartRect: Rect = Rect.Zero
+
+    /** 卡片局部坐标是否落在图表矩形内；图表未布局时返回 false（视为图表外）。 */
+    fun contains(cardOffset: Offset): Boolean = chartRect.contains(cardOrigin + cardOffset)
+}
+
+/**
+ * 只放行「图表以外区域」按压的交互源。
+ *
+ * 卡片按压下沉（[SinkFeedback]）只监听这个交互源：
+ * 按在图表上的那次按压会被直接丢弃，卡片就不会跟着下沉，手势留给图表自己。
+ */
+private class ChartAwareInteractionSource(
+    /** 判断卡片坐标系内的按压点是否落在图表上。 */
+    private val isInsideChart: (Offset) -> Boolean,
+) : MutableInteractionSource {
+    private val delegate = MutableInteractionSource()
+
+    /** 当前这次按压是否已被丢弃：丢弃后它对应的 Release/Cancel 也要一并吞掉。 */
+    private var pressSuppressed = false
+
+    override val interactions: Flow<Interaction> get() = delegate.interactions
+
+    override suspend fun emit(interaction: Interaction) {
+        if (shouldPass(interaction)) delegate.emit(interaction)
+    }
+
+    override fun tryEmit(interaction: Interaction): Boolean =
+        !shouldPass(interaction) || delegate.tryEmit(interaction)
+
+    /** 返回该交互是否要放行给下沉特效。 */
+    private fun shouldPass(interaction: Interaction): Boolean {
+        when (interaction) {
+            is PressInteraction.Press -> {
+                // 按在图表上：这次按压不产生下沉
+                pressSuppressed = isInsideChart(interaction.pressPosition)
+                return !pressSuppressed
+            }
+            is PressInteraction.Release, is PressInteraction.Cancel -> {
+                // 结束事件与它的 Press 保持一致，避免特效状态错乱
+                val suppressed = pressSuppressed
+                pressSuppressed = false
+                return !suppressed
+            }
+            else -> return true
+        }
+    }
+}
+
+/**
+ * 图表水平拖动拦截。
+ *
+ * 在 [PointerEventPass.Initial]（事件链最早的一站，比外层 pager / 列表更早看到事件）
+ * 判定方向并抢先消费横向拖动，避免背景 pager 按自己的 touchSlop 先一步抢走手势
+ * （慢滑时表现为“图表没动、页面却翻页了”）；纵向拖动不消费，交给外层列表滚动。
+ *
+ * @param pressedOnChart 手指是否正按在图表上，供卡片长按 / 按压下沉判断。
+ */
+private fun Modifier.claimChartHorizontalDrag(
+    pressedOnChart: MutableState<Boolean>,
+): Modifier = pointerInput(Unit) {
+    // 阈值与系统触摸抖动阈值对齐（背景 pager 用的也是同一个 touchSlop）
+    val horizontalSlop = viewConfiguration.touchSlop
+    try {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            // 通知卡片：这次手势属于图表，长按 / 下沉都要让路
+            pressedOnChart.value = true
+            // 方向判定：null=还没越过阈值，true=横向拖动（消费），false=纵向拖动（交给外层滚动）
+            var horizontalDrag: Boolean? = null
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val pointer = event.changes.firstOrNull { it.id == down.id }
+                if (pointer == null || !pointer.pressed) break // 抬手：本次手势结束
+                if (horizontalDrag == null) {
+                    val dx = abs(pointer.position.x - down.position.x)
+                    val dy = abs(pointer.position.y - down.position.y)
+                    if (dx > horizontalSlop && dx > dy) {
+                        horizontalDrag = true // 横向：归图表
+                    } else if (dy > horizontalSlop && dy > dx) {
+                        horizontalDrag = false // 纵向：让给外层列表滚动，不消费
+                    }
+                }
+                // 横向拖动期间持续消费：父级 pager / 列表收不到事件，就不会跟着滚
+                if (horizontalDrag == true) {
+                    event.changes.fastForEach { if (it.pressed) it.consume() }
+                }
+            }
+            // 手势结束：恢复卡片长按 / 下沉的判断
+            pressedOnChart.value = false
+        }
+    } finally {
+        // 图表被移出组合或手势被中断时兜底复位，
+        // 否则标志会一直为 true，导致这张卡片的长按永久失效。
+        pressedOnChart.value = false
+    }
+}
+
+/**
  * 整行宽图表卡：外层与数据卡一致的 Miuix Card，
  * 内部用 Vico 画柱状图或折线，横轴标签 + 点按 marker。
  *
@@ -218,10 +342,40 @@ fun ChartDataCard(
     val chartType = ChartCatalog.find(key)
     val title = data?.title ?: ChartCatalog.titleFor(key)
     val isEmpty = data?.series.orEmpty().all { it.values.isEmpty() }
+    val haptic = LocalHapticFeedback.current
+
+    /**
+     * 手指此刻是否正按在图表区域内。
+     *
+     * 由图表自己的 pointerInput 维护：卡片长按要避开这块区域，把长按（marker、拖动）留给图表本身，
+     * 避免在图表上竖滑或按住不动时，500ms 后被外层 combinedClickable 误判成“长按卡片 → 进编辑”。
+     */
+    val pressedOnChart = remember { mutableStateOf(false) }
+
+    /** 图表区域（卡片局部坐标）信息，供按压下沉过滤使用。 */
+    val chartBounds = remember { ChartBounds() }
+
+    /** 卡片按压下沉专用交互源：按在图表上时不派发 PressInteraction，卡片就不会下沉。 */
+    val pressSource = remember { ChartAwareInteractionSource(chartBounds::contains) }
 
     // 有点击或长按需求时才套上手势，否则保持纯展示（图表自带 marker 手势不受影响）。
     val clickableModifier = if (onClick != null || onLongClick != null) {
-        Modifier.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
+        Modifier.combinedClickable(
+            onClick = onClick ?: {},
+            // 关闭默认长按震动：按在图表上的长按不算卡片长按，自然也不该震。
+            // 真正的卡片长按在下面手动补震动，保持原有手感。
+            hapticFeedbackEnabled = false,
+            onLongClick = onLongClick?.let { callback ->
+                {
+                    // 按下点落在图表上：这次长按属于图表，不触发卡片长按
+                    if (!pressedOnChart.value) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        AppLog.d("ChartDataCard", "卡片长按命中（图表外）：key=$key")
+                        callback()
+                    }
+                }
+            },
+        )
     } else {
         Modifier
     }
@@ -229,7 +383,10 @@ fun ChartDataCard(
     Card(
         // 这是按压下沉；编辑态（interactive=false）关闭，拖拽时保持“静”的视觉
         modifier = modifier.fillMaxWidth()
-            .then(if (interactive) Modifier.pressable(interactionSource = null, indication = SinkFeedback()) else Modifier),
+            // 记录卡片位置：按压点需要换算到根坐标系才能和图表矩形比较
+            .onGloballyPositioned { chartBounds.cardOrigin = it.positionInRoot() }
+            // 下沉特效挂在专用交互源上，按在图表区域时不会下沉
+            .then(if (interactive) Modifier.pressable(interactionSource = pressSource, indication = SinkFeedback()) else Modifier),
         colors = colors,
     ) {
         Box(
@@ -253,39 +410,12 @@ fun ChartDataCard(
                         markerEnabled = interactive && onClick == null,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    var downOffset: Offset? = null
-                                    var isHorizontalScrolling = false
-                                    val scrollThreshold = 12.dp.toPx()
-                                    while (true) {
-                                        val event = awaitPointerEvent()
-                                        val pressedChange = event.changes.firstOrNull { it.pressed }
-                                        if (pressedChange != null) {
-                                            // 记录首次按下位置
-                                            if (downOffset == null) {
-                                                downOffset = pressedChange.position
-                                                isHorizontalScrolling = false
-                                            } else if (!isHorizontalScrolling) {
-                                                // 检测是否发生水平滑动：水平位移超过阈值且大于垂直位移
-                                                val dx = abs(pressedChange.position.x - downOffset.x)
-                                                val dy = abs(pressedChange.position.y - downOffset.y)
-                                                if (dx > scrollThreshold && dx > dy) {
-                                                    isHorizontalScrolling = true
-                                                }
-                                            }
-                                            // 仅水平滑动时消费事件（防止背景页面跟着动）
-                                            if (isHorizontalScrolling) {
-                                                event.changes.fastForEach { it.consume() }
-                                            }
-                                        } else {
-                                            // 手指抬起，重置状态
-                                            downOffset = null
-                                            isHorizontalScrolling = false
-                                        }
-                                    }
-                                }
-                            },
+                            // 记录图表矩形（根坐标系），卡片据此判断按压是否落在图表上
+                            .onGloballyPositioned { coords ->
+                                chartBounds.chartRect = Rect(coords.positionInRoot(), coords.size.toSize())
+                            }
+                            // 编辑态（interactive=false）完全不挂图表手势：避免吞掉编辑网格的拖拽 / 滚动
+                            .then(if (interactive) Modifier.claimChartHorizontalDrag(pressedOnChart) else Modifier),
                     )
                 }
             }
