@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
 import android.app.Application
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,6 +47,8 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.content.BlackedType
 import com.hrsthrt74.afdian.data.content.ReceivedShipmentFilter
 import com.hrsthrt74.afdian.data.content.ReceivedSponsor
 import com.hrsthrt74.afdian.data.content.ReceivedSponsorsSort
@@ -64,10 +68,15 @@ import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.screens.main.account.BlackActionsContent
+import com.hrsthrt74.afdian.ui.screens.main.account.BlackRequestDialog
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
@@ -124,7 +133,8 @@ fun ReceivedSponsorsScreen(
     onOrderClick: (ReceivedSponsor) -> Unit = {},
     providedViewModel: ReceivedSponsorsViewModel? = null,
 ) {
-    val application = LocalContext.current.applicationContext as Application
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
     val viewModel = providedViewModel ?: viewModel<ReceivedSponsorsViewModel>(
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application),
     )
@@ -141,6 +151,11 @@ fun ReceivedSponsorsScreen(
     val timeRange by viewModel.timeRange.collectAsState()
     var pullRefreshing by rememberSaveable { mutableStateOf(false) }
     var selectedOrder by remember { mutableStateOf<ReceivedSponsor?>(null) }
+    // 加入屏蔽 / 拒绝名单：待确认动作（决定弹窗文案与确认行为）+ 提交中标记（防连点）
+    var pendingBlackType by remember { mutableStateOf<BlackedType?>(null) }
+    var blackPending by remember { mutableStateOf(false) }
+    val blackDialogState = rememberDialogState()
+    val coroutineScope = rememberCoroutineScope()
     var showMoreFilters by rememberSaveable { mutableStateOf(false) }
     var showSortPopup by rememberSaveable { mutableStateOf(false) }
     var searchActive by rememberSaveable { mutableStateOf(false) }
@@ -182,6 +197,59 @@ fun ReceivedSponsorsScreen(
     val themeSettings = LocalThemeSettings.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     val haptic = LocalHapticFeedback.current
+
+    // 「音酱」链接：收起弹窗与详情 Sheet 后进入与爱发电客服的会话
+    // （本文件没有 MainScreen 内的 pushUnique 扩展，按会话页写法先查重再压栈）
+    val openCustomerService: () -> Unit = {
+        blackDialogState.dismiss()
+        selectedOrder = null
+        val customerServiceOpen = backStack.any {
+            it is Route.MessageConversation && it.userId == AFDIAN_CUSTOMER_SERVICE_ID
+        }
+        if (!customerServiceOpen) {
+            backStack.add(
+                Route.MessageConversation(
+                    userId = AFDIAN_CUSTOMER_SERVICE_ID,
+                    // 会话页标题用官方名「Lain音酱」
+                    userName = "Lain音酱",
+                    avatarUrl = AFDIAN_CUSTOMER_SERVICE_AVATAR,
+                )
+            )
+        }
+    }
+
+    // 弹窗确认回调：调用 black 接口；成功 Toast 服务端文案并收起详情 Sheet，失败 Toast 错误信息
+    val submitBlack: (BlackedType) -> Unit = { type ->
+        val target = selectedOrder
+        if (!blackPending && target != null) {
+            coroutineScope.launch {
+                blackPending = true
+                try {
+                    val message = viewModel.blackUser(target.userId, type)
+                    AppLog.d(
+                        "ReceivedSponsors",
+                        "blackUser ${target.userId} type=${type.wire} 成功：$message",
+                    )
+                    Toast.makeText(context, message.ifBlank { "已加入名单" }, Toast.LENGTH_SHORT)
+                        .show()
+                    // 操作完成后收起详情 Sheet，订单列表保持不变
+                    selectedOrder = null
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AppLog.e(
+                        "ReceivedSponsors",
+                        "blackUser ${target.userId} type=${type.wire} 失败",
+                        e,
+                    )
+                    Toast.makeText(context, e.message ?: "操作失败，请稍后重试", Toast.LENGTH_SHORT)
+                        .show()
+                } finally {
+                    blackPending = false
+                }
+            }
+        }
+    }
 
     LaunchedEffect(pullRefreshing) {
         if (pullRefreshing) viewModel.refresh()
@@ -444,6 +512,13 @@ fun ReceivedSponsorsScreen(
         }
         ReceivedSponsorDetailSheet(
             order = selectedOrder,
+            blackPending = blackPending,
+            onBlackRequest = { type ->
+                // 点按钮先轻震一下再弹确认弹窗（反馈强度与私信会话页一致）
+                haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                pendingBlackType = type
+                blackDialogState.show()
+            },
             onDismiss = { selectedOrder = null },
             onOpenConversation = { order ->
                 selectedOrder = null
@@ -455,6 +530,14 @@ fun ReceivedSponsorsScreen(
                     )
                 )
             },
+        )
+        // 加入屏蔽 / 拒绝确认弹窗：放在详情 Sheet 之后组合，保证 Dialog 窗口处于最上层
+        BlackRequestDialog(
+            state = blackDialogState,
+            type = pendingBlackType,
+            onDismissed = { pendingBlackType = null },
+            onConfirm = submitBlack,
+            onOpenCustomerService = openCustomerService,
         )
         ReceivedSponsorFilterSheet(
             show = showMoreFilters,
@@ -798,6 +881,8 @@ private fun SponsorField(label: String, value: String) {
 @Composable
 private fun ReceivedSponsorDetailSheet(
     order: ReceivedSponsor?,
+    blackPending: Boolean,
+    onBlackRequest: (BlackedType) -> Unit,
     onDismiss: () -> Unit,
     onOpenConversation: (ReceivedSponsor) -> Unit,
 ) {
@@ -907,6 +992,17 @@ private fun ReceivedSponsorDetailSheet(
                             current.expressNo?.let { SponsorDetailField("快递单号", it) }
                             current.orderRemark?.let { SponsorDetailField("备注", it) }
                         }
+                    }
+                }
+
+                // 加入屏蔽 / 拒绝名单：客服账号不显示，避免误屏蔽官方客服（与私信会话页一致）；
+                // 作为列表最后一项，随订单信息一起滚动
+                if (current.userId != AFDIAN_CUSTOMER_SERVICE_ID) {
+                    item(key = "black-actions") {
+                        BlackActionsContent(
+                            blackPending = blackPending,
+                            onBlackRequest = onBlackRequest,
+                        )
                     }
                 }
             }

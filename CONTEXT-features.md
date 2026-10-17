@@ -228,6 +228,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 筛选：筛选 Chip（与排序 Chip 并排）弹**双层 WindowListPopup 级联**（对齐网页「筛选档位」dialog，载体为 popup）：第一层条件构建主页（锚 Chip）= 条件行（type 段/操作段/value 段三段 AppChip + 删除）+「新增筛选项」多条件（最多 4 行，AND 关系）+「清除/确定」；点段时从**该段自身**叠弹第二层选择视图（段级 popup 组合在主页内容的段 Box 内，主页/子层均为全屏透明 Dialog 坐标系对齐，`enableWindowDim=false`），选完只关第二层，点外先关第二层再关主页。4 种 type（正在赞助 `sponsoring`/赞助过 `sponsored`/累计金额 `all_sum_amount`/赞助月份 `month`）、方案型动作 包含/不包含（`=`/`!=`）、金额型动作 `>=` `<=` `≠(!=)` `>` `=` `<`（展示用 ≥/≤/≠，抓包验证）、月份型固定 `=`；value 按类型分流：方案列表（`GET /api/creator/all-plans`，list+sale_list 去重、排除 0 元）/ 金额数字输入 / **月份多选**（自定义 4 位年份 + 1–12 月格跨年累加，YYYYMM 降序，提交时 value=`"202610,202609"` 逗号串 + `month_value` 名值数组，抓包协议）。草稿与已应用分离（打开主页时重置），「确定」只提交完整行（未选方案/空数值 = 该行不生效，等价官方「全部」），Chip 摘要：无条件「筛选档位」/ 单条条件摘要 / 多条「筛选 (N)」；切换回第 1 页重载（加载中不响应）。
 - 展示：「共 N 名赞助者」统计 + 卡片列表（头像 / 昵称 / 当前方案或「无」/ 累计金额 / 最近赞助相对时间），`LoadMoreEffect` 滚动加载。
 - 行点击弹 `WindowBottomSheet` 详情：头像昵称、当前方案、累计金额 DataCard、初次/最近赞助绝对时间、赞助过的方案列表、「查看主页」跳 `Route.CreatorDetail`。
+- 详情 Sheet 末尾（「查看主页」之后）支持「加入屏蔽列表 / 加入拒绝列表」：复用私信会话页的共享组件 `account/BlacklistActions.kt`（按钮区 + 破坏性确认弹窗 + 名单效果说明 + 拒绝类型的「@Lain音酱」客服链接），提交走 `SponsorManageViewModel.blackUser` → `AfadianContentService.black`（`POST /api/user/black`）；成功后 Toast 服务端文案并收起 Sheet，**不删除列表条目、不重载列表**（拉黑不改变历史赞助记录），名单在「屏蔽与拒绝名单」页管理。客服账号（`AFDIAN_CUSTOMER_SERVICE_ID`）不显示该操作区。
 - 模型：`SponsorManageItem` / `SponsorPlanBrief` / `SponsorManagePage` / `SponsorManageSort` / `SponsorFilterPlan` / `SponsorFilterType` / `SponsorFilterAction` / `SponsorFilterRow` / `monthDisplayName()`（ContentModels.kt）；解析/构建为顶层 `internal parseSponsorManagePage` / `parseFilterPlans` / `buildSponsorFilterArray`（`SponsorManageParserTest` / `SponsorFilterPlanParserTest` / `SponsorFilterBuildTest` 覆盖），plan 的巨型 HTML desc 不映射。
 - 不含：官方面板的「自选金额」快捷项、条件行数上限 4 以上的扩展、导出、群发私信（群发私信按需求永久排除）。
 
@@ -239,6 +240,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 时间请求参数使用 `begin_time` / `end_time` Unix 秒，任一边界可为空；结束上界取选中分钟的第 59 秒（接口按半开区间处理）。
 - 时间选择器复用通用组件 `DateTimeField`（日期 / 时间双滚轮，年份范围 2018–2100）；`ReceivedTimeRange` 以毫秒存储，未设置的边界在界面上回落到「今天」，只有拨动滚轮才会写入，「清除」按钮恢复为不限。
 - 卡片上半部分进入私信，下半部分打开订单详情 Sheet；支持展示捆绑包优惠和兑换码提示。
+- 订单详情 Sheet 末尾支持「加入屏蔽列表 / 加入拒绝列表」（与赞助者管理详情 Sheet 共用 `account/BlacklistActions.kt`）：提交走 `ReceivedSponsorsViewModel.blackUser` → `POST /api/user/black`，成功后 Toast 服务端文案并收起 Sheet，订单列表保持不变；客服账号不显示该操作区。
 - 日期分组：仅当排序为「新订单在前」且没有任何筛选（兑换码 / 有留言 / 发货状态 / 时间范围）与搜索时，列表才插入「今天 / 昨天 / 更早」标题；某段没有订单时不显示该段标题，只要存在筛选或搜索就整体平铺不做分组。
 
 ## 浏览历史（HistoryScreen）

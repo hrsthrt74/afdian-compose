@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
+import com.hrsthrt74.afdian.data.content.AfadianContentService
+import com.hrsthrt74.afdian.data.content.BlackedType
 import com.hrsthrt74.afdian.data.content.ManagementService
 import com.hrsthrt74.afdian.data.content.SponsorFilterPlan
 import com.hrsthrt74.afdian.data.content.SponsorFilterRow
@@ -27,6 +29,8 @@ import kotlinx.coroutines.withContext
  */
 class SponsorManageViewModel(application: Application) : AndroidViewModel(application) {
     private val service = ManagementService(AuthTokenStore(application))
+    // 名单操作走内容门面（与 MessagesViewModel 一致），与列表查询的 ManagementService 分离
+    private val contentService = AfadianContentService(AuthTokenStore(application))
 
     /** 当前列表（按接口顺序追加） */
     private val _sponsors = MutableStateFlow<List<SponsorManageItem>>(emptyList())
@@ -167,6 +171,16 @@ class SponsorManageViewModel(application: Application) : AndroidViewModel(applic
             }
         }
     }
+
+    /**
+     * 加入屏蔽 / 拒绝名单（POST /api/user/black）。
+     * 返回服务端提示文案（如「已加入屏蔽名单」）；失败抛出异常，由调用方 Toast。
+     *
+     * @param userId 赞助者用户 ID（SponsorManageItem.userId）
+     * @param type 名单类型：屏蔽（block）/ 拒绝（reject）
+     */
+    suspend fun blackUser(userId: String, type: BlackedType): String =
+        withContext(Dispatchers.IO) { contentService.black(userId, type) }
 
     /**
      * 是否还有下一页：优先用接口 total_page 判断；

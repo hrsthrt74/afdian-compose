@@ -59,7 +59,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -74,7 +73,6 @@ import com.hrsthrt74.afdian.data.settings.ThemeSettings
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.MessageBubble
 import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
-import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
@@ -87,9 +85,8 @@ import com.hrsthrt74.afdian.ui.components.basic.progressiveBlurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.navigation.Route
-import com.hrsthrt74.afdian.ui.screens.main.account.BLOCK_INTRO_LINES
-import com.hrsthrt74.afdian.ui.screens.main.account.REJECT_INTRO_LINES
-import com.hrsthrt74.afdian.ui.screens.main.account.customerServiceContactText
+import com.hrsthrt74.afdian.ui.screens.main.account.BlackActionsContent
+import com.hrsthrt74.afdian.ui.screens.main.account.BlackRequestDialog
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.MessagesViewModel
@@ -110,7 +107,6 @@ import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults.textFieldColors
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
@@ -560,46 +556,14 @@ SponsorDetailSheet(
 )
 
 // 加入屏蔽 / 拒绝确认弹窗（破坏性：确认按钮变红）；
-// 说明文字与屏蔽页顶部的说明卡片共用同一份数据（不含「长按卡片可移除」——那是名单页的操作提示）
-AppDialog(
+// 弹窗实现与赞助者管理详情弹层共用（account/BlacklistActions.kt），保证两处文案与样式不脱节
+BlackRequestDialog(
     state = blackDialogState,
-    title = pendingBlackType?.let {
-        if (it == BlackedType.Block) "加入屏蔽列表" else "加入拒绝列表"
-    }.orEmpty(),
-    confirmText = pendingBlackType?.let {
-        if (it == BlackedType.Block) "加入屏蔽" else "加入拒绝"
-    } ?: "确认",
-    destructive = true,
+    type = pendingBlackType,
     onDismissed = { pendingBlackType = null },
-    onConfirm = { pendingBlackType?.let(submitBlack) },
-) {
-    Column(
-        // 底部留 12dp：说明文字与「取消 / 加入」按钮区拉开距离（AppDialog 自身还有 4dp 间隔）
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        // 效果说明：按动作类型取对应文案
-        val introLines = if (pendingBlackType == BlackedType.Reject) REJECT_INTRO_LINES else BLOCK_INTRO_LINES
-        introLines.forEach { line ->
-            Text(
-                text = "• $line",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-        }
-        // 拒绝弹窗多一条客服指引：「@Lain音酱」可点进入客服会话
-        if (pendingBlackType == BlackedType.Reject) {
-            Text(
-                text = AnnotatedString("• ") + customerServiceContactText(
-                    linkColor = MiuixTheme.colorScheme.primary,
-                    onOpenCustomerService = openCustomerService,
-                ),
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-        }
-    }
-}
+    onConfirm = submitBlack,
+    onOpenCustomerService = openCustomerService,
+)
 }
 
 /**
@@ -753,42 +717,6 @@ private fun SponsorDetailSheet(
                 }
             }
         }
-    }
-}
-
-/**
- * 「加入屏蔽列表 / 加入拒绝列表」操作区：分割线 + 竖排两个按钮。
- *
- * @param blackPending 是否正在提交屏蔽/拒绝请求，为 true 时禁用按钮防连点
- * @param onBlackRequest 点击加入按钮（参数为名单类型），由调用方弹确认弹窗
- */
-@Composable
-private fun BlackActionsContent(
-    blackPending: Boolean,
-    onBlackRequest: (BlackedType) -> Unit,
-) {
-    // 分割线：与上方内容区分隔（边距对齐两个分区之间的分割线样式）
-    HorizontalDivider(
-        modifier = Modifier
-            .padding(horizontal = 4.dp)
-            .padding(top = 16.dp, bottom = 4.dp),
-    )
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        TextButton(
-            text = "加入屏蔽列表",
-            enabled = !blackPending,
-            onClick = { onBlackRequest(BlackedType.Block) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        TextButton(
-            text = "加入拒绝列表",
-            enabled = !blackPending,
-            onClick = { onBlackRequest(BlackedType.Reject) },
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 
