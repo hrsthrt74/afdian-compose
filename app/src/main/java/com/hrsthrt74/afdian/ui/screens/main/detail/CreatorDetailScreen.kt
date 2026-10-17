@@ -83,7 +83,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 private enum class CreatorSection { Plans, Products, Albums, Posts, Sponsors }
 
 @Composable
-fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, backStack: NavBackStack, onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit = {}) {
+fun CreatorDetailScreen(user: AfadianUser, onBack: () -> Unit, backStack: NavBackStack, onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost, Boolean) -> Unit = { _, _ -> }) {
     val app = LocalContext.current.applicationContext as Application
     val vm: CreatorDetailViewModel = viewModel(
         key = "creator-${user.user_id}",
@@ -196,7 +196,7 @@ private fun CreatorDetailContent(
     listState: androidx.compose.foundation.lazy.LazyListState,
     scrollBehavior: ScrollBehavior,
     topPadding: Dp,
-    onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
+    onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost, Boolean) -> Unit,
     onOpenPlan: (String) -> Unit,
     onSponsor: () -> Unit,
 ) {
@@ -549,7 +549,7 @@ private fun CreatorAlbumsSection(detail: CreatorDetail) {
 }
 
 @Composable
-private fun CreatorPostsSection(detail: CreatorDetail, onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit) {
+private fun CreatorPostsSection(detail: CreatorDetail, onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost, Boolean) -> Unit) {
     // 把该创作者动态里的服务端点赞状态（has_like）播种进全局互动状态，
     // 否则这里看到的「已赞」高亮会不准（操作栏读的是全局单例）
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -563,7 +563,8 @@ private fun CreatorPostsSection(detail: CreatorDetail, onOpenPost: (com.hrsthrt7
             post = post,
             profile = detail.profile,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-            onClick = { onOpenPost(post) },
+            // 点卡片/评论列都会打开详情，参数 true 表示落点是评论区
+            onClick = { toComments -> onOpenPost(post, toComments) },
         )
     }
 }

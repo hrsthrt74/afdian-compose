@@ -160,6 +160,135 @@ internal class FeedService(
     suspend fun markPost(postID: String) = postPostAction("/api/user/mark-post", postID)
     suspend fun unmarkPost(postID: String) = postPostAction("/api/user/unmark-post", postID)
 
+    // ──────── 评论（只读 + 点赞，不含发布/删除）────────
+
+    /**
+     * 拉取动态的评论列表（`GET /api/comment/get-list`）。
+     *
+     * 游标分页：首屏传空串，之后传上一页 [CommentListPage.nextPublishSn]，
+     * 服务端返回严格早于该 publish_sn 的评论。
+     *
+     * ⚠️ 热门评论（`data.hot_list`）**必须显式传 `hot=1` 才会下发**，
+     * 不传这个参数时服务端连 key 都不返回（实测）。而且只有首屏（游标为空）才返回，
+     * 翻页时 hot_list 是空数组——所以这里只在首屏拼 `hot=1`，后续页天然不会重复。
+     *
+     * 该接口匿名也能读，未登录时 `has_like` 为 null（按未赞处理）。
+     */
+    suspend fun fetchCommentList(postId: String, publishSn: String = ""): CommentListPage {
+        val url = "$IFDIAN_HOST/api/comment/get-list".toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("post_id", postId)
+            .addQueryParameter("publish_sn", publishSn)
+            .addQueryParameter("type", "old")
+            .apply { if (publishSn.isBlank()) addQueryParameter("hot", "1") }
+            .build()
+        val start = System.currentTimeMillis()
+        return http.execute(commentGetRequest(url, postId)).use { response ->
+            val root = response.requireJson(TAG, "/api/comment/get-list", postId, start)
+            root.requireAfdianSuccess(TAG, "/api/comment/get-list", "评论加载失败")
+            parseCommentPage(root).also { page ->
+                AppLog.d(
+                    TAG,
+                    "/api/comment/get-list post_id=$postId sn=$publishSn -> " +
+                        "HTTP ${response.code}（${System.currentTimeMillis() - start}ms），" +
+                        "返回 ${page.comments.size} 条，has_more=${page.hasMore}"
+                )
+            }
+        }
+    }
+
+    /**
+     * 拉取某条根评论的完整回复列表（`GET /api/comment/get-sub-list`）。
+     *
+     * 主列表接口只内嵌前几条楼中楼，`sub_comment_has_more == 1` 时用它补齐；
+     * 回复同样按 publish_sn 游标翻页。
+     */
+    suspend fun fetchSubComments(
+        postId: String,
+        rootCommentId: String,
+        publishSn: String = "",
+    ): CommentListPage {
+        val url = "$IFDIAN_HOST/api/comment/get-sub-list".toHttpUrl().newBuilder()
+            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("post_id", postId)
+            .addQueryParameter("root_comment_id", rootCommentId)
+            .addQueryParameter("publish_sn", publishSn)
+            .build()
+        val start = System.currentTimeMillis()
+        return http.execute(commentGetRequest(url, postId)).use { response ->
+            val root = response.requireJson(TAG, "/api/comment/get-sub-list", postId, start)
+            root.requireAfdianSuccess(TAG, "/api/comment/get-sub-list", "回复加载失败")
+            parseCommentPage(root).also { page ->
+                AppLog.d(
+                    TAG,
+                    "/api/comment/get-sub-list root=$rootCommentId sn=$publishSn -> " +
+                        "HTTP ${response.code}（${System.currentTimeMillis() - start}ms），" +
+                        "返回 ${page.comments.size} 条，has_more=${page.hasMore}"
+                )
+            }
+        }
+    }
+
+    /** 评论点赞（`POST /api/comment/like`），需要登录 */
+    suspend fun likeComment(commentId: String) = postCommentAction("/api/comment/like", commentId)
+
+    /** 取消评论点赞（`POST /api/comment/unlike`），需要登录 */
+    suspend fun unlikeComment(commentId: String) = postCommentAction("/api/comment/unlike", commentId)
+
+    /** 评论类 GET 请求：与 get-detail 一样补 Referer / 版本 / 语言头，否则服务端会返回降级内容 */
+    private fun commentGetRequest(url: okhttp3.HttpUrl, postId: String): Request =
+        Request.Builder().url(url).get()
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("Referer", "$IFDIAN_HOST/p/$postId")
+            .header("afd-fe-version", "1.20.10")
+            .header("locale-lang", "zh-CN")
+            .build()
+
+    /** 统一取出响应体并解析成 JSON 对象，HTTP 非 2xx 直接抛带上下文的异常 */
+    private fun okhttp3.Response.requireJson(
+        tag: String,
+        path: String,
+        postId: String,
+        start: Long,
+    ): JsonObject {
+        if (!isSuccessful) {
+            AppLog.e(tag, "$path post_id=$postId -> HTTP $code（${System.currentTimeMillis() - start}ms）")
+            error("评论加载失败 ($code)")
+        }
+        return json.parseToJsonElement(body.string()).jsonObject
+    }
+
+    /** 评论点赞/取消：POST JSON `{comment_id}`，与动态点赞同一套写法（写请求不自动重试） */
+    private fun postCommentAction(path: String, commentId: String) {
+        val body = json.encodeToString(
+            JsonObject.serializer(),
+            buildJsonObject {
+                put("comment_id", commentId)
+                put("auth_token", tokenStore.token)
+            },
+        ).toRequestBody("application/json".toMediaType())
+        val request = Request.Builder()
+            .url(AFDIAN_HOST + path)
+            .post(body)
+            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("referer", "$AFDIAN_HOST/")
+            .build()
+        val start = System.currentTimeMillis()
+        http.execute(request).use { response ->
+            if (!response.isSuccessful) {
+                AppLog.w(TAG, "$path comment_id=$commentId -> HTTP ${response.code}，操作失败")
+                error("操作失败 (${response.code})")
+            }
+            val bodyText = response.body.string()
+            if (bodyText.isNotBlank()) {
+                runCatching { json.parseToJsonElement(bodyText).jsonObject }
+                    .getOrNull()
+                    ?.requireAfdianSuccess(TAG, path, "操作失败")
+            }
+            AppLog.d(TAG, "$path comment_id=$commentId -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
+        }
+    }
+
     private fun postUserAction(path: String, userID: String) {
         val body = json.encodeToString(
             JsonObject.serializer(),

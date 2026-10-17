@@ -114,7 +114,7 @@ import kotlin.math.roundToInt
 fun DiscoverScreen(
     viewModel: MainViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
-    onOpenPost: (RecommendedPost) -> Unit = {},
+    onOpenPost: (RecommendedPost, Boolean) -> Unit = { _, _ -> }, // toComments=true 来自评论按钮，详情页会滚到评论区
     // 本页是否为底部导航选中的页：用户点 navbar 切走时立即变 false，
     // 据此在切走瞬间关闭搜索面板（搜索激活时 pager 已被外壳禁滑，navbar 是唯一离开途径）
     isPageSelected: Boolean = true,
@@ -320,7 +320,8 @@ fun DiscoverScreen(
                             post = post,
                             profile = post.user,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                            onClick = { onOpenPost(post) },
+                            // 点卡片/评论列都会打开详情，参数 true 表示落点是评论区（评论只在详情页展示）
+                            onClick = { toComments -> onOpenPost(post, toComments) },
                             onCreatorClick = origin.onClick { onOpenCreator(post.user) },
                             showDoing = true,
                             creatorOrigin = origin,

@@ -31,6 +31,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param marked 覆盖「是否已收藏」显示；不传则读全局状态
  * @param onLikeToggle 覆盖点赞点击动作；不传则走全局 toggle
  * @param onMarkToggle 覆盖收藏点击动作；不传则走全局 toggle
+ * @param onCommentClick 评论按钮点击回调；不传则评论列纯展示不可点。
+ *   一般由 [PostCard] 从卡片点击回调派生（落点为评论区），只有详情页会直接传「滚到评论区」。
  */
 @Composable
 fun PostActionBar(
@@ -39,6 +41,7 @@ fun PostActionBar(
     marked: Boolean? = null,
     onLikeToggle: (() -> Unit)? = null,
     onMarkToggle: (() -> Unit)? = null,
+    onCommentClick: (() -> Unit)? = null,
 ) {
     // 全局互动状态：所有页面的操作栏共享同一份「已赞/已收藏」集合
     val interactions = PostInteractionController.get(LocalContext.current)
@@ -73,11 +76,12 @@ fun PostActionBar(
                 contentDescription = if (likedNow) "取消点赞" else "点赞",
                 onClick = likeAction,
             ),
-            // ── 评论：仅展示计数，onClick 留空 = 纯展示不可点 ──
+            // ── 评论：展示计数；onCommentClick 为空时退化成纯展示（onClick = null）──
             CardActionBarItem(
                 icon = MiuixIcons.Community,
                 label = "$commentCount",
                 contentDescription = "评论",
+                onClick = onCommentClick,
             ),
             // ── 收藏：没有计数，直接显示「收藏」二字 ──
             CardActionBarItem(

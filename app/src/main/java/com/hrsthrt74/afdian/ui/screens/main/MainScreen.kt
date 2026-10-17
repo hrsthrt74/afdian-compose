@@ -10,7 +10,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,16 +23,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
-import com.hrsthrt74.afdian.R
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.AfadianUser
@@ -46,9 +45,9 @@ import com.hrsthrt74.afdian.ui.components.PlanDetailSheet
 import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
+import com.hrsthrt74.afdian.ui.navigation.AppLinkNavigator
 import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
 import com.hrsthrt74.afdian.ui.navigation.AppNavTransitionWithoutSwipe
-import com.hrsthrt74.afdian.ui.navigation.AppLinkNavigator
 import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
@@ -84,14 +83,13 @@ import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
-import top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
@@ -253,8 +251,11 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 messagesViewModel = messagesViewModel,
                 historyViewModel = historyViewModel,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
-                // 动态卡片点击 → 动态详情页（携带列表页已有数据秒开）
-                onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
+                // 动态卡片点击 → 动态详情页（携带列表页已有数据秒开）；
+                // 点评论按钮进来时带 scrollToComments，详情页会滚到评论区
+                onOpenPost = { post, toComments ->
+                    backStack.pushUnique(Route.PostDetail(post, scrollToComments = toComments))
+                },
                 onOpenConversation = { userId, userName, avatarUrl -> backStack.pushUnique(Route.MessageConversation(userId, userName, avatarUrl)) },
                 requestedTab = requestedMainTab,
                 onRequestedTabConsumed = { requestedMainTab = null },
@@ -270,7 +271,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             transition = CreatorDetailTransition,
         ) { route ->
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() }, backStack = backStack, onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) })
+            CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() }, backStack = backStack, onOpenPost = { post, toComments -> backStack.pushUnique(Route.PostDetail(post, scrollToComments = toComments)) })
         }
         // 动态详情：全文正文 HTML 渲染 + 分享/点赞/收藏
         entry<Route.PostDetail> { route ->
@@ -282,6 +283,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
                 onOpenUrl = appLinkNavigator::open,
+                scrollToComments = route.scrollToComments,
             )
         }
         // 按 id 打开动态详情：用只占 post_id 的占位 post 复用详情页，
@@ -295,6 +297,7 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
                 onNavigateToPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
                 onOpenUrl = appLinkNavigator::open,
+                scrollToComments = route.scrollToComments,
             )
         }
         entry<Route.MessageConversation> { route ->
@@ -324,7 +327,9 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             FavoritesScreen(
                 vm,
                 onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) },
-                onOpenPost = { post -> backStack.pushUnique(Route.PostDetail(post)) },
+                onOpenPost = { post, toComments ->
+                    backStack.pushUnique(Route.PostDetail(post, scrollToComments = toComments))
+                },
                 backStack = backStack
             ) {
                 backStack.removeLastOrNull()
@@ -592,7 +597,7 @@ private fun MainTabsContent(
     messagesViewModel: MessagesViewModel,
     historyViewModel: HistoryViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
-    onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost) -> Unit,
+    onOpenPost: (com.hrsthrt74.afdian.data.content.RecommendedPost, Boolean) -> Unit,
     onOpenConversation: (String, String, String?) -> Unit,
     onNavigate: (Route) -> Unit,
     requestedTab: Int?,
@@ -773,7 +778,7 @@ private fun MainTabsContent(
                         onOpenHistoryEntry = { entry ->
                             when (val target = entry.target) {
                                 is HistoryTarget.CreatorDetailTarget -> onOpenCreator(target.toAfadianUser())
-                                is HistoryTarget.PostDetailTarget -> onOpenPost(target.toRecommendedPost())
+                                is HistoryTarget.PostDetailTarget -> onOpenPost(target.toRecommendedPost(), false)
                                 // 私信会话：复用现有的会话页跳转
                                 is HistoryTarget.MessageConversationTarget ->
                                     onOpenConversation(target.userId, target.name, target.avatarUrl)

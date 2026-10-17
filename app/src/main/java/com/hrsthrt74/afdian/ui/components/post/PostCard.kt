@@ -42,6 +42,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param post 动态数据
  * @param profile 创作者信息（用于显示头像和用户名）
   * @param modifier 外部修饰符，调用方可自行设置边距
+ * @param onClick 「打开这条动态」的统一回调；参数 `openComments` 标明用户点的是哪里：
+ *   - false：点了卡片本身 → 调用方打开详情页，停在顶部；
+ *   - true：点了操作栏的评论列 → 调用方打开详情页并滚到评论区。
+ *   传 null 表示卡片整体不可点，评论列也随之退化成纯展示。
  * @param onCreatorClick 点击头像/用户名的回调，传 null 则不可点击
  * @param showDoing 是否显示「正在创作……」，默认不显示
  * @param creatorOrigin 创作者主页展开动画的起点捕获器；
@@ -49,13 +53,16 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  *
  * 点赞/收藏无需外部传入：操作栏（PostActionBar）内置全局互动状态，
  * 所有页面的卡片自动可点赞收藏且状态同步。
+ *
+ * 评论列的动作无需额外传参：点和卡片本身一样都是「打开这条动态」，
+ * 区别只是落点（顶部 / 评论区），由 [onClick] 的 `openComments` 参数统一表达。
  */
 @Composable
 fun PostCard(
     post: RecommendedPost,
     profile: AfadianUser,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
+    onClick: ((openComments: Boolean) -> Unit)? = null,
     onCreatorClick: (() -> Unit)? = null,
     showDoing: Boolean = false,
     creatorOrigin: CreatorOrigin? = null,
@@ -66,11 +73,23 @@ fun PostCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .then(
+                    if (onClick != null) {
+                        // 点卡片本身：openComments = false，打开详情停在顶部
+                        Modifier.clickable { onClick(false) }
+                    } else {
+                        Modifier
+                    }
+                )
         ) {
             PostHeader(post = post, profile = profile, onCreatorClick = onCreatorClick, showDoing = showDoing, origin = creatorOrigin)
             PostContent(post = post, onCreatorClick = onCreatorClick)
-            PostActionBar(post)
+            // 评论列：与卡片点击同一条回调，只把落点标记成「评论区」，
+            // 各页面因此不需要再单独传一个 onCommentClick
+            PostActionBar(
+                post = post,
+                onCommentClick = onClick?.let { cb -> { cb(true) } },
+            )
         }
     }
 }

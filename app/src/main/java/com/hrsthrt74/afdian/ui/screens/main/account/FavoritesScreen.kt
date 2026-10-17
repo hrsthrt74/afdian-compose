@@ -87,7 +87,7 @@ private const val FavoritesScreenLogTag = "Favorites"
 fun FavoritesScreen(
     viewModel: FavoritesViewModel,
     onOpenCreator: (AfadianUser) -> Unit,
-    onOpenPost: (RecommendedPost) -> Unit = {},
+    onOpenPost: (RecommendedPost, Boolean) -> Unit = { _, _ -> }, // toComments=true 来自评论按钮
     backStack: NavBackStack,
     onBack: () -> Unit,
 ) {
@@ -227,7 +227,7 @@ private fun FavoritesTabList(
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
     onOpenCreator: (AfadianUser) -> Unit,
-    onOpenPost: (RecommendedPost) -> Unit,
+    onOpenPost: (RecommendedPost, Boolean) -> Unit,
 ) {
     // 滚动到底部附近自动加载下一页（动态 tab 专属）。
     // 只让「正在展示的 tab」触发，转场中正在退场的旧页不接着翻页。
@@ -280,7 +280,8 @@ private fun FavoritesTabList(
                         post = post,
                         profile = post.user,
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                        onClick = { onOpenPost(post) },
+                        // 点卡片/评论列都会打开详情，参数 true 表示落点是评论区
+                        onClick = { toComments -> onOpenPost(post, toComments) },
                         onCreatorClick = origin.onClick { onOpenCreator(post.user) },
                         showDoing = true,
                         creatorOrigin = origin,

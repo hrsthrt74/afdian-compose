@@ -110,14 +110,97 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - pics 数组图片：正文无 `<img>` 时逐张全宽展示。
 - 上一篇 / 下一篇导航卡片。
 - 文章末尾再次展示创作者头部。
+- **评论区固定在页面最底部**（末尾创作者卡片之后），详见下节。
 - 分享功能：调起系统分享面板，分享 `https://afdian.com/p/{post_id}`。
+
+## 动态评论区（只读 + 点赞）
+
+**本轮范围**：只读评论 + 评论点赞。**不做**发评论 / 回复 / 删除。
+
+- 接口（均为 Cookie 认证，匿名也能读；未登录时 `has_like` 为 null，按未赞处理）：
+  - `GET /api/comment/get-list?post_id=&publish_sn=&type=old`（`FeedService.fetchCommentList`）
+  - `GET /api/comment/get-sub-list?post_id=&root_comment_id=&publish_sn=`（`fetchSubComments`）
+  - `POST /api/comment/like` / `/api/comment/unlike`，body `{comment_id}`（写请求不自动重试）
+- **游标分页**：传上一页最旧一条的 `publish_sn`，服务端返回严格更早的数据（已实测无重复行）。
+- **`hot_list` 前置合并**：照官方网页端做法把热门拼在 `list` 之前。
+  **热门只影响排序，不打任何标签**（页面上看不出哪条是热门）。合并时按 id 去重。
+  `list` 为空时强制 `hasMore = false`，避免游标不前进死循环。
+  - ⚠️ **必须显式传 `hot=1` 才会下发 `hot_list`**，不传时服务端连这个 key 都不返回（实测）。
+    而且**只有首屏（游标为空）才返回**，翻页时 `hot_list` 是空数组——所以 `FeedService`
+    只在 `publishSn` 为空时拼 `hot=1`，后续页天然不会重复。
+  - 热门评论本身是完整的 `PostComment`（带 `user` / `like_count` / `sub_comments`），
+    直接复用 `CommentCard` 渲染，不需要区分数据结构。
+  - 不传 `hot=1` 时 `hot_list` key 缺失，按空处理（`missingHotListKeyIsTolerated` 覆盖）。
+- **「作者」标签**：评论者的 `user_id` 与动态作者一致时，在昵称旁打「作者」标签。
+  判定函数 `isPostAuthor(authorId, comment)` 在数据层，两边 `user_id` 都非空且相等才算
+  ——空串 == 空串 会把匿名评论全误判成作者。
+- **懒加载**：评论区首次滚进视口才请求（进详情页不预取）；翻页复用 `LoadMoreEffect`。
+- **楼中楼**：先渲染主列表内嵌的 `sub_comments`；`sub_comment_has_more == 1` 时点「展开更多回复」
+  走 `get-sub-list` 补齐，游标取「已追加 + 内嵌」里最旧一条的 `publish_sn`。
+  - **展开是单向的，没有「收起」**：收起一条已经读过的楼中楼没意义，还让人以为内容被藏起来了。
+    `SubReplyState` 因此没有 `expanded` 字段，改用 `attempted`（成功请求过就置位）。
+  - 那一行三态：没点过 = 「展开更多回复」；点过且还有更多 = 「加载更多回复」（翻页）；
+    取完了整行不渲染。
+  - ⚠️ 请求失败**不**置 `attempted`，否则这一行会连同重试入口一起消失，用户没法重试。
+  - 展开动画：`AnimatedVisibility` + `expandVertically(Top) + fadeIn()`，
+    外层再挂 `animateContentSize()`——顺带让「加载更多回复」追加的回复也带着卡片平滑长高。
+    因为 visible 只会 false→true 一次，只需要写 `enter`。
+- **点赞**：乐观更新 + 失败回滚；计数沿用 `displayLikeCount` 口径（与 `PostActionBar` 同一套：
+  服务端 `like_count` 已含「我已赞」，只有本地态与服务端 `has_like` 不一致才 ±1）。
+- 状态挂在 `PostDetailViewModel`（已按 post id 复用），解析是顶层 `internal parseCommentPage`
+  （`CommentParserTest` 覆盖）。**解析器不打日志**——`AppLog` 最终落到 `android.util.Log`，
+  单测未 mock 会抛异常，与 `MessageParser` 保持同一约定；耗时/条数日志由 `FeedService` 打。
+- 评论正文按**纯文本**渲染（服务端不下发 HTML），不走 `HtmlContent`。
+- **楼中楼「回复某人」提示**：服务端在 `sub_comments` 里下发 `reply_user`（被回复者，根评论没有该
+  字段，模型回落成空 `AfadianUser`）。页面在正文前用 **inlineContent** 插入
+  `MiuixIcons.Demibold.Undo` 旋转 180° 的图标 + 被回复者昵称（次要色）+ 正文。
+  - 用 inlineContent 而不是 `Row + Text`：前缀要和正文**一起换行**，Row 做不到。
+  - 本项目 Compose 1.12 的写法：`InlineTextContent(placeholder = Placeholder(w, h, align)) { Icon(...) }`，
+    `appendInlineContent` 从 `androidx.compose.foundation.text` 导入，
+    `Placeholder` / `PlaceholderVerticalAlign` 从 `androidx.compose.ui.text` 导入，
+    且 **`Placeholder` 的宽高是 `TextUnit`(sp) 不是 Dp**。
+  - ⚠️ `PostComment.reply_user` 必须写成**非空 + 默认值**（`val reply_user: AfadianUser = AfadianUser()`）：
+    声明成可空时 Kotlin 序列化插件会报 `Unresolved reference 'AfudianUser'`，类型解析不过。
+  - 判定「要不要标回复对象」放在数据层的 `replyTargetName(root, sub)`：服务端没下发 `reply_user`、
+    昵称为空、或**回的是楼主**这三种都不标（回楼主时楼中楼本来就挂在母评论下，再标一次是冗余）。
+    比对的是 `root.user.user_id` 而不是顶层 `user_id`——顶层那个在部分响应里可能缺失。
+
+### 评论按钮 → 跳详情并滚动到评论区
+
+- `PostActionBar` 保留 `onCommentClick`（默认 null = 评论列纯展示不可点）；
+  `PostCard` 不再单独收评论回调：它的 `onClick` 改成 `(openComments: Boolean) -> Unit`，
+  点卡片传 false、点评论列传 true，两个动作共用**一条**导航回调。
+- 调用点因此只写一个 `onClick = { toComments -> onOpenPost(post, toComments) }`，
+  发现页、收藏页动态 tab、创作者主页动态分区都一样，不需要各自再写评论动作。
+- 路由 `PostDetail` / `PostDetailById` 新增 `scrollToComments: Boolean = false`；标记进路由而非
+  全局变量，进程重建 / 返回栈重放后依然有效。
+- `onOpenPost` 回调签名统一改成 `(RecommendedPost, Boolean) -> Unit`（第二参 = toComments）。
+- 已在详情页内点评论按钮 → 只滚动，不重复 push。
+- ⚠️ 滚动锚点 `commentsAnchorIndex`（`PostDetailScreen`）是**手算**的，必须与 LazyColumn 的
+  item 顺序严格对齐；改动正文区结构时要同步改，否则会滚到上一篇/下一篇或末尾卡片上。
+- 定位必须等 `PostDetailViewModel.detailSettled`（成功/失败都置位）：从列表页进来时页面先用
+  路由里的预览 post 渲染，全文到位后 `cover / title / pics / 上一篇` 这些条件 item 会增减，
+  提前按预览结构算出来的锚点会停在正文中间（正文图片多时最明显）。
+- 落位策略：**近距离（≤2 个 item）用 `animateScrollToItem`，远距离直接 `scrollToItem`**。
+  `animateScrollToItem` 在可变高度列表里长距离滚动会逐帧布局途中的高卡片（楼中楼盖得多时尤甚），
+  掉帧明显；动画途中结构变化还会偏。
+- 落位后用第一可见项的 key（`COMMENTS_HEADER_KEY`）校验一次；没贴顶就重试（最多 4 轮），
+  因为「评论区比一屏短」时补位空白要到下一帧才长出来，需要再跳一次才能贴顶。
+- **评论区最短占一屏**：末尾有一个 `comments_fill` 空白项，高度按「标题 → 最后一条内容」
+  实测值补到一屏（`commentsFillPx`），内容够长时自动归零。否则评论区太短时列表滚不到
+  「标题贴顶」的位置，跳转会停在半屏，看起来像动画没走完。
+  - 测量只在「标题 + 最后一条内容同时可见」时进行（两者位置差就是评论区高度，与滚动无关）；
+    标题已贴顶且末尾在屏幕外 → 直接归零；其他位置量不出来就保持原值，避免抖动。
+  - 末尾空白项恒存在（高度可为 0），所以「最后一条真实内容」始终是 `totalItemsCount - 2`。
 
 ## 动态互动（PostInteractionController）
 
 - 全局单例控制器，管理「已点赞 / 已收藏」的动态 ID 集合。
 - 乐观更新：点击瞬间先改本地状态，失败时回滚。
 - 跨页面同步：发现页、收藏页、详情页共享同一份状态。
-- `PostActionBar` 操作栏：三列均分布局（点赞 / 评论 / 收藏）。
+- `PostActionBar` 操作栏：三列均分布局（点赞 / 评论 / 收藏）。评论列接 `onCommentClick`：
+  不传即纯展示不可点；列表卡片由 `PostCard` 从卡片点击回调派生（落点 = 评论区），
+  详情页直接传「滚到评论区」（见下节）。
 - 按钮带轻触觉反馈。
 
 ## 统一链接跳转
