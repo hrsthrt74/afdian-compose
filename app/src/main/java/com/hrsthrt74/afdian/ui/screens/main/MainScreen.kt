@@ -80,6 +80,7 @@ import com.hrsthrt74.afdian.ui.viewmodel.PlanDetailViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ReceivedSponsorsViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.SponsorManageViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.ThankSponsorsViewModel
+import com.kyant.shapes.Capsule
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
@@ -683,7 +684,7 @@ private fun MainTabsContent(
                     FloatingNavigationBar(
                         modifier = if (backdrop != null) Modifier.textureBlur(
                             backdrop = backdrop,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(FloatingToolbarDefaults.CornerRadius),
+                            shape = Capsule(),
                             blurRadius = AppBlurRadius,
                             colors = blurBarColors(),
                             highlight = navHighlight,
