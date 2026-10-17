@@ -1,4 +1,7 @@
 import com.android.build.api.variant.BuildConfigField
+// 打包日期用：生成 APK 文件名里的 MMDD 后缀
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 plugins {
     alias(libs.plugins.android.application)
@@ -129,8 +132,18 @@ aboutLibraries {
     offlineMode = true
 }
 
+// 打包日期，格式 MMDD（例：8 月 9 日 -> 0809），用于拼装 APK 输出文件名。
+// 配置阶段每次构建都会重新执行（本项目未启用 configuration cache，见 gradle.properties），
+// 所以取的是打包当天的日期，与 BUILD_TIMESTAMP_MS 的取值时机一致。
+val buildDateSuffix: String = LocalDate.now()
+    .format(DateTimeFormatter.ofPattern("MMdd"))
+
+// APK 文件名里 flavor 维度的排列顺序：edition（standard/legacy）在前、distribution（production/internal）在后。
+// 注意：只影响文件名，AGP 原生变体名（APP_VARIANT_NAME、输出目录）仍按 flavorDimensions 的声明顺序。
+private val apkFileNameFlavorOrder = listOf("edition", "distribution")
+
 // 每个变体写入自己的完整变体名（如 productionStandardDebug / internalLegacyDebug），
-// 供设置页底部居中小字提示当前打包类型
+// 供设置页底部居中小字提示当前打包类型；同时定制 APK 输出文件名
 androidComponents {
     onVariants { variant ->
         // AGP 9 的 BuildConfigField(type, value, comment)：value 即字面值，
@@ -139,6 +152,20 @@ androidComponents {
             "APP_VARIANT_NAME",
             BuildConfigField("String", "\"${variant.name}\"", null)
         )
+
+        // 自定义 APK 文件名，默认的 app-productionStandardRelease.apk 不便区分变体。
+        // 目标格式：Afdian-0809-standard-internal-debug.apk（日期为打包当天 MMDD）
+        // flavor 部分按 apkFileNameFlavorOrder 重排：edition 在前、distribution 在后
+        val flavorPart = variant.productFlavors
+            .sortedBy { apkFileNameFlavorOrder.indexOf(it.first) }
+            .joinToString("-") { it.second }
+        // 构建类型（debug / release）单独取，避免依赖变体名的驼峰切分
+        val buildTypePart = variant.buildType ?: "unknown"
+        val fileName = "Afdian-${buildDateSuffix}-$flavorPart-$buildTypePart.apk"
+        // outputs 里通常只有一个 APK 产物；对 AAB 等非 APK 产物赋值不生效但也无害
+        variant.outputs.forEach { output ->
+            output.outputFileName.set(fileName)
+        }
     }
 }
 
