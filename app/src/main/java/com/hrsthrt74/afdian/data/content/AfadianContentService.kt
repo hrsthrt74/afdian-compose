@@ -30,6 +30,9 @@ class AfadianContentService(tokenStore: AuthTokenStore, client: OkHttpClient = s
     // 收到发电账单独立维护筛选、分页和订单字段解析。
     private val receivedSponsorService = ReceivedSponsorService(tokenStore, client)
 
+    // 管理域服务：收到发电页复用「档位」下拉的方案列表接口。
+    private val managementService = ManagementService(tokenStore, client)
+
     // 感谢页接口独立维护感谢者分页和感谢语读写。
     private val thankSponsorsService = ThankSponsorsService(tokenStore, client)
 
@@ -52,6 +55,8 @@ class AfadianContentService(tokenStore: AuthTokenStore, client: OkHttpClient = s
         lastOrderId: String? = null,
         redeemOnly: Boolean = false,
         remarkOnly: Boolean = false,
+        orderStatus: ReceivedOrderStatus = ReceivedOrderStatus.All,
+        planId: String? = null,
         shipmentStatus: ReceivedShipmentFilter = ReceivedShipmentFilter.All,
         sort: ReceivedSponsorsSort = ReceivedSponsorsSort.Newest,
         beginTime: Long? = null,
@@ -61,11 +66,19 @@ class AfadianContentService(tokenStore: AuthTokenStore, client: OkHttpClient = s
         lastOrderId = lastOrderId,
         redeemOnly = redeemOnly,
         remarkOnly = remarkOnly,
+        orderStatus = orderStatus,
+        planId = planId,
         shipmentStatus = shipmentStatus,
         sort = sort,
         beginTime = beginTime,
         endTime = endTime,
     )
+
+    /**
+     * 收到发电「档位」下拉的方案选项（GET /api/creator/all-plans）。
+     * 调用方需切到 IO 线程；解析失败会抛出异常，由 ViewModel 决定是否降级为空列表。
+     */
+    suspend fun fetchFilterPlans(): List<SponsorFilterPlan> = managementService.fetchFilterPlans()
 
     /**
      * 赞助者感谢页（创作者后台 get-thank-sponsors）：按年月分页拉取「该感谢谁」的用户资料。

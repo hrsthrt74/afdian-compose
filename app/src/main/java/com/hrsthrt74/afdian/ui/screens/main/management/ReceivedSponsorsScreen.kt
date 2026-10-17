@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -49,10 +50,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.BlackedType
+import com.hrsthrt74.afdian.data.content.ReceivedOrderStatus
 import com.hrsthrt74.afdian.data.content.ReceivedShipmentFilter
 import com.hrsthrt74.afdian.data.content.ReceivedSponsor
 import com.hrsthrt74.afdian.data.content.ReceivedSponsorsSort
 import com.hrsthrt74.afdian.data.content.ReceivedTimeRange
+import com.hrsthrt74.afdian.data.content.SponsorFilterPlan
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.DateTimeField
 import com.hrsthrt74.afdian.ui.components.AppChip
@@ -106,6 +109,7 @@ import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
+import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.SinkFeedback
@@ -146,6 +150,9 @@ fun ReceivedSponsorsScreen(
     val error by viewModel.error.collectAsState()
     val redeemOnly by viewModel.redeemOnly.collectAsState()
     val remarkOnly by viewModel.remarkOnly.collectAsState()
+    val orderStatus by viewModel.orderStatus.collectAsState()
+    val planId by viewModel.planId.collectAsState()
+    val filterPlans by viewModel.filterPlans.collectAsState()
     val shipmentFilter by viewModel.shipmentFilter.collectAsState()
     val sort by viewModel.sort.collectAsState()
     val timeRange by viewModel.timeRange.collectAsState()
@@ -179,13 +186,17 @@ fun ReceivedSponsorsScreen(
             }
         }
     }
+    // 筛选 Sheet 内的条件是否生效：订单状态 / 档位 / 发货状态 / 时间任一非默认时，入口图标高亮。
+    val hasSheetFilters = orderStatus != ReceivedOrderStatus.All ||
+        planId != null ||
+        shipmentFilter != ReceivedShipmentFilter.All ||
+        timeRange != ReceivedTimeRange()
     // 只有「新订单在前 + 没有任何筛选与搜索」时列表才是完整时间线，
     // 此时才插入「今天 / 昨天 / 更早」标题；一旦筛选过，标题会误导阅读。
     val showDateSections = sort == ReceivedSponsorsSort.Newest &&
         !redeemOnly &&
         !remarkOnly &&
-        shipmentFilter == ReceivedShipmentFilter.All &&
-        timeRange == ReceivedTimeRange() &&
+        !hasSheetFilters &&
         searchQuery.isBlank()
     val sections = remember(visibleOrders, showDateSections) {
         receivedSponsorSections(visibleOrders, showDateSections)
@@ -382,7 +393,7 @@ fun ReceivedSponsorsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // 发货筛选收进「更多」，常驻 Chip 保持稳定布局，避免筛选切换时产生跳动。
+                            // 发货筛选 / 档位收进「更多」，常驻 Chip 保持稳定布局，避免筛选切换时产生跳动。
                             ReceivedSponsorSortChip(
                                 sort = sort,
                                 onClick = { showSortPopup = true },
@@ -408,7 +419,8 @@ fun ReceivedSponsorsScreen(
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     showMoreFilters = true
                                 },
-                                backgroundColor = if (shipmentFilter != ReceivedShipmentFilter.All || timeRange != ReceivedTimeRange()) {
+                                // 筛选 Sheet 内有任意条件生效时用主色容器提示
+                                backgroundColor = if (hasSheetFilters) {
                                     MiuixTheme.colorScheme.primaryContainer
                                 } else {
                                     MiuixTheme.colorScheme.secondary
@@ -422,7 +434,7 @@ fun ReceivedSponsorsScreen(
                                 Icon(
                                     imageVector = MiuixIcons.Filter,
                                     contentDescription = "更多筛选与排序",
-                                    tint = if (shipmentFilter != ReceivedShipmentFilter.All || timeRange != ReceivedTimeRange()) {
+                                    tint = if (hasSheetFilters) {
                                         MiuixTheme.colorScheme.onPrimaryContainer
                                     } else {
                                         MiuixTheme.colorScheme.onSecondaryVariant
@@ -541,9 +553,14 @@ fun ReceivedSponsorsScreen(
         )
         ReceivedSponsorFilterSheet(
             show = showMoreFilters,
+            orderStatus = orderStatus,
+            planId = planId,
+            plans = filterPlans,
             shipmentFilter = shipmentFilter,
             sort = sort,
             timeRange = timeRange,
+            onOrderStatusChanged = viewModel::setOrderStatus,
+            onPlanSelected = viewModel::setPlanId,
             onShipmentFilterChanged = viewModel::setShipmentFilter,
             onSortChanged = viewModel::setSort,
             onTimeRangeChanged = viewModel::setTimeRange,
@@ -595,12 +612,20 @@ private fun ReceivedSponsorSortChip(
     }
 }
 
+/** 网页端「自选金额」档位使用的特殊 plan_id。 */
+private const val CUSTOM_AMOUNT_PLAN_ID = "-1"
+
 @Composable
 private fun ReceivedSponsorFilterSheet(
     show: Boolean,
+    orderStatus: ReceivedOrderStatus,
+    planId: String?,
+    plans: List<SponsorFilterPlan>,
     shipmentFilter: ReceivedShipmentFilter,
     sort: ReceivedSponsorsSort,
     timeRange: ReceivedTimeRange,
+    onOrderStatusChanged: (ReceivedOrderStatus) -> Unit,
+    onPlanSelected: (String?) -> Unit,
     onShipmentFilterChanged: (ReceivedShipmentFilter) -> Unit,
     onSortChanged: (ReceivedSponsorsSort) -> Unit,
     onTimeRangeChanged: (Long?, Long?) -> Unit,
@@ -631,6 +656,34 @@ private fun ReceivedSponsorFilterSheet(
                 .padding(bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // 档位：单个下拉，选项顺序与网页端一致（全部档位 / 自选金额 / 各方案）。
+            // 方案多时限制下拉高度并交给 DropdownPopup 内部滚动。
+            Card(
+                colors = AfdianCardDefaults.overlayColors(),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp),
+            ) {
+                // 选项文案与 plan_id 一一对应：前两项固定，后面跟 all-plans 方案
+                val planIds = remember(plans) {
+                    listOf(null, CUSTOM_AMOUNT_PLAN_ID) + plans.map { it.planId }
+                }
+                val planTitles = remember(plans) {
+                    listOf("全部档位", "自选金额") + plans.map { plan ->
+                        plan.name.ifBlank { "未命名档位" }
+                    }
+                }
+                WindowDropdownPreference(
+                    items = planTitles,
+                    selectedIndex = planIds.indexOf(planId).coerceAtLeast(0),
+                    title = "档位",
+                    maxHeight = 420.dp,
+                    onSelectedIndexChange = { index ->
+                        onPlanSelected(planIds.getOrNull(index))
+                        // 与 Sheet 内其他筛选项一致：选完即收起，直接看结果
+                        onDismiss()
+                    },
+                )
+            }
+
             SmallTitle(text = "排序", insideMargin = PaddingValues(start = 16.dp))
             ReceivedSponsorsSort.entries.chunked(2).forEach { rowOptions ->
                 Row(
@@ -648,6 +701,25 @@ private fun ReceivedSponsorFilterSheet(
                             modifier = Modifier.weight(1f),
                         )
                     }
+                }
+            }
+
+            // 订单状态：网页端新增的筛选，四个选项固定一行展示
+            SmallTitle(text = "订单状态", insideMargin = PaddingValues(16.dp, 12.dp, 8.dp, 0.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ReceivedOrderStatus.entries.forEach { option ->
+                    AppChip(
+                        text = option.title,
+                        selected = orderStatus == option,
+                        onClick = {
+                            onOrderStatusChanged(option)
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
 
@@ -841,6 +913,16 @@ private fun ReceivedSponsorCard(
                     if (order.modelName != "默认型号") {
                         SponsorField("型号", order.modelName)
                     }
+                    // 订单状态：成功是常态不打扰用户，仅冻结 / 退款需要提醒（退款含金额）
+                    if (order.orderStatus != null &&
+                        order.orderStatus != ReceivedOrderStatus.Success
+                    ) {
+                        SponsorField(
+                            label = "状态",
+                            value = order.statusLabel.orEmpty(),
+                            valueColor = MiuixTheme.colorScheme.error,
+                        )
+                    }
                     // 使用优惠码的订单展示优惠码本身
                     order.affiliateCode?.let { SponsorField("优惠码", it) }
                     order.redeemCode?.let { SponsorField("兑换自", it) }
@@ -859,7 +941,12 @@ private fun ReceivedSponsorCard(
 }
 
 @Composable
-private fun SponsorField(label: String, value: String) {
+private fun SponsorField(
+    label: String,
+    value: String,
+    // 可选文字颜色：订单状态等异常信息用错误色，普通字段保持默认正文色
+    valueColor: Color = Color.Unspecified,
+) {
     Row(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = label,
@@ -873,6 +960,7 @@ private fun SponsorField(label: String, value: String) {
             text = value,
             modifier = Modifier.weight(1f),
             style = MiuixTheme.textStyles.body2,
+            color = valueColor,
         )
     }
 }
@@ -973,6 +1061,8 @@ private fun ReceivedSponsorDetailSheet(
                         ) {
                             SponsorDetailField("方案", current.planName)
                             SponsorDetailField("型号", current.modelName)
+                            // 订单结算状态（成功 / 冻结 / 已退款：￥金额）
+                            current.statusLabel?.let { SponsorDetailField("状态", it) }
                             // 使用优惠码的订单：减免金额与优惠码本身
                             current.affiliateReduction?.let {
                                 SponsorDetailField("已优惠", "￥$it")

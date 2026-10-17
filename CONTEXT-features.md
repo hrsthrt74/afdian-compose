@@ -318,13 +318,15 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 收到发电（ReceivedSponsorsScreen）
 
 - 独立分页订单列表，支持下拉刷新、滚动加载、错误重试和本地订单搜索。
-- 筛选：兑换码、有留言、发货状态（不筛选 / 含收件信息 / 已发货 / 待发货）、起止时间；排序支持时间和金额。
-- 发货状态请求参数：含收件信息 `status=10`、已发货 `status=9`、待发货 `status=8`；不筛选时省略 `status`。
+- 筛选：兑换码、有留言、订单状态（所有 / 成功 / 冻结 / 退款）、档位、发货状态（不筛选 / 含收件信息 / 已发货 / 待发货）、起止时间；排序支持时间和金额。
+- 档位筛选：放在「筛选与排序」Sheet 内，使用 `WindowDropdownPreference`（窗口级下拉，适配 Sheet 的 Dialog 宿主），选项为「全部档位 / 自选金额 / all-plans 方案名」；全部档位不发送 `plan_id`，自选金额发送 `plan_id=-1`，具体方案发送对应 `plan_id`。方案列表来自 `GET /api/creator/all-plans`（复用 `ManagementService.fetchFilterPlans`），加载失败时仍保留前两项。
+- 订单状态请求参数：成功 `status=2`、冻结 `status=5`、退款 `status=7`，所有时不发送；行内标签取响应新增的 `settlement_status.state`（`normal` / `freeze` / `refund` / `refund_and_freeze`），退款优先展示 `settlement_status.refund_amount` 为「已退款：￥金额」。列表卡片只在冻结 / 退款时显示状态，详情 Sheet 始终显示。
+- 发货状态请求参数：含收件信息 `status=10`（此时不带订单状态，二者互斥）、已发货 `express_status=9`、待发货 `express_status=8`；不筛选时不发送。
 - 时间请求参数使用 `begin_time` / `end_time` Unix 秒，任一边界可为空；结束上界取选中分钟的第 59 秒（接口按半开区间处理）。
 - 时间选择器复用通用组件 `DateTimeField`（日期 / 时间双滚轮，年份范围 2018–2100）；`ReceivedTimeRange` 以毫秒存储，未设置的边界在界面上回落到「今天」，只有拨动滚轮才会写入，「清除」按钮恢复为不限。
 - 卡片上半部分进入私信，下半部分打开订单详情 Sheet；支持展示捆绑包优惠和兑换码提示。
 - 订单详情 Sheet 末尾支持「加入屏蔽列表 / 加入拒绝列表」（与赞助者管理详情 Sheet 共用 `account/BlacklistActions.kt`）：提交走 `ReceivedSponsorsViewModel.blackUser` → `POST /api/user/black`，成功后 Toast 服务端文案并收起 Sheet，订单列表保持不变；客服账号不显示该操作区。
-- 日期分组：仅当排序为「新订单在前」且没有任何筛选（兑换码 / 有留言 / 发货状态 / 时间范围）与搜索时，列表才插入「今天 / 昨天 / 更早」标题；某段没有订单时不显示该段标题，只要存在筛选或搜索就整体平铺不做分组。
+- 日期分组：仅当排序为「新订单在前」且没有任何筛选（兑换码 / 有留言 / 订单状态 / 档位 / 发货状态 / 时间范围）与搜索时，列表才插入「今天 / 昨天 / 更早」标题；某段没有订单时不显示该段标题，只要存在筛选或搜索就整体平铺不做分组。
 
 ## 浏览历史（HistoryScreen）
 

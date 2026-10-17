@@ -7,10 +7,12 @@ import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.BlackedType
+import com.hrsthrt74.afdian.data.content.ReceivedOrderStatus
 import com.hrsthrt74.afdian.data.content.ReceivedSponsor
 import com.hrsthrt74.afdian.data.content.ReceivedShipmentFilter
 import com.hrsthrt74.afdian.data.content.ReceivedSponsorsSort
 import com.hrsthrt74.afdian.data.content.ReceivedTimeRange
+import com.hrsthrt74.afdian.data.content.SponsorFilterPlan
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +40,14 @@ class ReceivedSponsorsViewModel(application: Application) : AndroidViewModel(app
     val redeemOnly = _redeemOnly.asStateFlow()
     private val _remarkOnly = MutableStateFlow(false)
     val remarkOnly = _remarkOnly.asStateFlow()
+    private val _orderStatus = MutableStateFlow(ReceivedOrderStatus.All)
+    val orderStatus = _orderStatus.asStateFlow()
+    /** 当前档位 plan_id：null = 全部档位，"-1" = 自选金额 */
+    private val _planId = MutableStateFlow<String?>(null)
+    val planId = _planId.asStateFlow()
+    /** 「档位」下拉的方案选项；加载失败为空列表（仍保留全部档位 / 自选金额） */
+    private val _filterPlans = MutableStateFlow<List<SponsorFilterPlan>>(emptyList())
+    val filterPlans = _filterPlans.asStateFlow()
     private val _shipmentFilter = MutableStateFlow(ReceivedShipmentFilter.All)
     val shipmentFilter = _shipmentFilter.asStateFlow()
     private val _sort = MutableStateFlow(ReceivedSponsorsSort.Newest)
@@ -50,6 +60,7 @@ class ReceivedSponsorsViewModel(application: Application) : AndroidViewModel(app
 
     init {
         load()
+        loadFilterPlans()
     }
 
     /** 首次加载或错误重试：清空旧列表并回到第一页。 */
@@ -140,9 +151,47 @@ class ReceivedSponsorsViewModel(application: Application) : AndroidViewModel(app
         reloadForFilter()
     }
 
+    /** 切换订单状态：与网页端一致，选择具体状态时取消「含收件信息」。 */
+    fun setOrderStatus(status: ReceivedOrderStatus) {
+        if (_orderStatus.value == status) return
+        _orderStatus.value = status
+        if (status != ReceivedOrderStatus.All &&
+            _shipmentFilter.value == ReceivedShipmentFilter.WithReceiver
+        ) {
+            _shipmentFilter.value = ReceivedShipmentFilter.All
+        }
+        reloadForFilter()
+    }
+
+    /** 切换档位：null = 全部档位，"-1" = 自选金额；回第 1 页重载。 */
+    fun setPlanId(planId: String?) {
+        if (_planId.value == planId) return
+        _planId.value = planId
+        reloadForFilter()
+    }
+
+    /** 拉取「档位」下拉的方案选项；失败只记警告，不阻断订单列表。 */
+    private fun loadFilterPlans() {
+        viewModelScope.launch {
+            try {
+                val plans = withContext(Dispatchers.IO) { service.fetchFilterPlans() }
+                _filterPlans.value = plans
+                AppLog.d("ReceivedSponsors", "loadFilterPlans: ${plans.size} 个方案")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("ReceivedSponsors", "loadFilterPlans failed", e)
+            }
+        }
+    }
+
     fun setShipmentFilter(filter: ReceivedShipmentFilter) {
         if (_shipmentFilter.value == filter) return
         _shipmentFilter.value = filter
+        // 「含收件信息」按所有订单状态查询，选中时清空订单状态
+        if (filter == ReceivedShipmentFilter.WithReceiver) {
+            _orderStatus.value = ReceivedOrderStatus.All
+        }
         reloadForFilter()
     }
 
@@ -186,6 +235,8 @@ class ReceivedSponsorsViewModel(application: Application) : AndroidViewModel(app
             lastOrderId = lastOrderId,
             redeemOnly = _redeemOnly.value,
             remarkOnly = _remarkOnly.value,
+            orderStatus = _orderStatus.value,
+            planId = _planId.value,
             shipmentStatus = _shipmentFilter.value,
             sort = _sort.value,
             beginTime = _timeRange.value.beginTime,

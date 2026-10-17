@@ -274,6 +274,37 @@ val FaqItem.timeLabel: String
         return "创建于 $created"
     }
 
+/**
+ * 收到发电订单的结算状态（网页端「订单状态」）。
+ *
+ * 网页端筛选与行内标签是两套字段：
+ * - [filterCode]：列表请求的 `status` 参数，null 表示不筛选；
+ * - [wire]：行数据里 `settlement_status.state` 的原始值；
+ * - [title]：界面展示文案。
+ *
+ * 网页端把 `refund_and_freeze` 也归入「退款」。
+ */
+enum class ReceivedOrderStatus(
+    val title: String,
+    val filterCode: String?,
+    val wire: String?,
+) {
+    All("所有", null, null),
+    Success("成功", "2", "normal"),
+    Frozen("冻结", "5", "freeze"),
+    Refunded("退款", "7", "refund");
+
+    companion object {
+        /** 把 `settlement_status.state` 映射为界面状态；缺失或未知值返回 null（不展示标签）。 */
+        fun fromWire(raw: String?): ReceivedOrderStatus? = when (raw) {
+            "normal" -> Success
+            "freeze" -> Frozen
+            "refund", "refund_and_freeze" -> Refunded
+            else -> null
+        }
+    }
+}
+
 /** 收到发电卡片所需的最小订单模型。 */
 data class ReceivedSponsor(
     val orderNo: String,
@@ -297,7 +328,27 @@ data class ReceivedSponsor(
     val redeemCode: String?,
     val affiliateReduction: String?,
     val affiliateCode: String?,
-)
+    // 结算状态：网页端新字段 settlement_status.state，缺失时为 null
+    val orderStatus: ReceivedOrderStatus?,
+    // 退款金额（settlement_status.refund_amount），仅退款订单可能有
+    val refundAmount: String?,
+) {
+    /**
+     * 卡片 / 详情展示的状态文案。
+     * 网页端退款优先展示「已退款：￥金额」，没有金额时退回「退款」。
+     */
+    val statusLabel: String?
+        get() = when (orderStatus) {
+            ReceivedOrderStatus.Refunded -> refundAmount
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "已退款：￥$it" }
+                ?: "退款"
+
+            ReceivedOrderStatus.Frozen -> "冻结"
+            ReceivedOrderStatus.Success -> "成功"
+            ReceivedOrderStatus.All, null -> null
+        }
+}
 
 data class ReceivedSponsorsPage(
     val orders: List<ReceivedSponsor>,
@@ -312,7 +363,13 @@ enum class ReceivedSponsorsSort(val field: String, val direction: String, val ti
     AmountLow("total_amount", "asc", "金额从低到高"),
 }
 
-enum class ReceivedShipmentFilter(val title: String, val statusCode: String?) {
+/**
+ * 收到发电的发货状态筛选。
+ *
+ * 网页端协议：已发货 / 待发货走 `express_status`，而「含收件信息」是特例，
+ * 固定发送 `status=10`（此时订单状态筛选会被网页端自动取消）。
+ */
+enum class ReceivedShipmentFilter(val title: String, val expressCode: String?) {
     All("不筛选发货", null),
     WithReceiver("含收件信息", "10"),
     Shipped("已发货", "9"),

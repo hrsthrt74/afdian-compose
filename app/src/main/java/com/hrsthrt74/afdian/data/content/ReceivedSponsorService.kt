@@ -38,6 +38,9 @@ internal class ReceivedSponsorService(
         lastOrderId: String? = null,
         redeemOnly: Boolean = false,
         remarkOnly: Boolean = false,
+        orderStatus: ReceivedOrderStatus = ReceivedOrderStatus.All,
+        // 档位筛选：null = 全部档位，"-1" = 自选金额（网页端特殊 plan_id）
+        planId: String? = null,
         shipmentStatus: ReceivedShipmentFilter = ReceivedShipmentFilter.All,
         sort: ReceivedSponsorsSort = ReceivedSponsorsSort.Newest,
         beginTime: Long? = null,
@@ -49,7 +52,19 @@ internal class ReceivedSponsorService(
             .addQueryParameter("sort_value", sort.direction)
         if (redeemOnly) builder.addQueryParameter("is_redeem", "1")
         if (remarkOnly) builder.addQueryParameter("has_remark", "1")
-        shipmentStatus.statusCode?.let { builder.addQueryParameter("status", it) }
+        // 档位：普通方案传 plan_id；自选金额使用网页端约定的 plan_id=-1。
+        planId?.takeIf { it.isNotBlank() }?.let { builder.addQueryParameter("plan_id", it) }
+        // 与网页端 post_data 保持一致：
+        // - 订单状态走 status（空表示全部）；
+        // - 已发货 / 待发货走 express_status；
+        // - 「含收件信息」是特例：固定 status=10，此时不发送订单状态（二者互斥）。
+        val expressCode = shipmentStatus.expressCode
+        if (expressCode == "10") {
+            builder.addQueryParameter("status", "10")
+        } else {
+            orderStatus.filterCode?.let { builder.addQueryParameter("status", it) }
+            expressCode?.let { builder.addQueryParameter("express_status", it) }
+        }
         // 时间边界允许单独留空，仍显式发送参数以匹配网页端请求格式。
         builder.addQueryParameter("begin_time", beginTime?.toString().orEmpty())
         builder.addQueryParameter("end_time", endTime?.toString().orEmpty())
@@ -88,7 +103,10 @@ internal class ReceivedSponsorService(
         string(key)?.toLongOrNull() ?: string(key)?.toDoubleOrNull()?.toLong()
 
     private fun JsonObject.toReceivedSponsor(): ReceivedSponsor? {
-        if (long("status") != 2L) return null
+        // 2 = 已支付；5 / 7 是网页端订单状态里的冻结 / 退款。
+        // 待支付（1）等其它状态仍不进入列表。
+        val orderStatusValue = long("status")
+        if (orderStatusValue != null && orderStatusValue !in setOf(2L, 5L, 7L)) return null
         val orderNo = string("out_trade_no")?.takeIf { it.isNotBlank() } ?: return null
         val user = this["user"] as? JsonObject
         val plan = this["plan"] as? JsonObject
@@ -103,6 +121,10 @@ internal class ReceivedSponsorService(
         val affiliateCode = ext?.string("affiliate_code")?.takeIf { it.isNotBlank() }
         val affiliateReduction = ext?.string("affiliate_reduction")
             ?.takeIf { it.toBigDecimalOrNull()?.signum() == 1 }
+        // 网页端新增的结算状态：state 决定「成功 / 冻结 / 退款」，refund_amount 用于退款金额
+        val settlement = this["settlement_status"] as? JsonObject
+        val settlementState = ReceivedOrderStatus.fromWire(settlement?.string("state"))
+        val refundAmount = settlement?.string("refund_amount")?.takeIf { it.isNotBlank() }
         return ReceivedSponsor(
             orderNo = orderNo,
             userId = string("user_id") ?: user?.string("user_id").orEmpty(),
@@ -135,6 +157,8 @@ internal class ReceivedSponsorService(
             redeemCode = redeemCode,
             affiliateReduction = affiliateReduction,
             affiliateCode = affiliateCode,
+            orderStatus = settlementState,
+            refundAmount = refundAmount,
         )
     }
 
