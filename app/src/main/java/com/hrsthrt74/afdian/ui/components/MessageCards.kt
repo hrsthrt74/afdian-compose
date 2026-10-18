@@ -1,6 +1,6 @@
 package com.hrsthrt74.afdian.ui.components
 
-// 会话页特殊消息卡片合集：电圈邀请、发电订单、兑换码、发货通知、投诉通知。
+// 会话页特殊消息卡片合集：电圈邀请、发电订单、兑换码、发货通知、投诉通知、补货通知。
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -38,6 +38,7 @@ import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.ComplaintNotice
 import com.hrsthrt74.afdian.data.content.MessageGroup
 import com.hrsthrt74.afdian.data.content.MessageObjectContent
+import com.hrsthrt74.afdian.data.content.RestockNotice
 import com.hrsthrt74.afdian.data.content.ShipmentNotice
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import top.yukonga.miuix.kmp.basic.Card
@@ -48,6 +49,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Notes
+import top.yukonga.miuix.kmp.icon.extended.Store
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -601,6 +603,97 @@ fun ComplaintCard(
 //                    }
 //                }
 //            }
+        }
+    }
+}
+
+/**
+ * 库存不足（补货）通知卡片。
+ * 上半为主色填充的标题条「库存不足提醒」，下半素色区依次展示方案名、型号与剩余库存；
+ * 文案里的补货链接只作通知，卡片不提供跳转补货的入口。
+ */
+@Composable
+fun RestockNoticeCard(
+    notice: RestockNotice,
+    modifier: Modifier = Modifier,
+) {
+    Card(modifier = modifier) {
+        Column {
+            // 顶部标题条
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MiuixTheme.colorScheme.primary)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Demibold.Store,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(   // 标题
+                    text = "库存不足",
+                    style = MiuixTheme.textStyles.title4,
+                    color = MiuixTheme.colorScheme.onPrimary
+                )
+            }
+
+            // 下半信息区
+            Column(
+                modifier = Modifier.padding(16.dp, 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // 发电方案名
+                notice.planName?.let { planName ->
+                    Text(
+                        text = planName,
+                        style = MiuixTheme.textStyles.body1,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // 型号（方案未启用型号时为空，整行不展示）
+                notice.skuName?.let { skuName ->
+                    Text(
+                        text = "型号 $skuName",
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        maxLines = 1,
+                        letterSpacing = 0.5.sp,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                HorizontalDivider()
+
+                // 剩余库存：与正文同字号，仅用 error 色轻微强调（库存告急）
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "剩余库存",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = notice.stock?.toString() ?: "—",
+                        style = MiuixTheme.textStyles.title4,
+                        color = MiuixTheme.colorScheme.error,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                    // 单位
+                    Text(
+                        text = " 件",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                }
+            }
         }
     }
 }

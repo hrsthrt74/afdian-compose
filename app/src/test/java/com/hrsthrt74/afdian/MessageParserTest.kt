@@ -147,6 +147,42 @@ class MessageParserTest {
         """.trimIndent()
 
     @Test
+    fun restockTextBecomesStructuredNotice() {
+        val result = resolveTextContent(
+            "你的发电方案「我是发电方案名」的型号「我是型号名」库存仅剩5，点此前往补货：https://ifdian.net/setting/shop",
+            messageType = 1,
+        )
+
+        val notice = (result as MessageContent.Restock).notice
+        assertEquals("我是发电方案名", notice.planName)
+        assertEquals("我是型号名", notice.skuName)
+        assertEquals(5, notice.stock)
+        assertEquals("https://ifdian.net/setting/shop", notice.detailUrl)
+    }
+
+    @Test
+    fun restockTextWithoutSkuStillParses() {
+        // 方案没有型号时模板不带「型号「…」」段，库存数与方案名照常解析
+        val result = resolveTextContent(
+            "你的发电方案「年度方案」库存仅剩 12，点此前往补货：https://ifdian.net/setting/shop",
+            messageType = 1,
+        )
+
+        val notice = (result as MessageContent.Restock).notice
+        assertEquals("年度方案", notice.planName)
+        assertNull(notice.skuName)
+        assertEquals(12, notice.stock)
+    }
+
+    @Test
+    fun plainChatMentioningStockStaysText() {
+        // 聊天里随口提到「库存仅剩」但没有方案名与数量，不能误判成补货通知
+        val content = resolveTextContent("我这边库存仅剩一些了", messageType = 1) as MessageContent.Text
+
+        assertEquals("我这边库存仅剩一些了", content.text)
+    }
+
+    @Test
     fun specialTextTypesKeepTheirOriginalMeaning() {
         assertTrue(resolveTextContent("code-1", messageType = 5) is MessageContent.Code)
 

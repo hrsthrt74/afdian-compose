@@ -324,6 +324,13 @@ fun MessageContentBubble(
             )
         }
 
+        is MessageContent.Restock -> {
+            RestockNoticeCard(
+                notice = content.notice,
+                modifier = Modifier.widthIn(max = 300.dp)
+            )
+        }
+
         is MessageContent.Empty -> {
             Text(
                 text = "暂不支持的消息",

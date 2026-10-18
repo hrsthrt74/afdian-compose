@@ -223,6 +223,12 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 - 消息列表页（含未读数 Badge）和会话详情页（聊天记录、FAQ、发送消息）。
 
+### 会话特殊消息卡片（MessageCards.kt）
+
+- `resolveTextContent`（MessageParser）先按固定文案把文本消息识别成系统通知，命中才出卡片，未命中才走 HTML 清洗后的普通文本气泡；卡片按 `MessageContent` 的 sealed 子类在 `MessageContentBubble` 里分发。
+- 已实现：电圈邀请（对象含 `group`）、发电订单（订单对象）、兑换码（`type=5`）、发货通知（前缀「你购买的商品已发货」）、投诉通知（含「该笔订单会暂时冻结」）、补货通知（含「库存仅剩」）。
+- 补货通知 `MessageContent.Restock` / `RestockNotice`（planName / skuName / stock / detailUrl）：模板为「你的发电方案「X」的型号「Y」库存仅剩 N，点此前往补货：…」，方案没有型号时缺省「型号「…」」一段；卡片只做提醒，不提供跳转补货入口。
+
 ### 全部标为已读（MessagesScreen）
 
 - 爱发电**没有**标记已读接口：网页端只有 `dialogs`/`messages`/`send`/`can-send`/`delete-dialog` 五个消息接口，

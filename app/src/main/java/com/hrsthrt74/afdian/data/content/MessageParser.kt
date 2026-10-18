@@ -36,6 +36,42 @@ private const val COMPLAINT_LONG_DIGITS_MIN = 15
 /** 详情链接提取：除空白与右括号外连续取字符，避免截断带参数的 URL。 */
 private val COMPLAINT_URL_REGEX = Regex("https?://[^\\s\\])]+")
 
+/** 补货通知的固定文案标记：库存告急时服务端下发的模板必带「库存仅剩」。 */
+private const val RESTOCK_MARKER = "库存仅剩"
+
+/** 补货通知里的方案名：形如 发电方案「X」，兼容全角/半角引号。 */
+private val RESTOCK_PLAN_REGEX = Regex("""发电方案[「“"]([^」”"]+)[」”"]""")
+
+/** 补货通知里的型号名：形如 型号「X」；方案未启用型号时整段缺失。 */
+private val RESTOCK_SKU_REGEX = Regex("""型号[「“"]([^」”"]+)[」”"]""")
+
+/** 补货通知里的剩余库存数：形如 库存仅剩5。 */
+private val RESTOCK_STOCK_REGEX = Regex("""库存仅剩\s*(\d+)""")
+
+/** 补货通知末尾的补货链接。 */
+private val RESTOCK_URL_REGEX = Regex("https?://[^\\s]+")
+
+/**
+ * 将库存不足（补货）通知文本转换成结构化通知；未命中固定文案时返回 null。
+ * 模板示例：你的发电方案「X」的型号「Y」库存仅剩5，点此前往补货：https://ifdian.net/setting/shop
+ */
+private fun tryParseRestockNotice(text: String): RestockNotice? {
+    if (!text.contains(RESTOCK_MARKER)) return null
+
+    val planName = RESTOCK_PLAN_REGEX.find(text)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+    val skuName = RESTOCK_SKU_REGEX.find(text)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+    val stock = RESTOCK_STOCK_REGEX.find(text)?.groupValues?.get(1)?.toIntOrNull()
+    // 方案名与库存数都没取到，说明只是正好含「库存仅剩」的普通聊天，交回文本气泡
+    if (planName == null && stock == null) return null
+
+    return RestockNotice(
+        planName = planName,
+        skuName = skuName,
+        stock = stock,
+        detailUrl = RESTOCK_URL_REGEX.find(text)?.value,
+    )
+}
+
 /** 将发货系统文本转换成结构化通知；未命中固定前缀时返回 null。 */
 private fun tryParseShipmentNotice(text: String): ShipmentNotice? {
     if (!text.startsWith(SHIPMENT_PREFIX)) return null
@@ -68,6 +104,7 @@ internal fun resolveTextContent(text: String, messageType: Int): MessageContent 
     messageType == TYPE_REDEEM_CODE -> MessageContent.Code(text)
     else -> tryParseComplaintNotice(text)?.let { MessageContent.Complaint(it) }
         ?: tryParseShipmentNotice(text)?.let { MessageContent.Shipment(it) }
+        ?: tryParseRestockNotice(text)?.let { MessageContent.Restock(it) }
         // 普通文本先做 HTML 清洗（客服自动回复带 <br>/<a> 标签），再挂自动消息标注
         ?: cleanMessageHtml(text).let { cleaned ->
             MessageContent.Text(

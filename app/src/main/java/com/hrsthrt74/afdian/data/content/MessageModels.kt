@@ -106,6 +106,7 @@ sealed class MessageContent {
     data class Object(val content: MessageObjectContent) : MessageContent()
     data class Shipment(val notice: ShipmentNotice) : MessageContent()
     data class Complaint(val notice: ComplaintNotice) : MessageContent()
+    data class Restock(val notice: RestockNotice) : MessageContent()
     data class Code(val text: String) : MessageContent()
     data object Empty : MessageContent()
 }
@@ -156,6 +157,18 @@ data class ComplaintNotice(
     val time: String? = null,
     val amount: String? = null,
     val complaintNo: String? = null,
+    val detailUrl: String? = null,
+)
+
+/** 文本消息识别出的库存不足（补货）通知。 */
+data class RestockNotice(
+    /** 发电方案名称 */
+    val planName: String? = null,
+    /** 型号名称；方案没有型号时为空 */
+    val skuName: String? = null,
+    /** 剩余库存数量 */
+    val stock: Int? = null,
+    /** 补货设置页链接；当前卡片只做通知，不提供跳转 */
     val detailUrl: String? = null,
 )
 
