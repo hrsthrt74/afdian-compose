@@ -27,7 +27,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 1. **快捷方式** — 一行最多 4 个自定义入口，预设目录里的条目随便挑、随便换顺序。
 2. **提现提醒** — 月末 7 天自动显示，点击跳转网页提现页。
 3. **创作者数据** — 展示今日收入等数据卡片，支持长按进入整页编辑网格。
-4. **近5天收入** — 最近 5 天每日收入明细表，样式照抄收入明细页，标题点击进入收入明细页。**默认关闭**。日期列只显示 `月/日`（`IncomeStatRecord.displayMonthDay`）：5 天窗口里年份没有信息量，省下的宽度留给数值列；收入明细页仍用全量 `年/月/日`。
+4. **近5天收入** — 最近 5 天每日收入明细表，样式照抄收入明细页，标题点击进入收入明细页。**默认关闭**。日期列显示 `月/日 + 星期`（`10/16 五`，`IncomeStatRecord.displayMonthDayWithWeekday`）：5 天窗口里年份没有信息量，省下的宽度留给数值列；收入明细页用短年份 `年/月/日`（`displayShortYearDate`），其中「按日」tab 同样附带星期（`26/10/16 五`，`displayShortYearDateWithWeekday`），按周/按月的日期是周期起始日、不加星期。
 5. **我发电的** — 已发电创作者列表，横滑展示。
 6. **收藏的创作者** — 收藏的创作者列表，横滑展示。
 7. **浏览历史** — 最近浏览的创作者和动态，按时间分组。
@@ -94,6 +94,10 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   私有聚合结构、不产出 `IncomeStatRecord`，为它开公开接口收益不抵，故各拉一次。
   表格组件（表头 / 数据行 / 列宽）已从 `IncomeDetailScreen` 提取到
   `ui/components/home/IncomeStatTable.kt`，两处共用；首页没有顶栏，表头放进 Card 内随内容滚动。
+  日期格式由 `IncomeStatTableRow` 的 `compactDate` / `showWeekday` 控制：首页只开 `compactDate`（日期 `10/16 五`），
+  `showWeekday` 默认 true，只有收入明细的按周/按月显式关掉（日期 `26/10/12`）。
+  两套列宽常量都已按「日期带星期」加宽（`IncomeStatColumnWeights` 权重和 6.3 / 360dp 屏日期列 72.4dp，
+  `CompactIncomeStatColumnWeights` 权重和 6.0 / 50.7dp），表头与数据行必须共用同一份。
 - 按日图表（近30天收入 / 访问人数趋势）边界处理：`/api/my/stat` 对今天/昨天返回空值，`ChartModel.trimTrailingBlankDays` 只裁掉窗口末端（今天方向）连续的空/0 天，中间为 0 的天保留；全为 0/无数据时回退完整窗口。抓取时额外回溯 `CHART_TRAILING_TRIM_BUFFER_DAYS`(7) 天，保证裁剪后仍有 `CHART_DAILY_WINDOW_DAYS`(30) 个点。
 
 ## 发现页
@@ -674,7 +678,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `AppLog.kt`：全局日志门面（Logcat + 落盘 sink 注入点）。
 - `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage、Log、ApiProbe）。
 - `ui/screens/auth/`：登录、免责声明、时间炸弹过期页（`ExpiredScreen`）、装错版本阻断页（`WrongEditionScreen`）。
-- `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件（`IncomeStatTable.kt` 为收入明细页与首页共用的表格行组件）。
+- `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件（`IncomeStatTable.kt` 为收入明细页与首页共用的表格行组件，日期列可按需附带星期）。
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
 - `data/auth/`：认证状态、Token 存储、登录请求和加密载荷。
 - `data/content/`：领域接口服务（AccountService、MessageService、AffiliateService、FeedService、CreatorService、ReceivedSponsorService、ThankSponsorsService、OrderService、ManagementService），`AfadianContentService` 为兼容门面；消息解析集中在 `MessageParser`，模型见 `ContentModels` / `MessageModels`；缓存 `ProfileCache` / `HomeCache`。

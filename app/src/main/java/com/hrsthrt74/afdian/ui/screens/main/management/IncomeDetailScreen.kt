@@ -239,7 +239,8 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
                                         FadeInContainer {
                                             // 第一行上方不需要分割线
                                             if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 12.dp))
-                                            IncomeStatTableRow(record)
+                                            // 按日维度日期后附带星期（26/10/16 五）；按周/按月的日期是周期起始日，不拼星期
+                                            IncomeStatTableRow(record, showWeekday = type == IncomeStatType.Day)
                                         }
                                     }
                                 }

@@ -61,7 +61,7 @@ fun RecentIncomeModule(context: HomeModuleContentContext) {
                             if (index > 0) {
                                 HorizontalDivider(Modifier.padding(horizontal = 12.dp))
                             }
-                            // 日期只显示月/日：本模块只有 5 天窗口，年份不提供信息量；
+                            // 日期只显示「月/日 + 星期」：本模块只有 5 天窗口，年份不提供信息量（星期要看）；
                             // 列宽也用紧凑版：省下的日期列宽度让给「发电金额」等数值列
                             IncomeStatTableRow(
                                 record,

@@ -18,6 +18,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /**
  * 收入明细的统计类型，对应 /api/my/stat 的 type 参数。
@@ -28,6 +30,13 @@ enum class IncomeStatType(val apiValue: String, val title: String) {
     Week("week", "按周"),
     Month("month", "按月"),
 }
+
+/**
+ * 星期标签：索引 0..6 依次对应 [java.time.DayOfWeek.value] 的 1..7（周一..周日）。
+ * 用固定中文表而不是 DayOfWeek.getDisplayName()——后者跟随系统 Locale，
+ * 英文设备会返回「Fri」，而表格这一列只需要一个汉字（`26/10/16 五`）。
+ */
+private val WEEKDAY_LABELS = listOf("一", "二", "三", "四", "五", "六", "日")
 
 /** 单条统计记录（收入明细表格的一行）。 */
 data class IncomeStatRecord(
@@ -45,6 +54,15 @@ data class IncomeStatRecord(
     val oldUserCount: Long,
 ) {
     /**
+     * 日期对应的星期汉字（一..日）；dateStr 不是合法的 YYYYMMDD 时为 null。
+     * 在构造时解析一次并缓存：同一行在滚动、重组、切 tab 时会被反复读取，不必每次重算。
+     * 解析失败（如月份 13）只让星期缺失，不影响其余字段展示。
+     */
+    private val weekdayLabel: String? = runCatching {
+        LocalDate.parse(dateStr, DateTimeFormatter.BASIC_ISO_DATE)
+    }.getOrNull()?.let { date -> WEEKDAY_LABELS[date.dayOfWeek.value - 1] }
+
+    /**
      * 完整日期：把 20260906 格式化成 2026/09/06；异常格式原样返回。
      * 「收入明细」页表格已改用短年份的 [displayShortYearDate]，
      * 本属性目前只用于 CSV 导出与「问 AI」的 Markdown——导出数据保留完整年份，避免歧义。
@@ -58,8 +76,8 @@ data class IncomeStatRecord(
 
     /**
      * 短年份日期：把 20260906 格式化成 26/09/06，省略年份前两位「20」。
-     * 「收入明细」页表格用——比完整年份窄，近几十年内不会产生歧义。
-     * 异常格式原样返回，与 [displayDate] 口径一致。
+     * 「收入明细」页的按周/按月用它（按日改用 [displayShortYearDateWithWeekday]）；
+     * 比完整年份窄，近几十年内不会产生歧义。异常格式原样返回，与 [displayDate] 口径一致。
      */
     val displayShortYearDate: String
         get() = if (dateStr.length == 8) {
@@ -69,9 +87,17 @@ data class IncomeStatRecord(
         }
 
     /**
-     * 紧凑日期：只保留月/日（09/06），不显示年份。
-     * 首页「近5天收入」模块用——它的数据窗口只有 5 天，年份对用户没有信息量，
-     * 省下的宽度留给数值列。异常格式原样返回，与 [displayDate] 口径一致。
+     * 带星期的短年份日期：26/10/16 五（日期与星期之间一个半角空格）。
+     * 只给「收入明细」页的「按日」维度用——按周/按月显示的是周期起始日，星期没有信息量。
+     * 日期非法时退回 [displayShortYearDate]，不把解析失败暴露到 UI。
+     */
+    val displayShortYearDateWithWeekday: String
+        get() = weekdayLabel?.let { "$displayShortYearDate $it" } ?: displayShortYearDate
+
+    /**
+     * 紧凑日期：只保留月/日（09/06），不显示年份、不带星期。
+     * 首页「近5天收入」模块改用 [displayMonthDayWithWeekday]（同样省年份，但要看星期几）；
+     * 本属性保留作无星期时的兜底与测试基准。异常格式原样返回，与 [displayDate] 口径一致。
      */
     val displayMonthDay: String
         get() = if (dateStr.length == 8) {
@@ -79,6 +105,14 @@ data class IncomeStatRecord(
         } else {
             dateStr
         }
+
+    /**
+     * 带星期的紧凑日期：09/06 五（月/日 + 一个半角空格 + 星期汉字）。
+     * 首页「近5天收入」模块用——它的日期列比收入明细页窄，既省年份也要看星期几。
+     * 日期非法时退回 [displayMonthDay]，不把解析失败暴露到 UI。
+     */
+    val displayMonthDayWithWeekday: String
+        get() = weekdayLabel?.let { "$displayMonthDay $it" } ?: displayMonthDay
 }
 
 /** 一次分页请求的结果：当前页数据 + 是否还有下一页（null=接口未返回，未知）。 */
