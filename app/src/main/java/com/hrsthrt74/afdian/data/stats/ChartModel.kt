@@ -60,6 +60,13 @@ data class ChartDataItem(
     val title: String,
     val categories: List<String>,
     val series: List<ChartSeries>,
+    /**
+     * 与 [categories] 一一对应的星期汉字（`五`），**只给指示器**（marker 的「9/6 五 • ¥12.34」）用；
+     * 横轴标签不放星期——轴标签只有 10sp、一行最多 6 个，塞不下。
+     * 按日图表才有，月度图表留空；为空时指示器只显示日期。
+     * 带默认值：升级前的本地缓存（HomeCache）没有这个字段，反序列化回退为空集合，刷新后自然补齐。
+     */
+    val categoryWeekdays: List<String> = emptyList(),
 )
 
 /** 横轴日期/月份标签统一格式，方便在图表与 marker 中复用。 */
@@ -96,11 +103,14 @@ fun buildDailyIncomeChart(
         days = days,
         tag = "收入",
     )
+    // 横轴标签与指示器星期同源于这批日期：先算出日期，再各自格式化，避免重复 minusDays
+    val dates = trimmed.offsets.map { offset -> now.minusDays(offset.toLong()) }
     return ChartDataItem(
         key = ChartType.IncomeDaily30.storageValue,
         title = ChartType.IncomeDaily30.title,
-        categories = trimmed.offsets.map { offset -> dayLabel.format(now.minusDays(offset.toLong())) },
+        categories = dates.map { dayLabel.format(it) },
         series = listOf(ChartSeries("收入", trimmed.values)),
+        categoryWeekdays = dates.map { weekdayLabelOf(it) },
     )
 }
 
@@ -123,11 +133,14 @@ fun buildUvChart(
         days = days,
         tag = "访问人数",
     )
+    // 横轴标签与指示器星期同源于这批日期：先算出日期，再各自格式化，避免重复 minusDays
+    val dates = trimmed.offsets.map { offset -> now.minusDays(offset.toLong()) }
     return ChartDataItem(
         key = ChartType.UvDaily30.storageValue,
         title = ChartType.UvDaily30.title,
-        categories = trimmed.offsets.map { offset -> dayLabel.format(now.minusDays(offset.toLong())) },
+        categories = dates.map { dayLabel.format(it) },
         series = listOf(ChartSeries("访问人数", trimmed.values)),
+        categoryWeekdays = dates.map { weekdayLabelOf(it) },
     )
 }
 

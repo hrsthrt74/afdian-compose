@@ -481,8 +481,8 @@ private fun ChartCanvas(
             // 否则首帧宽度为 0 时库内 xSpacing=0，可见范围会算出 NaN，底轴 placer 的 while(true)
             // 因任何比较都返回 false 而永不退出，无限分配内存直到 ANR（底部弹窗打开时极易触发）。
             if (maxWidth.value.isFinite() && maxWidth > 0.dp) {
-                // 点按 marker：竖线 + 「日期 · 数据」。在主题包裹内构建，让格线跟随主题色。
-                val chartMarker = if (markerEnabled) ChartMarker(data.categories, isMoney) else null
+                // 点按 marker：竖线 + 「日期 星期 • 数据」。在主题包裹内构建，让格线跟随主题色。
+                val chartMarker = if (markerEnabled) ChartMarker(data.categories, data.categoryWeekdays, isMoney) else null
                 CartesianChartHost(
                     chart = rememberCartesianChart(
                         if (chartType == ChartType.UvDaily30) {
@@ -561,12 +561,16 @@ private fun ChartCanvas(
 }
 
 /**
- * 构建点按 marker：圆角标签框，内容为「日期 · 数据」的**单行**文本。
+ * 构建点按 marker：圆角标签框，内容为「日期 星期 • 数据」的**单行**文本。
  * 柱状图（收入）显示带 ¥ 的金额；折线图（访问人数）显示整数访问量。
+ *
+ * @param categories 横轴标签（`9/6`），与图表 x 值下标对齐。
+ * @param weekdays 与 [categories] 一一对应的星期汉字（`五`）；月度图表为空，此时只显示日期。
  */
 @Composable
 private fun ChartMarker(
     categories: List<String>,
+    weekdays: List<String>,
     isMoney: Boolean,
 ): DefaultCartesianMarker {
     val colorScheme = MiuixTheme.colorScheme
@@ -585,7 +589,7 @@ private fun ChartMarker(
     )
     return rememberDefaultCartesianMarker(
         label = labelText,
-        valueFormatter = remember(categories, isMoney) {
+        valueFormatter = remember(categories, weekdays, isMoney) {
             DefaultCartesianMarker.ValueFormatter { _, targets ->
                 val target = targets.firstOrNull()
                 buildAnnotatedString {
@@ -593,7 +597,9 @@ private fun ChartMarker(
                     val category = categories.getOrNull(index)
                     if (!category.isNullOrBlank()) {
                         append(category)
-                        append(" · ")
+                        // 日期后跟单字星期（9/6 五）；月度图表没有星期，列表为空就跳过
+                        weekdays.getOrNull(index)?.takeIf { it.isNotBlank() }?.let { append(" $it") }
+                        append(" • ")
                     }
                     // 所有图表当前都是单序列：仅取命中的值即可，多值时用点分隔保持单行。
                     val values = when (target) {
@@ -602,7 +608,7 @@ private fun ChartMarker(
                         else -> emptyList()
                     }
                     values.forEachIndexed { valueIndex, (color, value) ->
-                        if (valueIndex > 0) append(" · ")
+                        if (valueIndex > 0) append(" • ")
                         withStyle(SpanStyle(color)) {
                             append(if (isMoney) moneyText(value) else plainNumber(value))
                         }

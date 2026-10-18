@@ -99,6 +99,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   两套列宽常量都已按「日期带星期」加宽（`IncomeStatColumnWeights` 权重和 6.3 / 360dp 屏日期列 72.4dp，
   `CompactIncomeStatColumnWeights` 权重和 6.0 / 50.7dp），表头与数据行必须共用同一份。
 - 按日图表（近30天收入 / 访问人数趋势）边界处理：`/api/my/stat` 对今天/昨天返回空值，`ChartModel.trimTrailingBlankDays` 只裁掉窗口末端（今天方向）连续的空/0 天，中间为 0 的天保留；全为 0/无数据时回退完整窗口。抓取时额外回溯 `CHART_TRAILING_TRIM_BUFFER_DAYS`(7) 天，保证裁剪后仍有 `CHART_DAILY_WINDOW_DAYS`(30) 个点。
+- 图表指示器（marker）显示「日期 星期 • 值」（`9/6 五 • ¥12.34`）：星期来自 `ChartDataItem.categoryWeekdays`，与 `categories` 一一对应，由 `buildDailyIncomeChart` / `buildUvChart` 用 `weekdayLabelOf()` 填（固定中文表，不跟随系统 Locale）。横轴标签仍只放 `M/d`——10sp、一行最多 6 个，塞不下星期；月度图表的 `categoryWeekdays` 为空，指示器自动退回 `yy/M • 值`。该字段带默认值空集合，旧 HomeCache 快照反序列化不会失败。
 
 ## 发现页
 
@@ -685,7 +686,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `data/network/`：`AfdianHttpClient`（域名优先与回退）、`requireAfdianSuccess`（业务码校验）、`sharedAfdianHttpClient`（全应用共享客户端）。
 - `data/history/`：浏览历史（HistoryStore、HistoryModels）。
 - `data/log/`：本地日志（LogStore 写入管线、LogFileNaming 纯函数：命名 / 淘汰 / 行格式化 / 合并 / 脱敏）。
-- `data/stats/`：数据卡片和图表模型（CardModel、ChartModel、CreatorStatsRepository、WithdrawalSchedule）。
+- `data/stats/`：数据卡片和图表模型（CardModel、ChartModel、CreatorStatsRepository、WithdrawalSchedule；日期后缀的星期汉字统一由 `WeekdayLabel.kt` 的 `weekdayLabelOf()` 映射）。
 - `data/storage/`：本地存储占用扫描（StorageScanner、StorageCategory、formatBytes）。
 - `data/probe/`：接口调试页的探针清单、JSON 摘要纯函数与执行器（ApiProbeModels、ApiProbeJson、ApiProbeExecutor）。
 - `data/settings/SettingsStore.kt`：DataStore 设置存储。

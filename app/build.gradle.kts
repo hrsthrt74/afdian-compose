@@ -140,6 +140,12 @@ android {
         compose = true
         buildConfig = true
     }
+    // JVM 单元测试里 android.util.Log 是「未实现的桩」：一调用就抛 RuntimeException。
+    // 数据层按项目规范要走 AppLog（内部包 debugEnabled 默认开），测试 ChartModel 这类
+    // 带日志的业务函数必然踩到。打开默认值返回后，Log.x 变成空转，测试才能只验业务逻辑。
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 // AboutLibraries：离线模式，构建期不访问网络（远程 license/funding 本就默认关闭，显式锁死更稳）

@@ -31,13 +31,6 @@ enum class IncomeStatType(val apiValue: String, val title: String) {
     Month("month", "按月"),
 }
 
-/**
- * 星期标签：索引 0..6 依次对应 [java.time.DayOfWeek.value] 的 1..7（周一..周日）。
- * 用固定中文表而不是 DayOfWeek.getDisplayName()——后者跟随系统 Locale，
- * 英文设备会返回「Fri」，而表格这一列只需要一个汉字（`26/10/16 五`）。
- */
-private val WEEKDAY_LABELS = listOf("一", "二", "三", "四", "五", "六", "日")
-
 /** 单条统计记录（收入明细表格的一行）。 */
 data class IncomeStatRecord(
     // 接口原始日期字符串，格式 YYYYMMDD
@@ -60,7 +53,7 @@ data class IncomeStatRecord(
      */
     private val weekdayLabel: String? = runCatching {
         LocalDate.parse(dateStr, DateTimeFormatter.BASIC_ISO_DATE)
-    }.getOrNull()?.let { date -> WEEKDAY_LABELS[date.dayOfWeek.value - 1] }
+    }.getOrNull()?.let { date -> weekdayLabelOf(date) }
 
     /**
      * 完整日期：把 20260906 格式化成 2026/09/06；异常格式原样返回。
