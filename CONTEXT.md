@@ -29,6 +29,7 @@
 | 查开发规则（Miuix/线程/状态） | `CONTEXT-rules.md` |
 | 嵌套滚动/收拢动画/高度动画/滚动驱动 UI | `CONTEXT-best-practices.md` |
 | 规划下一步做什么 | `CONTEXT-roadmap.md` |
+| 对照网页端补功能、确认某功能是否已实现 | `CONTEXT-gap-analysis.md` |
 | Miuix 组件 API 存疑 | miuix-skill |
 
 ## 每次提交前的验证
