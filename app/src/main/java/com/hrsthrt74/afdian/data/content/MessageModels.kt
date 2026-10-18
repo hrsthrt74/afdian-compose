@@ -73,6 +73,109 @@ internal fun mergeDialogs(
     return merged
 }
 
+/**
+ * 本地置顶的会话卡片快照。
+ *
+ * 为什么存整张卡片而不是只存 id：`/api/message/dialogs` 是**页码分页**，置顶的老会话
+ * 可能落在第 N 页、首屏根本拿不到；只存 id 的话，这些置顶会「有配置但没入口」。
+ * 存下置顶那一刻的展示字段，就能在服务端数据回来之前先把卡片画在列表最前，
+ * 点进去仍然按 userId 正常打开会话。
+ *
+ * 数据新鲜度：服务端按最新消息时间倒序返回，所以置顶会话一旦有新消息就会跳到第一页，
+ * 下次刷新时 [withServerData] 会把快照更新成服务端的最新值；长期没消息的会话，
+ * 快照本身就是准的（最后一条消息停在置顶那天）。唯一可能过期的是未读数（在别的设备读过）。
+ *
+ * @param userId 对端用户 id（= [MessageDialog.id]）
+ * @param name 会话标题（对方昵称）
+ * @param avatar 头像 URL
+ * @param desc 最后一条消息的预览文本
+ * @param sendTime 最后一条消息的时间（秒级时间戳，与服务端一致）
+ * @param unreadCount 未读数（置顶那一刻的值，之后由服务端数据刷新）
+ */
+@Serializable
+data class PinnedDialogCard(
+    val userId: String,
+    val name: String,
+    val avatar: String? = null,
+    val desc: String? = null,
+    val sendTime: Double? = null,
+    val unreadCount: Int = 0,
+)
+
+/** 把一条服务端会话转成置顶快照（置顶动作发生的瞬间调用）。 */
+internal fun MessageDialog.toPinnedCard(): PinnedDialogCard =
+    PinnedDialogCard(
+        userId = id,
+        name = user.name,
+        avatar = user.avatar,
+        desc = desc,
+        sendTime = send_time,
+        unreadCount = unread_count,
+    )
+
+/**
+ * 用服务端数据刷新快照的展示字段。
+ *
+ * 昵称/头像为空时保留旧值（服务端偶尔缺字段，不能把卡片刷成空标题）；
+ * 其余字段以服务端为准（未读数、最后消息、时间都是服务端更可信）。
+ */
+internal fun PinnedDialogCard.withServerData(dialog: MessageDialog): PinnedDialogCard = copy(
+    name = dialog.user.name.ifBlank { name },
+    avatar = dialog.user.avatar ?: avatar,
+    desc = dialog.desc,
+    sendTime = dialog.send_time,
+    unreadCount = dialog.unread_count,
+)
+
+/** 把置顶快照还原成一条列表可渲染的会话（服务端还没加载到这条会话时用它补位）。 */
+internal fun PinnedDialogCard.toMessageDialog(): MessageDialog = MessageDialog(
+    unread_count = unreadCount,
+    user = AfadianUser(user_id = userId, name = name, avatar = avatar),
+    desc = desc,
+    send_time = sendTime,
+)
+
+/**
+ * 把本地置顶快照并进服务端分页列表：置顶整块在最前，其余保持服务端顺序。
+ *
+ * 规则：
+ * 1. 置顶组顺序 = [pinned] 的顺序（UI 侧按「新置顶在最前」维护），保证置顶后立刻出现在顶部；
+ * 2. 置顶会话若已在服务端列表里，**用服务端那一行**（字段更新），不存在才用快照补位；
+ * 3. 未置顶部分严格保持服务端顺序，`mergeDialogs` 的「按页追加」语义不受影响；
+ * 4. 没有置顶时原样返回同一实例，避免每次流发射都造新列表。
+ *
+ * 纯函数、无副作用（不打日志）：单测直接调用；日志由 `MessagesViewModel` 负责。
+ */
+internal fun mergePinnedIntoDialogs(
+    dialogs: List<MessageDialog>,
+    pinned: List<PinnedDialogCard>,
+): List<MessageDialog> {
+    if (pinned.isEmpty()) return dialogs
+
+    // 服务端已加载的会话索引：置顶命中时优先用这份较新的数据
+    val serverById = HashMap<String, MessageDialog>(dialogs.size)
+    for (dialog in dialogs) {
+        if (dialog.id.isNotBlank()) serverById[dialog.id] = dialog
+    }
+
+    val pinnedIds = HashSet<String>(pinned.size)
+    val result = ArrayList<MessageDialog>(dialogs.size + pinned.size)
+    for (card in pinned) {
+        if (card.userId.isBlank()) continue
+        // 同一 id 配了两条（DataStore 被手工改坏）只保留第一条：
+        // 重复 id 会让 LazyColumn 的 items(key) 直接抛 "Key ... was already used"
+        if (!pinnedIds.add(card.userId)) continue
+        // 已加载 → 服务端那一行；未加载（老会话在后面的分页）→ 快照补位
+        result += serverById[card.userId] ?: card.toMessageDialog()
+    }
+    // 未置顶部分保持服务端顺序
+    for (dialog in dialogs) {
+        if (dialog.id in pinnedIds) continue
+        result += dialog
+    }
+    return result
+}
+
 /** 发电明细：out_detail 是我对他发电，in_detail 是他对我发电。 */
 @Serializable
 data class SponsorInfo(

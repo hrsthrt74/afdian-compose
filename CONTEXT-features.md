@@ -264,6 +264,33 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - UI：三点菜单**第一组**「全部标为已读」（`MiuixIcons.Ok`，无徽标），点击先弹 `AppDialog` 确认，
   说明文字如实告知「会依次读取每个未读会话」并写明并发上限；执行中确认按钮置灰。结果用 Toast 反馈（全成功 / 部分失败报数）。
 
+### 会话置顶与长按菜单（MessagesScreen / ConversationActionMenu）
+
+- 爱发电**没有**置顶接口，置顶只存本地：`SettingsStore.msg_pinned_dialog_cards`（JSON 数组，元素是
+  `PinnedDialogCard` 卡片快照）。换设备/清数据会丢，也不按账号隔离。
+- **存整卡而不是只存 id**：`/api/message/dialogs` 是页码分页，置顶的老会话可能落在后面的分页里，
+  只存 id 会出现「有置顶配置但列表里没有入口」。快照在置顶瞬间生成（`MessageDialog.toPinnedCard()`）。
+- 合并规则（`mergePinnedIntoDialogs`，`MessageModels.kt` 顶层 `internal` 纯函数，`ConversationPinTest` 覆盖）：
+  置顶整块在最前，顺序 = 置顶顺序（新置顶的在前）；服务端已加载到该会话就用**服务端那一行**，
+  没加载到才用快照补位。`_dialogs` 本身必须保持服务端顺序（`mergeDialogs` 的按页追加、
+  `markConversationRead` 的 map 1:1 都依赖它），合并只发生在**展示流** `filteredDialogs` 里。
+- 过滤在合并**之后**做：置顶会话若已加载到、只是被筛掉（如「未读」筛选下已读），不会再拿快照补一张重复卡。
+- 新鲜度自愈：服务端按最新消息时间倒序返回，置顶会话一旦有新消息就会跳到第一页，下次 `refresh`/`loadMore`
+  时 `syncPinnedCardsFromServer` 把快照刷成服务端值（无变化不写盘）。长期没消息的会话快照本来就准，
+  唯一可能过期的是「在别的设备读过」的未读数（本地 `markConversationRead` 也会清快照里的未读）。
+- `mergePinnedIntoDialogs` 无置顶时原样返回同一实例；同一会话不会既来自快照又来自服务端（LazyColumn key 不变式）。
+- 长按卡片（`combinedClickable`）弹出操作菜单：`ConversationActionMenu` 冻结「整条会话 / 是否置顶 / 卡片窗口坐标」，
+  菜单项按快照组装（「置顶」或「取消置顶」+「标为已读」）。「标为已读」**始终在列**，会话已读时置灰不可点
+  （`InlineActionPopup(isEnabled = ...)`，禁用色 `disabledOnSecondaryVariant`，与 DropdownImpl 禁用项一致）；
+  `dismiss` 不清 target，否则退场动画会闪空。
+- 菜单视觉复用会话页气泡菜单的骨架：`ui/components/basic/InlinePopup.kt`（`InlinePopupLayout` / `InlineActionPopup` /
+  `InlineActionRow` / `HolePunchDimScrim` / `calculateMenuOffset`）。`MessageBubbleActionPopup` 也改用它，
+  会话页独有导航滑动闸门 `NavSwipeGate` 刻意留在气泡菜单里，不进公共骨架。
+- 「标为已读」单条链路同「全部标为已读」：本地先清 badge（乐观），再调 `MessageService.markDialogRead` 触发服务端清未读，
+  最后 `refreshUnreadCount()`；失败不回滚本地 badge，等下次列表刷新纠正。
+- 已知取舍：重排会让 LazyColumn 按 index 保持视口，置顶瞬间其它卡片下移一格；被快照补位的老会话
+  在点进去之前不知道有没有新消息（分页接口拿不到单条会话）。
+
 ### 会话页 FAQ 快捷回复（MessageConversationScreen）
 
 - FAQ 不常驻：输入框尾部 `trailingIcon` 放 `MiuixIcons.Help` 按钮，点击切换 FAQ 横排的显示。

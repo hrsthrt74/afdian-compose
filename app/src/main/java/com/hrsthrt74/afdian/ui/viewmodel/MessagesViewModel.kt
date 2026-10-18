@@ -12,8 +12,12 @@ import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MyCheckData
+import com.hrsthrt74.afdian.data.content.PinnedDialogCard
 import com.hrsthrt74.afdian.data.content.SponsorInfo
 import com.hrsthrt74.afdian.data.content.mergeDialogs
+import com.hrsthrt74.afdian.data.content.mergePinnedIntoDialogs
+import com.hrsthrt74.afdian.data.content.toPinnedCard
+import com.hrsthrt74.afdian.data.content.withServerData
 import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.history.HistoryStore
 import com.hrsthrt74.afdian.data.settings.SettingsStore
@@ -82,11 +86,32 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     private val _showSponsorDetail = MutableStateFlow(false)
     val showSponsorDetail = _showSponsorDetail.asStateFlow()
 
-    /** 根据过滤条件筛选后的对话列表 */
+    /**
+     * 本地置顶的会话卡片（顺序即列表里的置顶顺序，新置顶的在前）。
+     *
+     * 存整卡而不是只存 id：置顶的老会话可能落在后面的分页里、首屏根本拉不到，
+     * 只存 id 会出现「有置顶配置但列表里没有入口」。快照在置顶瞬间生成，
+     * 之后每次服务端数据里出现同一会话时由 [syncPinnedCardsFromServer] 刷新。
+     *
+     * 初值空列表，`init` 里从 DataStore 回填；回填前列表按服务端顺序显示。
+     */
+    private val _pinnedCards = MutableStateFlow<List<PinnedDialogCard>>(emptyList())
+    val pinnedCards: StateFlow<List<PinnedDialogCard>> = _pinnedCards.asStateFlow()
+
+    /**
+     * 根据过滤条件筛选 + 置顶合并的对话列表。
+     *
+     * 置顶合并只作用于**展示流**：`_dialogs` 本身必须保持服务端顺序，
+     * `mergeDialogs` 的按页追加与 `markConversationRead` 的 map 1:1 变换都依赖这一点。
+     *
+     * 过滤在合并之后做：置顶会话若已从服务端加载到、只是被筛掉（比如「未读」筛选下已读），
+     * 不应再拿快照补一张重复卡片进来。
+     */
     val filteredDialogs: StateFlow<List<MessageDialog>> = combine(
-        _dialogs, _showUnreadOnly, _showRecentOnly
-    ) { dialogs, unreadOnly, recentOnly ->
-        dialogs.filter { dialog ->
+        _dialogs, _showUnreadOnly, _showRecentOnly, _pinnedCards
+    ) { dialogs, unreadOnly, recentOnly, pinned ->
+        val merged = mergePinnedIntoDialogs(dialogs, pinned)
+        merged.filter { dialog ->
             val unreadOk = !unreadOnly || dialog.unread_count > 0
             val recentOk = !recentOnly || dialog.send_time?.let { ts ->
                 val twoWeeksAgo = (System.currentTimeMillis() / 1000.0) - 14 * 24 * 60 * 60
@@ -139,6 +164,15 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _showSponsorDetail.value = settingsStore.msgShowSponsorDetail.first()
         }
+        // 从 DataStore 恢复置顶会话卡片。加空值守卫：读取是异步的，若用户在回填前就点了置顶，
+        // 直接用存储值覆盖会把这次操作吞掉（概率极低，但守卫成本几乎为零）
+        viewModelScope.launch {
+            val stored = settingsStore.msgPinnedDialogCards.first()
+            if (_pinnedCards.value.isEmpty()) {
+                _pinnedCards.value = stored
+                AppLog.d("Messages", "置顶会话已恢复，数量=${stored.size}")
+            }
+        }
     }
 
     fun refresh() {
@@ -159,6 +193,8 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                 // 首页同样过一遍合并：服务端偶发重复会话 / 缺 user 对象时，首屏一样会撞 key
                 val merged = mergeDialogs(emptyList(), result.dialogs)
                 _dialogs.value = merged
+                // 首屏数据到了：把置顶快照刷新成服务端最新值（置顶会话的新消息会跳到第一页）
+                syncPinnedCardsFromServer(merged)
                 _hasMoreRaw = result.hasMore
                 _hasMore.value = result.hasMore
                 // 页码只在成功后拨回 1。原先在请求前就重置，失败时列表还是 1..N 的旧内容，
@@ -230,6 +266,8 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                 val current = _dialogs.value
                 val merged = mergeDialogs(current, result.dialogs)
                 _dialogs.value = merged
+                // 翻到置顶会话所在页时，用服务端数据覆盖快照（昵称/头像/最后消息/未读）
+                syncPinnedCardsFromServer(merged)
                 _hasMoreRaw = result.hasMore
                 _hasMore.value = result.hasMore
                 currentPage = nextPage
@@ -276,6 +314,113 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         }
         if (clearedCount > 0) {
             AppLog.d("Messages", "conversation marked read locally: unread=$clearedCount")
+        }
+        // 置顶会话可能还没被分页加载到（列表上显示的是本地快照），快照里的未读数同样要清，
+        // 否则点进会话后卡片上的 badge 还在
+        clearPinnedCardUnread(userId)
+    }
+
+    /**
+     * 把置顶快照里某条会话的未读清零并落盘（没有变化时直接返回，避免无谓写入）。
+     */
+    private fun clearPinnedCardUnread(userId: String) {
+        val current = _pinnedCards.value
+        if (current.none { it.userId == userId && it.unreadCount > 0 }) return
+        val next = current.map { card ->
+            if (card.userId == userId) card.copy(unreadCount = 0) else card
+        }
+        _pinnedCards.value = next
+        persistPinnedCards(next)
+    }
+
+    /**
+     * 切换某个会话的置顶状态：先更新内存态（列表立刻重排），再异步落盘。
+     *
+     * 置顶存的是**整张卡片快照**而非 id：置顶的老会话可能落在后面的分页里，
+     * 只存 id 会导致列表里根本没有这条会话可显示（详见 [PinnedDialogCard] 的注释）。
+     *
+     * 内存优先的原因：置顶是即时可见的操作，等 DataStore 写完再刷新会有明显延迟感；
+     * 写入失败只影响「下次启动是否还记得」，不值得回滚内存态（会把卡片再弹回去，更像 bug）。
+     *
+     * 日志只打数量不打 user_id：日志会落盘导出，用户标识不该出现在里面。
+     */
+    fun togglePinned(dialog: MessageDialog) {
+        val userId = dialog.id
+        if (userId.isBlank()) return
+        val current = _pinnedCards.value
+        val alreadyPinned = current.any { it.userId == userId }
+        val next = if (alreadyPinned) {
+            current.filterNot { it.userId == userId }
+        } else {
+            // 新置顶的放最前：置顶后立刻在列表顶部看到它，操作结果一目了然
+            listOf(dialog.toPinnedCard()) + current
+        }
+        _pinnedCards.value = next
+        AppLog.d(
+            "Messages",
+            "置顶状态已切换：pinnedCount=${next.size}, 本次=${if (alreadyPinned) "取消" else "置顶"}"
+        )
+        persistPinnedCards(next)
+    }
+
+    /** 落盘置顶快照（失败只记 W：内存态已经生效，下次启动最多丢一次置顶）。 */
+    private fun persistPinnedCards(cards: List<PinnedDialogCard>) {
+        viewModelScope.launch {
+            runCatching { settingsStore.setMsgPinnedDialogCards(cards) }
+                .onFailure { AppLog.w("Messages", "保存置顶会话失败", it) }
+        }
+    }
+
+    /**
+     * 用服务端数据刷新置顶快照的展示字段（昵称 / 头像 / 最后一条消息 / 时间 / 未读数）。
+     *
+     * 时机：每次列表刷新或翻页合并之后。置顶会话一旦有新消息就会跳到服务端第一页，
+     * 于是快照被自然纠偏；长期没有新消息的会话，快照本来就是准的。
+     * 没有任何字段变化时不写盘（翻页很频繁，无谓的 DataStore 写入会拖慢刷新）。
+     */
+    private fun syncPinnedCardsFromServer(dialogs: List<MessageDialog>) {
+        val current = _pinnedCards.value
+        if (current.isEmpty() || dialogs.isEmpty()) return
+        val serverById = HashMap<String, MessageDialog>(dialogs.size)
+        for (dialog in dialogs) {
+            if (dialog.id.isNotBlank()) serverById[dialog.id] = dialog
+        }
+        var changed = false
+        val next = current.map { card ->
+            val server = serverById[card.userId] ?: return@map card
+            val updated = card.withServerData(server)
+            if (updated != card) changed = true
+            updated
+        }
+        if (!changed) return
+        _pinnedCards.value = next
+        persistPinnedCards(next)
+    }
+
+    /**
+     * 把单个会话标为已读（长按卡片菜单的「标为已读」）。
+     *
+     * 与「全部标为已读」同一条链路：服务端只在加载历史消息时清除该会话未读，
+     * 所以必须调一次 `service.markDialogRead`；本地先清 badge 让操作即时可见。
+     *
+     * 服务端失败时**不回滚**本地 badge：与 [markAllRead] 的乐观策略保持一致，
+     * 下次列表刷新会以服务端数据为准自然恢复。
+     */
+    fun markSingleRead(userId: String) {
+        if (userId.isBlank()) return
+        markConversationRead(userId)
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { service.markDialogRead(userId) }
+                // 同步底部 Tab badge / 三点菜单徽标（它们读的是 /api/my/check）
+                refreshUnreadCount()
+                AppLog.d("Messages", "单个会话已标为已读")
+            } catch (e: CancellationException) {
+                // 页面销毁导致的正常取消不算错误，必须原样抛出，不能被下面的分支吞成 W 日志
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Messages", "单个会话标已读失败（本地 badge 已清，等下次刷新纠正）", e)
+            }
         }
     }
 

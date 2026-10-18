@@ -6,9 +6,12 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.BuildConfig
+import com.hrsthrt74.afdian.data.content.PinnedDialogCard
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
@@ -118,6 +121,14 @@ internal fun mergeHomeModuleOrder(saved: List<HomeModule>): List<HomeModule> {
 /** 进程级单例的设置 DataStore，替代旧的 SharedPreferences("settings")。 */
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
+/**
+ * 置顶会话快照专用的 JSON 配置：忽略未知字段。
+ *
+ * 用默认 Json 的话，日后给 [PinnedDialogCard] 删/改名一个字段，旧数据就会解析失败，
+ * 读取端按「无置顶」兜底 → 用户的置顶会静默消失。忽略未知字段可以让旧数据继续可读。
+ */
+private val pinnedCardsJson = Json { ignoreUnknownKeys = true }
+
 class SettingsStore(private val context: Context) {
     private object Keys {
         // 与旧 SP 中的键名保持一致，方便日后人工对照排查
@@ -171,6 +182,11 @@ class SettingsStore(private val context: Context) {
         val MONTHLY_SUMMARY_AMOUNT_MODE = androidx.datastore.preferences.core.stringPreferencesKey("monthly_summary_amount_mode")
         // 消息页「发电明细」开关
         val MSG_SHOW_SPONSOR_DETAIL = booleanPreferencesKey("msg_show_sponsor_detail")
+        // 消息页置顶会话的**卡片快照**（JSON 数组）。存整卡而非只存 id：置顶的老会话可能落在
+        // 后面的分页里，只存 id 会造成「有置顶配置但列表里没有入口」
+        val MSG_PINNED_DIALOG_CARDS = stringPreferencesKey("msg_pinned_dialog_cards")
+        // 上一版实现只存了 user_id 集合（没有卡片数据，无法补位渲染）。写入新格式时顺手清掉
+        val MSG_PINNED_DIALOGS_LEGACY = stringSetPreferencesKey("msg_pinned_dialogs")
         // 图片缓存（Coil 全局磁盘缓存）的体积上限，存 ImageCacheLimit.storageValue
         val IMAGE_CACHE_LIMIT = androidx.datastore.preferences.core.stringPreferencesKey("image_cache_limit")
         // 外部爱发电链接是否优先交给官方客户端，默认关闭（优先使用 Custom Tabs）
@@ -534,6 +550,44 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setMsgShowSponsorDetail(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.MSG_SHOW_SPONSOR_DETAIL] = enabled }
+    }
+
+    /**
+     * 消息页置顶的会话卡片列表（顺序即列表里的置顶顺序，新置顶的在前）。
+     *
+     * 爱发电没有会话置顶接口，这里只做本地持久化：换设备 / 清数据会丢，不做账号级隔离。
+     * 解析失败（旧版本字段改名、手工改坏）按「没有置顶」处理，不让坏数据把消息页搞崩；
+     * 空白 userId 的条目直接丢弃——它在列表里既打不开也无法取消置顶。
+     */
+    val msgPinnedDialogCards: Flow<List<PinnedDialogCard>> =
+        context.settingsDataStore.data.map { preferences ->
+            preferences[Keys.MSG_PINNED_DIALOG_CARDS]
+                ?.let { json ->
+                    runCatching { pinnedCardsJson.decodeFromString<List<PinnedDialogCard>>(json) }
+                        .onFailure { AppLog.w("Settings", "置顶会话解析失败，按无置顶处理", it) }
+                        .getOrNull()
+                }
+                ?.filter { it.userId.isNotBlank() }
+                .orEmpty()
+        }
+
+    /**
+     * 写入置顶会话卡片列表。
+     *
+     * 列表为空时直接删 key 而不是写 `[]`：语义上回到「用户从未设置过置顶」，
+     * 与首页布局重置（删 key 让读取端回落默认）保持同一套约定。
+     * 同时清掉上一版只存 id 集合的遗留键，避免 DataStore 里长期留着读不到的死数据。
+     */
+    suspend fun setMsgPinnedDialogCards(cards: List<PinnedDialogCard>) {
+        AppLog.d("Settings", "保存消息页置顶会话，数量=${cards.size}")
+        context.settingsDataStore.edit { preferences ->
+            preferences.remove(Keys.MSG_PINNED_DIALOGS_LEGACY)
+            if (cards.isEmpty()) {
+                preferences.remove(Keys.MSG_PINNED_DIALOG_CARDS)
+            } else {
+                preferences[Keys.MSG_PINNED_DIALOG_CARDS] = pinnedCardsJson.encodeToString(cards)
+            }
+        }
     }
 
     suspend fun acceptDisclaimer() {

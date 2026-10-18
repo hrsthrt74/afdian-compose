@@ -6,6 +6,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,9 +37,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,6 +93,7 @@ import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.Redo
 import top.yukonga.miuix.kmp.icon.extended.Reply
 import top.yukonga.miuix.kmp.icon.extended.Undo
@@ -119,6 +124,12 @@ fun MessagesScreen(
     val showUnreadOnly by viewModel.showUnreadOnly.collectAsState()
     val showRecentOnly by viewModel.showRecentOnly.collectAsState()
     val showSponsorDetail by viewModel.showSponsorDetail.collectAsState()
+    // 置顶会话快照：既决定卡片上的 Pin 标记，也保证置顶的老会话即使还没翻到所在页
+    // 也能出现在列表最前（列表数据由 VM 合并，这里只用来判断「这一条是否置顶」）
+    val pinnedCards by viewModel.pinnedCards.collectAsState()
+    val pinnedIds = remember(pinnedCards) { pinnedCards.mapTo(HashSet()) { it.userId } }
+    // 长按卡片弹出的操作菜单（状态 + 弹层都在 ConversationActionMenu.kt）
+    val conversationMenuState = rememberConversationActionMenuState()
     // 未读评论/喜欢数（来自 /api/my/check），显示在三点菜单对应项的图标徽标上
     val unreadCommentCount by viewModel.unreadCommentCount.collectAsState()
     val unreadLikeCount by viewModel.unreadLikeCount.collectAsState()
@@ -375,12 +386,24 @@ fun MessagesScreen(
                     items(dialogs, key = { it.id }) { dialog ->
                         MessageDialogRow(
                             dialog = dialog,
+                            // 是否已置顶：名字旁显示 Pin 标记
+                            pinned = dialog.id in pinnedIds,
                             showSponsorDetail = showSponsorDetail,
                             onClick = {
                                 // 消息页在 Pager 中常驻，进入会话后返回不会重新组合；先同步清除卡片 badge。
                                 viewModel.markConversationRead(dialog.user.user_id)
                                 onNavigate(Route.MessageConversation(dialog.user.user_id, dialog.user.name, dialog.user.avatar))
-                            }
+                            },
+                            // 长按：冻结「会话 + 置顶状态 + 卡片窗口坐标」后弹出操作菜单
+                            onLongClick = { cardBounds ->
+                                conversationMenuState.show(
+                                    ConversationMenuTarget(
+                                        dialog = dialog,
+                                        pinned = dialog.id in pinnedIds,
+                                        bounds = cardBounds,
+                                    )
+                                )
+                            },
                         )
                     }
 
@@ -505,6 +528,15 @@ fun MessagesScreen(
                 onNavigate(Route.PostDetailById(postId))
             },
         )
+
+        // 长按卡片的操作菜单（置顶 / 标为已读）。
+        // 必须挂在本 Scaffold 内：PopupLayout 会注册到 Scaffold 提供的 LocalPopupStates，
+        // 放到 Scaffold 外会注册进无人消费的孤儿列表，弹层永不显示。
+        ConversationActionMenu(
+            state = conversationMenuState,
+            onTogglePin = viewModel::togglePinned,
+            onMarkRead = viewModel::markSingleRead,
+        )
     }
 
     // 「全部标为已读」确认弹窗：爱发电没有一键已读接口，实现方式是逐个读取未读会话，
@@ -555,26 +587,39 @@ private fun MenuIconWithBadge(
 
 /* 消息条目:
 * ╭──────────────────────╮
-* │  头  用户名字  时间  │
+* │  头  用户名字📌 时间 │
 * │  像  对话内容  未读  │
 * │      --------        │
 * │      <-￥3.25        │
 * ╰──────────────────────╯
+*
+* 点击进会话；长按弹出操作菜单（置顶 / 标为已读），菜单需要卡片的窗口坐标作为锚点。
 * */
 @Composable
 private fun MessageDialogRow(
     dialog: MessageDialog,
+    pinned: Boolean,
     showSponsorDetail: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (cardBounds: Rect) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column{
+    // 卡片在窗口中的最新坐标：长按回调把这份快照交给弹层，既用于摆放菜单，
+    // 也用于挖洞遮罩（弹层打开期间页面不再滚动，快照不会过期）
+    var cardBoundsInWindow by remember { mutableStateOf<Rect?>(null) }
 
+    Card( modifier = Modifier.fillMaxWidth().onGloballyPositioned{ cardBoundsInWindow = it.boundsInWindow() } ) {
+        Column{
             // 主要内容
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onClick)
+                    // 点击 + 长按：长按震动由 combinedClickable 内部触发（LongPress），无需再手动震。
+                    // padding 放在手势之后：涟漪与触摸区域覆盖含 12dp 内边距的整卡
+                    .combinedClickable(
+                        onClick = onClick,
+                        onLongClickLabel = "更多操作",
+                        onLongClick = { cardBoundsInWindow?.let(onLongClick) },
+                    )
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -591,13 +636,26 @@ private fun MessageDialogRow(
                 // 2. 两行文本
                 Column(modifier = Modifier.weight(1f)) {
 
-                    // 用户名
-                    Text(
-                        text = dialog.user.name,
-                        style = MiuixTheme.textStyles.headline1,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    // 用户名 + 置顶标记（置顶标记跟随名字末尾，长名字先省略文字、不影响图标）
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = dialog.user.name,
+                            style = MiuixTheme.textStyles.headline1,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (pinned) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            // 置顶 Pin
+                            Icon(
+                                imageVector = MiuixIcons.Demibold.Pin,
+                                contentDescription = "已置顶",
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
 
                     // desc
                     dialog.desc?.let { preview ->
