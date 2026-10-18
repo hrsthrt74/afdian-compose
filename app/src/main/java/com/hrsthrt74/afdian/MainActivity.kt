@@ -237,11 +237,21 @@ private fun AfdianApp(
                     } else {
                         val isLoggingIn by session.isLoggingIn.collectAsState()
                         val error by session.error.collectAsState()
+                        // 验证码登录的配套状态：发码进度、60 秒倒计时、图形验证码图片
+                        val isSendingCode by session.isSendingCode.collectAsState()
+                        val codeCooldown by session.codeCooldown.collectAsState()
+                        val captchaBytes by session.captchaBytes.collectAsState()
                         LoginScreen(
                             onLogin = session::login,
+                            onCodeLogin = session::loginWithCode,
+                            onSendCode = session::sendLoginCode,
                             isLoggingIn = isLoggingIn,
+                            isSendingCode = isSendingCode,
+                            codeCooldownSeconds = codeCooldown,
+                            captchaBytes = captchaBytes,
                             errorMessage = error,
                             buildExpiresAtMs = expiresAtMs,
+                            onClearError = session::clearError,
                         )
                     }
                 }

@@ -15,6 +15,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 认证
 
 - 密码登录（AES/CBC/PKCS5Padding 加密账号和密码，RSA/PKCS1 加密 AES 密钥）。
+- 验证码登录（手机号 / 邮箱）：登录页用「密码登录 / 验证码登录」双 Tab 切换；发码接口 `/api/passport/send-ql-code` 在服务端要求人机校验时返回 `ec=201` + `captcha_img`，界面在验证码框下方就地展开图形验证码（点图片可换一张），填对后重新发码；发送成功后进入 60 秒重发倒计时。验证码登录走 `/api/passport/quick-login`。
 - Token 使用 Android Keystore 的 AES-GCM 加密后保存。
 - 登录失败显示错误文本，登录中禁用按钮。
 - 免责声明弹窗：首次同意后保存本地状态，不同意则关闭任务。
