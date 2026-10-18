@@ -29,7 +29,48 @@ data class MessageDialog(
     val send_time: Double? = null,
     val sponsor_info: SponsorInfo? = null,
 ) {
+    /**
+     * LazyColumn 的稳定 key：会话由对端用户唯一确定，服务端按 user_id 归一。
+     * 空 user_id 的行（响应缺 user 对象）已由 [mergeDialogs] 丢弃，不会带空 key 进列表。
+     */
     val id: String get() = user.user_id
+}
+
+/**
+ * 合并会话分页，保证返回值满足「id 唯一且非空」——这是消息列表 LazyColumn 的 key 不变式。
+ *
+ * 为什么必须合并而不能直接 `+`：`/api/message/dialogs` 是**页码分页**，服务端按最新消息时间
+ * 倒序返回。翻页期间只要来一条新消息，尾部会话就会下沉到下一页，同一会话在 page N 与
+ * page N+1 各出现一次；刷新与在飞翻页交错时也会把旧页追加到新列表上。重复 id 会让
+ * `items(key = { it.id })` 直接抛 "Key ... was already used" 闪退。
+ *
+ * 去重方向：**保留先出现的一条**。existing 是已经在屏幕上的更新快照，incoming 是更旧的页，
+ * 同 id 时旧数据不应覆盖新数据，也不该把条目挪到列表尾部造成跳动。
+ *
+ * user_id 为空/空白的会话直接丢弃：跳转会话页（`Route.MessageConversation`）与
+ * `markConversationRead` 都只认 `user.user_id`，这种行既打不开也标不了已读，留着只会误导。
+ *
+ * 纯函数、保持无副作用（不打日志）：单测里 `AppLog` 最终落到 `android.util.Log`，未 mock 会抛异常；
+ * 丢弃条数由调用方 `MessagesViewModel` 记 W 日志。
+ */
+internal fun mergeDialogs(
+    existing: List<MessageDialog>,
+    incoming: List<MessageDialog>,
+): List<MessageDialog> {
+    val merged = ArrayList<MessageDialog>(existing.size + incoming.size)
+    val seen = HashSet<String>(existing.size + incoming.size)
+    // 先收已有列表：既去重自身，也占住位置，让后面同 id 的旧页数据被丢弃
+    for (dialog in existing) {
+        // 防御性过滤：既有列表理论上已归一化，避免某次漏走 mergeDialogs 的空行混进来
+        if (dialog.user.user_id.isBlank()) continue
+        if (seen.add(dialog.id)) merged += dialog
+    }
+    // 再追加新页里没见过的会话，保持服务端顺序
+    for (dialog in incoming) {
+        if (dialog.user.user_id.isBlank()) continue
+        if (seen.add(dialog.id)) merged += dialog
+    }
+    return merged
 }
 
 /** 发电明细：out_detail 是我对他发电，in_detail 是他对我发电。 */

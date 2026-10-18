@@ -223,6 +223,26 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 - 消息列表页（含未读数 Badge）和会话详情页（聊天记录、FAQ、发送消息）。
 
+### 会话列表分页、去重与列表 key（MessagesViewModel / MessageModels）
+
+- `GET /api/message/dialogs` 是**页码分页**（`page` / `unread`），服务端按最新消息时间倒序返回。
+  翻页期间来了新消息，尾部会话会下沉到下一页，所以 `loadMore` 拿到的页**必然可能**与上一页重叠，
+  不能直接 `+`。`items(key = { it.id })`（id = `user.user_id`）撞上重复 key 会直接抛
+  "Key ... was already used" 闪退，这就是消息页偶发闪退的根因。
+- 列表写入统一走 `mergeDialogs(existing, incoming)`（`data/content/MessageModels.kt`，顶层 `internal` 纯函数，
+  `MessageDialogMergeTest` 覆盖）：**丢弃 `user.user_id` 为空/空白**的行（跳会话页与 `markConversationRead`
+  都只认它，这种行既打不开也标不了已读），同一 id **保留先出现**的一条（existing 是更新的快照，旧页不得覆盖）。
+  输出恒满足「id 唯一且非空」。
+- 因此 UI 侧直接 `key = { it.id }` 即可；`filteredDialogs` 的 filter 与页面都**不要**再 `distinctBy`
+  （filter 保序保重数，重复机制只会掩盖数据层缺陷）。
+- 并发用批次号 `listEpoch`（同 `ApiProbeViewModel.runEpoch`）：`refresh()` 自增批次并作废在飞的 `loadMore`，
+  旧页返回时**整页丢弃**（不推进 `currentPage`、不改 `hasMore`）。`refresh()` 不因 `_isLoadingMore` 而放弃
+  ——下拉刷新是用户明确意图，等翻页跑完再执行会让人以为刷新失效。
+- `currentPage` 只在整页**成功提交后**推进（原来用 `++` 且 refresh 在请求前就重置，请求失败/过期都会让页码漂移，
+  下次又请求同一页产生重复）。
+- 合并真丢了条数才打 W（`page` / `got` / `blankId` / `kept`，不含 `user_id`）；末尾「共 N 条对话」是去重后的真实条数。
+- `markConversationRead` 的 `map` 是 1:1 变换（不增删、不调序），不破坏该不变式，这条写路径不走 `mergeDialogs`。
+
 ### 会话特殊消息卡片（MessageCards.kt）
 
 - `resolveTextContent`（MessageParser）先按固定文案把文本消息识别成系统通知，命中才出卡片，未命中才走 HTML 清洗后的普通文本气泡；卡片按 `MessageContent` 的 sealed 子类在 `MessageContentBubble` 里分发。

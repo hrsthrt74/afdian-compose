@@ -370,6 +370,8 @@ fun MessagesScreen(
                         }
                     }
 
+                    // key = user_id：唯一性由 MessagesViewModel 的分页写入（mergeDialogs）保证，
+                    // 这里不要再加 distinctBy 之类的兜底——重复说明数据层出了问题，应该在那里修
                     items(dialogs, key = { it.id }) { dialog ->
                         MessageDialogRow(
                             dialog = dialog,

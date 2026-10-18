@@ -13,6 +13,7 @@ import com.hrsthrt74.afdian.data.content.MessageFAQ
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.data.content.MyCheckData
 import com.hrsthrt74.afdian.data.content.SponsorInfo
+import com.hrsthrt74.afdian.data.content.mergeDialogs
 import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.history.HistoryStore
 import com.hrsthrt74.afdian.data.settings.SettingsStore
@@ -122,6 +123,14 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     private var _hasMoreRaw = true
     private var isLoadingInternal = false
 
+    /**
+     * 列表批次号：每次 [refresh] 自增，用于作废在飞的 [loadMore]。
+     *
+     * 页码分页在「刷新 + 翻页」交错时会把旧页追加到刷新后的新列表上（既重复又缺页），
+     * 所以刷新一发生，之前发出的翻页请求就整页丢弃。与 `ApiProbeViewModel.runEpoch` 同一套做法。
+     */
+    private var listEpoch = 0
+
     init {
         refresh()
         // 首次进入立即拉取未读计数，不等 auto-refresh
@@ -133,20 +142,29 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refresh() {
+        // 防重入标志必须在启动协程前同步置位：写在 launch 内部时，
+        // init / 下拉刷新 / 从会话页返回 短时间内连续调用两次，两个调用都读到 false，各发一次首页请求
         if (isLoadingInternal) return
+        isLoadingInternal = true
+        // 作废所有在飞的 loadMore：旧页的排序基准已失效，回来时批次号对不上就整页丢弃。
+        // 这里刻意不挡 _isLoadingMore——下拉刷新是用户的明确意图，等翻页跑完再执行会让人以为刷新失效
+        listEpoch++
         viewModelScope.launch {
-            isLoadingInternal = true
             _isLoading.value = true
             _error.value = null
-            currentPage = 1
             try {
                 val result = withContext(Dispatchers.IO) {
                     service.fetchMessageDialogs(page = 1, unread = 0)
                 }
-                _dialogs.value = result.dialogs
+                // 首页同样过一遍合并：服务端偶发重复会话 / 缺 user 对象时，首屏一样会撞 key
+                val merged = mergeDialogs(emptyList(), result.dialogs)
+                _dialogs.value = merged
                 _hasMoreRaw = result.hasMore
                 _hasMore.value = result.hasMore
+                // 页码只在成功后拨回 1。原先在请求前就重置，失败时列表还是 1..N 的旧内容，
+                // 下一次 loadMore 却按 page=2 取，会再追加一页重复会话
                 currentPage = 1
+                logMerge("refresh", page = 1, existingSize = 0, incoming = result.dialogs, mergedSize = merged.size)
                 AppLog.d("Messages", "refresh ok: page=1, dialogs=${result.dialogs.size}, hasMore=${result.hasMore}")
                 // 下拉刷新同时同步底部导航栏的全局未读数；列表接口不会返回评论/点赞未读数。
                 refreshUnreadCount()
@@ -158,6 +176,26 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
                 isLoadingInternal = false
             }
         }
+    }
+
+    /**
+     * 合并后丢掉过会话才记 W（正常分页不该丢任何一条）。
+     * 只打计数不打 user_id：日志会落盘导出，用户标识不该出现在里面。
+     */
+    private fun logMerge(
+        action: String,
+        page: Int,
+        existingSize: Int,
+        incoming: List<MessageDialog>,
+        mergedSize: Int,
+    ) {
+        val dropped = existingSize + incoming.size - mergedSize
+        if (dropped <= 0) return
+        val blankId = incoming.count { it.user.user_id.isBlank() }
+        AppLog.w(
+            "Messages",
+            "$action 丢弃 $dropped 条重复/无效会话：page=$page, got=${incoming.size}, blankId=$blankId, kept=$mergedSize"
+        )
     }
 
     /** 轻量未读检查：调用 /api/my/check 更新底部导航栏使用的全局未读数。 */
@@ -172,22 +210,40 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
 
     fun loadMore() {
         if (isLoadingInternal || !_hasMoreRaw || _isLoadingMore.value) return
+        // 同步占位：触底回调可能在一帧内被连续触发，写在协程里会放两个同页码的请求进去
+        _isLoadingMore.value = true
+        // 固定本次批次与页码：批次变了（期间刷新过）就整页丢弃；页码只在本页真正提交后才推进
+        val epoch = listEpoch
+        val nextPage = currentPage + 1
         viewModelScope.launch {
-            _isLoadingMore.value = true
-            // 固定本次请求的页码，避免追加过程中变量变化导致日志口径不一致
-            val nextPage = currentPage + 1
             try {
                 val result = withContext(Dispatchers.IO) {
                     service.fetchMessageDialogs(page = nextPage, unread = 0)
                 }
-                _dialogs.value = _dialogs.value + result.dialogs
+                if (epoch != listEpoch) {
+                    // 期间列表已刷新：这一页的排序基准失效，丢弃它，hasMore 与 currentPage 都不动
+                    AppLog.d("Messages", "loadMore 结果已过期（期间已刷新列表），整页丢弃：page=$nextPage")
+                    return@launch
+                }
+                // 提交时才读当前列表：期间 markConversationRead 可能已清掉本地 badge，
+                // 用请求发起时的快照合并会把清零结果覆盖回未读
+                val current = _dialogs.value
+                val merged = mergeDialogs(current, result.dialogs)
+                _dialogs.value = merged
                 _hasMoreRaw = result.hasMore
                 _hasMore.value = result.hasMore
-                currentPage++
+                currentPage = nextPage
+                logMerge(
+                    action = "loadMore",
+                    page = nextPage,
+                    existingSize = current.size,
+                    incoming = result.dialogs,
+                    mergedSize = merged.size,
+                )
                 // 调试日志：翻页参数、本页条数与累计总数
                 AppLog.d(
                     "Messages",
-                    "loadMore ok: page=$nextPage, got=${result.dialogs.size}, total=${_dialogs.value.size}, hasMore=${result.hasMore}"
+                    "loadMore ok: page=$nextPage, got=${result.dialogs.size}, total=${merged.size}, hasMore=${result.hasMore}"
                 )
             } catch (e: Exception) {
                 // 错误日志：用户模式下也能看到加载更多失败
@@ -208,6 +264,8 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     fun markConversationRead(userId: String) {
         if (userId.isBlank()) return
         var clearedCount = 0
+        // map 是 1:1 变换（不增删、不调序、用户 id 不变），不会破坏「id 唯一」这条列表不变式，
+        // 所以这条写路径不需要再过一遍 mergeDialogs
         _dialogs.value = _dialogs.value.map { dialog ->
             if (dialog.user.user_id == userId && dialog.unread_count > 0) {
                 clearedCount += dialog.unread_count
