@@ -46,7 +46,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -571,40 +570,37 @@ fun ComplaintCard(
                 complaint.orderNo?.takeIf { it.isNotBlank() }?.let { ShipmentFieldRow("订单号", it) }
             }
 
-            Column{
-
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-                complaint.detailUrl?.let { url ->
-                    // 查看用户详情：居中操作行（图标 + 文案），样式与其他带操作卡片一致
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                appLinkNavigator.open(url)
-                            }
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        // 用户图标
-                        Icon(
-                            imageVector = MiuixIcons.Demibold.Contacts,
-                            contentDescription = "查看用户详情",
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "查看用户详情",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-            }
+//            Column{
+//                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+//                complaint.detailUrl?.let { url ->
+//                    // 查看用户详情：居中操作行（图标 + 文案），样式与其他带操作卡片一致
+//                    Row(
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .clickable {
+//                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                                appLinkNavigator.open(url)
+//                            }
+//                            .padding(horizontal = 16.dp, vertical = 8.dp),
+//                        verticalAlignment = Alignment.CenterVertically,
+//                        horizontalArrangement = Arrangement.Center
+//                    ) {
+//                        // 用户图标
+//                        Icon(
+//                            imageVector = MiuixIcons.Demibold.Contacts,
+//                            contentDescription = "查看用户详情",
+//                            tint = MiuixTheme.colorScheme.primary,
+//                            modifier = Modifier.size(16.dp)
+//                        )
+//                        Spacer(modifier = Modifier.width(8.dp))
+//                        Text(
+//                            text = "查看用户详情",
+//                            style = MiuixTheme.textStyles.body2,
+//                            color = MiuixTheme.colorScheme.primary
+//                        )
+//                    }
+//                }
+//            }
         }
     }
 }
