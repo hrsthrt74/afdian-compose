@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian
 
 import android.app.Activity
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,6 +35,7 @@ import com.hrsthrt74.afdian.ui.components.LocalRollingNumberEnabled
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerDialog
 import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
+import com.hrsthrt74.afdian.ui.screens.auth.WrongEditionScreen
 import com.hrsthrt74.afdian.ui.screens.main.MainScreen
 import com.hrsthrt74.afdian.ui.theme.AfdianBrandColor
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
@@ -59,12 +61,34 @@ class MainActivity : ComponentActivity() {
         )
         // API 29+ 系统默认强制「导航栏对比度」：即使导航栏全透明，三键导航模式下
         // 系统也会自己垫一层半透明白 scrim（手势条不受影响）。这里显式关掉它。
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
         // 首个真正可见的界面（主页布局就绪 / 登录页 / 免责声明）出现前不放行，
         // 冷启动已登录时直接从启动画面无缝进入主界面，不再闪「登录中」
         splash.setKeepOnScreenCondition { !appReady.value }
+
+        // 「装错版本」拦截：legacy 兼容版跑在 API >= standard 的 minSdk 上时，
+        // 属于装错包，直接阻断。判定早于时间炸弹并立即 return ——
+        // 被拦的包不必再算过期时间，也不会初始化 AfdianApp 里的 DataStore / ImageLoader。
+        // 这是全工程唯一的 Activity（Manifest 里没有第二个入口、没有 deep link），拦在此处即无绕过路径。
+        if (EditionGuard.isBlocked()) {
+            AppLog.w(
+                "EditionGuard",
+                "legacy 包运行在 API ${Build.VERSION.SDK_INT}" +
+                    "（阈值 ${EditionGuard.STANDARD_MIN_SDK}），阻断启动；" +
+                    "variant=${BuildConfig.APP_VARIANT_NAME} package=${BuildConfig.APPLICATION_ID}",
+            )
+            setContent {
+                // 阻断页不能等主题 DataStore，传 false 让它首帧就组合出来
+                AfdianTheme(waitForThemeSettings = false) {
+                    // 页面真正组合后才撤掉启动画面，避免深色模式下先露一帧白底
+                    SideEffect { appReady.value = true }
+                    WrongEditionScreen(onExit = ::finishAndRemoveTask)
+                }
+            }
+            return
+        }
 
         // 内测版「时间炸弹」逻辑
         val expired = BuildConfig.DEBUG || BuildConfig.INTERNAL_BUILD

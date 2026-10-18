@@ -22,6 +22,12 @@ val keystoreProperties: Map<String, String> = if (keystorePropertiesFile.exists(
     emptyMap()
 }
 
+// standard（完整版）的最低系统要求。同一个数字承担两件事：
+// 1. standard flavor 的 minSdk；2. legacy 包的运行时拦截阈值（见 EditionGuard）——
+// legacy 在 API >= 该值的设备上属于「装错包」，启动即阻断。
+// 只在这里维护一份，避免以后调 minSdk 时漏改拦截逻辑导致静默放行。
+val standardMinSdk = 34
+
 android {
     namespace = "com.hrsthrt74.afdian"
     compileSdk {
@@ -32,7 +38,7 @@ android {
 
     defaultConfig {
         applicationId = "com.hrsthrt74.afdian"
-        minSdk = 34
+        minSdk = standardMinSdk
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -49,6 +55,12 @@ android {
         // 是否支持系统预测性返回：legacy 低配版强制关闭（PredictiveBackGuard 拦截系统返回
         // 事件、降级为普通返回）。同样三处显式声明保持 BuildConfig 结构一致。
         buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "true")
+        // 完整版的 minSdk，同时是 legacy 包的运行时拦截阈值。由 Gradle 注入而不是在 Kotlin
+        // 里写死，保证「调 minSdk」和「调拦截阈值」永远是同一个动作。
+        buildConfigField("int", "STANDARD_MIN_SDK", "$standardMinSdk")
+        // 当前安装包是否为 legacy 低配兼容版 —— 这是「包的身份」，不是能力开关。
+        // 刻意不复用 SUPPORT_BLUR：那是 UI 能力，日后任何一侧调整都会让拦截静默失效或误杀。
+        buildConfigField("boolean", "LEGACY_EDITION", "false")
     }
 
     // res/font 下的可变字体（MiSans Condensed）保持不压缩：
@@ -81,6 +93,7 @@ android {
             dimension = "edition"
             buildConfigField("boolean", "SUPPORT_BLUR", "true")
             buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "true")
+            buildConfigField("boolean", "LEGACY_EDITION", "false")
             isDefault = true
         }
         // 低配兼容版：minSdk 降到 29、不启用任何模糊效果，与完整版并存安装。
@@ -90,6 +103,8 @@ android {
             minSdk = 29
             buildConfigField("boolean", "SUPPORT_BLUR", "false")
             buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "false")
+            // 是 legacy 包：装在 API >= standardMinSdk 的设备上会被 EditionGuard 拦在启动页
+            buildConfigField("boolean", "LEGACY_EDITION", "true")
         }
     }
 

@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
 import com.hrsthrt74.afdian.data.settings.ThemeSettings
@@ -35,11 +36,27 @@ fun AfdianTheme(
     monetEnabled: Boolean = false,
     // Monet 种子色预设；[KeyColorPreset.System] 表示跟随系统壁纸
     keyColor: KeyColorPreset = KeyColorPreset.Default,
+    // 是否等主题 DataStore 首值到达后再组合内容。
+    // 必须无条件展示的阻断页（时间炸弹过期 / 装错 edition）传 false：
+    // 这类页面的存在意义就是「无论如何都要让用户看见」，不能被一个偏好文件的读取挡在启动画面后面。
+    // 其余调用点保持默认 true，行为与之前完全一致。
+    waitForThemeSettings: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val themeSettings by ThemeRepository.settings(context).collectAsState(initial = null)
-    val currentSettings = themeSettings ?: return
+    val currentSettings = themeSettings
+        ?: if (waitForThemeSettings) {
+            // 主题还没读出来：不组合内容，等下一次发射（DataStore 首次读取通常只有几毫秒）
+            return
+        } else {
+            // 阻断页兜底：用默认值先渲染。模糊开关仍跟随构建能力（legacy 恒为 false），
+            // 保证兜底状态与数据源折叠后的语义一致
+            ThemeSettings(
+                enableBlur = BuildConfig.SUPPORT_BLUR,
+                progressiveBlur = BuildConfig.SUPPORT_BLUR,
+            )
+        }
 
     // 系统壁纸取色（Miuix 内部读系统 Material You 配置）要求 Android 12 / API 31 以上；
     // 这是进程内不变的常量，remember 一次即可

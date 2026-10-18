@@ -38,8 +38,10 @@ flavor 有 distribution（production / internal）与 edition（standard / legac
 
 ```text
 ./gradlew.bat :app:testInternalStandardDebugUnitTest
+./gradlew.bat :app:testInternalLegacyDebugUnitTest
 ./gradlew.bat :app:assembleInternalStandardDebug
 ./gradlew.bat :app:assembleInternalLegacyDebug
 ```
 
 两个 edition 都要打包：legacy 的 minSdk 与模糊开关不同，只编 standard 会漏掉低配分支。
+legacy 包在 API 34+ 的设备上会被版本拦截页挡住（见 `EditionGuard`），这是预期行为，不是装崩了。

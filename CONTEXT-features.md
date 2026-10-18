@@ -10,6 +10,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 使用 `miuix-nav` 的 `NavKey`、`rememberNavBackStack`、`NavDisplay` 和 `entry<T>`。
 - 全页面渐进模糊效果（ProgressiveBlur + BlurredBar）。
 - 系统预测性返回 + 手势返回，由设置开关控制。
+- 版本拦截：legacy 兼容版跑在 API 34（Android 14）及以上的设备上时，启动即被 `EditionGuard` 拦下，只显示 `WrongEditionScreen`（「请安装完整版」+ 退出），无法进入应用。判定不读设置、不区分 buildType、不做持久化，每次 `onCreate` 现算；阈值与 standard 的 minSdk 同源（Gradle 注入的 `BuildConfig.STANDARD_MIN_SDK`）。
 
 ## 认证
 
@@ -613,12 +614,13 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 关键文件
 
-- `MainActivity.kt`：应用入口、免责声明、认证分流。
+- `MainActivity.kt`：应用入口、版本拦截（装错 edition 的阻断）、免责声明、认证分流。
+- `EditionGuard.kt`：版本拦截判定（`isWrongEdition` 纯函数 + `isBlocked()`），阈值取自 `BuildConfig.STANDARD_MIN_SDK`。
 - `AfdianApplication.kt`：自定义 Application，日志管线（LogStore / sink / CrashHandler）与「写入日志文件」开关订阅的唯一装配点。
 - `CrashHandler.kt`：全局未捕获异常捕获，崩溃报告落盘后交还系统 handler。
 - `AppLog.kt`：全局日志门面（Logcat + 落盘 sink 注入点）。
 - `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage、Log、ApiProbe）。
-- `ui/screens/auth/`：登录、免责声明。
+- `ui/screens/auth/`：登录、免责声明、时间炸弹过期页（`ExpiredScreen`）、装错版本阻断页（`WrongEditionScreen`）。
 - `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件（`IncomeStatTable.kt` 为收入明细页与首页共用的表格行组件）。
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
 - `data/auth/`：认证状态、Token 存储、登录请求和加密载荷。
