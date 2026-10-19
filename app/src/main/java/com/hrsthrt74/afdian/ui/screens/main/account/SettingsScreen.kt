@@ -633,6 +633,10 @@ private fun SettingsScreenContent(
                             title = "开源许可",
                             onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
                         )
+                        ArrowPreference(
+                            title = "免责声明",
+                            onClick = { if (backStack.none { it == Route.Disclaimer }) backStack.add(Route.Disclaimer) },
+                        )
                         // 「调试日志」开关已迁移至「其他 → 日志」页：它与日志落盘/导出
                         // 是同一套排查工作流，放一起才有完整的心智模型
                     }

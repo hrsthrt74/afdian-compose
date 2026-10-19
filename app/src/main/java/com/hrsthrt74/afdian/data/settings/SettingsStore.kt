@@ -591,6 +591,7 @@ class SettingsStore(private val context: Context) {
     }
 
     suspend fun acceptDisclaimer() {
+        AppLog.d("Settings", "保存免责声明同意状态")
         context.settingsDataStore.edit { it[Keys.DISCLAIMER] = true }
     }
 }

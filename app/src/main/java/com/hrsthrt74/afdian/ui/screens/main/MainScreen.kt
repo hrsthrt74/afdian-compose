@@ -60,6 +60,7 @@ import com.hrsthrt74.afdian.ui.navigation.rememberCustomTabsBranding
 import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.BlocklistScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.DeveloperScreen
+import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
@@ -467,6 +468,16 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 开源许可页：设置页「退出登录」上方入口进入
             OssLicensesScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
+        entry<Route.Disclaimer> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 免责声明查看页：从设置进入时允许返回，不参与首次启动的强制确认流程
+            DisclaimerScreen(
+                onAgree = {},
+                onDisagree = {},
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+            )
         }
         entry<Route.Storage> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }

@@ -41,6 +41,8 @@ sealed interface Route : NavKey {
     // FAQ 设置页（创作者后台 /api/faq/list 及其增删改），入口在消息页三点菜单
     @Serializable data object FaqSetting : Route
     @Serializable data object Settings : Route
+    // 免责声明页：首次启动强制确认，设置页可随时查看
+    @Serializable data object Disclaimer : Route
     // 开源许可页：AboutLibraries 收集的第三方依赖与许可证，入口在设置页「退出登录」上方
     @Serializable data object OssLicenses : Route
     // 存储空间管理页：本地缓存/数据占用总览与分类清理，入口在设置页「其他」分组

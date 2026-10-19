@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
@@ -32,7 +33,7 @@ import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
 import com.hrsthrt74.afdian.data.storage.buildImageDiskCache
 import com.hrsthrt74.afdian.ui.components.LocalRollingNumberEnabled
-import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerDialog
+import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
 import com.hrsthrt74.afdian.ui.screens.auth.WrongEditionScreen
@@ -229,30 +230,36 @@ private fun AfdianApp(
                     // 登录页/免责声明本身就是首个界面，组合即放行 SplashScreen
                     SideEffect { appReady.value = true }
                     val accepted by settingsStore.disclaimerAccepted.collectAsState(initial = false)
-                    if (!accepted) {
-                        DisclaimerDialog(
-                            onAgree = { scope.launch { settingsStore.acceptDisclaimer() } },
-                            onDisagree = { (context as? Activity)?.finishAndRemoveTask() },
-                        )
-                    } else {
-                        val isLoggingIn by session.isLoggingIn.collectAsState()
-                        val error by session.error.collectAsState()
-                        // 验证码登录的配套状态：发码进度、60 秒倒计时、图形验证码图片
-                        val isSendingCode by session.isSendingCode.collectAsState()
-                        val codeCooldown by session.codeCooldown.collectAsState()
-                        val captchaBytes by session.captchaBytes.collectAsState()
-                        LoginScreen(
-                            onLogin = session::login,
-                            onCodeLogin = session::loginWithCode,
-                            onSendCode = session::sendLoginCode,
-                            isLoggingIn = isLoggingIn,
-                            isSendingCode = isSendingCode,
-                            codeCooldownSeconds = codeCooldown,
-                            captchaBytes = captchaBytes,
-                            errorMessage = error,
-                            buildExpiresAtMs = expiresAtMs,
-                            onClearError = session::clearError,
-                        )
+                    // 免责声明确认后使用 Compose 默认转场，避免页面从免责声明硬切到登录页。
+                    AnimatedContent(
+                        targetState = accepted,
+                        label = "disclaimerToLogin",
+                    ) { isAccepted ->
+                        if (!isAccepted) {
+                            DisclaimerScreen(
+                                onAgree = { scope.launch { settingsStore.acceptDisclaimer() } },
+                                onDisagree = { (context as? Activity)?.finishAndRemoveTask() },
+                            )
+                        } else {
+                            val isLoggingIn by session.isLoggingIn.collectAsState()
+                            val error by session.error.collectAsState()
+                            // 验证码登录的配套状态：发码进度、60 秒倒计时、图形验证码图片
+                            val isSendingCode by session.isSendingCode.collectAsState()
+                            val codeCooldown by session.codeCooldown.collectAsState()
+                            val captchaBytes by session.captchaBytes.collectAsState()
+                            LoginScreen(
+                                onLogin = session::login,
+                                onCodeLogin = session::loginWithCode,
+                                onSendCode = session::sendLoginCode,
+                                isLoggingIn = isLoggingIn,
+                                isSendingCode = isSendingCode,
+                                codeCooldownSeconds = codeCooldown,
+                                captchaBytes = captchaBytes,
+                                errorMessage = error,
+                                buildExpiresAtMs = expiresAtMs,
+                                onClearError = session::clearError,
+                            )
+                        }
                     }
                 }
             }
