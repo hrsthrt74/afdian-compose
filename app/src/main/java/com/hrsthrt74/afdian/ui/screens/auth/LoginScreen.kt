@@ -55,6 +55,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.hrsthrt74.afdian.AppLog
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +80,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private const val MODE_PASSWORD = 0
 private const val MODE_CODE = 1
 
+/** 短信/邮件验证码固定为 4 位数字，填满后立即自动登录。 */
+private const val CODE_LENGTH = 4
+
 /**
  * 登录页。
  *
@@ -89,6 +93,7 @@ private const val MODE_CODE = 1
  * 布局用可滚动 Column + safeDrawing insets，适配 edge-to-edge 与软键盘弹起：
  * - 密码默认掩码，trailing 图标切换显示/隐藏；
  * - 验证码输入框右侧是「获取验证码」按钮，发送成功后原地变成 60 秒倒计时；
+ * - 验证码固定 4 位数字，输入满 4 位后立即自动发起登录（无需再点「登录」按钮）；
  * - 服务端要求人机校验时，在验证码下方就地展开图形验证码（点图片可换一张），
  *   不再弹二级弹窗，避免弹窗关闭/重开带来的输入丢失；
  * - 登录失败时输入框 label/边框变红，并在下方给出红字提示；
@@ -115,6 +120,9 @@ fun LoginScreen(
     var account by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
+    // 记录已经自动提交过的验证码：同一组 4 位数字只发一次登录请求，
+    // 避免旋转屏幕 / 进程恢复 / 账号输入变化时重复提交（用 saveable 保证重建后仍记得）
+    var autoSubmittedCode by rememberSaveable { mutableStateOf<String?>(null) }
     // 用户填写的图形验证码；只在服务端要求校验时才有意义
     var captchaInput by rememberSaveable { mutableStateOf("") }
     // 当前登录方式：默认密码登录，切到验证码后账号内容保留
@@ -178,6 +186,23 @@ fun LoginScreen(
             onCodeLogin(account.trim(), code.trim())
         } else {
             onLogin(account.trim(), password)
+        }
+    }
+
+    // 验证码满 4 位立即登录：放在 LaunchedEffect 里而不是 onValueChange 中直接调用，
+    // 避免在输入回调里同步改状态 + 发网络请求；key 带上账号和当前模式，
+    // 保证「先输验证码、后补账号」时也能自动提交。
+    // autoSubmittedCode 兜底去重：同一组数字只提交一次，登录失败后改任意一位才会重新触发。
+    LaunchedEffect(code, mode, account) {
+        val readyToAutoSubmit = mode == MODE_CODE &&
+            code.length == CODE_LENGTH &&
+            account.isNotBlank() &&
+            !isLoggingIn &&
+            autoSubmittedCode != code
+        if (readyToAutoSubmit) {
+            AppLog.d("Login", "验证码已输满 $CODE_LENGTH 位，自动发起登录")
+            autoSubmittedCode = code
+            submit()
         }
     }
 
@@ -319,13 +344,22 @@ fun LoginScreen(
                         // 验证码输入框：右侧内嵌「获取验证码」，发送后原地显示倒计时
                         TextField(
                             value = code,
-                            onValueChange = { code = it },
+                            onValueChange = { input ->
+                                // 只保留数字并截断到 4 位：数字键盘之外用户可能粘贴进字母或超长内容
+                                val digits = input.filter { it.isDigit() }.take(CODE_LENGTH)
+                                // 内容真的变了就清掉「已自动提交」标记，允许改位后重新自动登录；
+                                // 满位后再按同一个数字（digits 与 code 相同）不会触发重置
+                                if (digits != code) autoSubmittedCode = null
+                                code = digits
+                            },
                             label = "验证码",
                             useLabelAsPlaceholder = true,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(codeFocus)
                                 .padding(top = 12.dp),
+                            // 单行 + 数字键盘；输满 4 位由上方 LaunchedEffect 自动提交，
+                            // 这里的「完成」键保留给 4 位之外的特殊情况（如提前确认）
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = { submit() }),
