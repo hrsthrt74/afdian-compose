@@ -50,7 +50,7 @@ internal enum class ConversationAction(
     /** 取消置顶：已置顶的会话落回服务端给的位置 */
     Unpin("取消置顶", MiuixIcons.Unpin),
 
-    /** 标为已读：图标与三点菜单「全部已读」同款；会话已读时**保留这一格但置灰**不可点 */
+    /** 标为已读：单会话操作，沿用 MiuixIcons.Ok；三点菜单的「全部已读」已换成资料库的自定义图标，两者刻意区分。会话已读时**保留这一格但置灰**不可点 */
     MarkRead("标为已读", MiuixIcons.Ok),
 }
 

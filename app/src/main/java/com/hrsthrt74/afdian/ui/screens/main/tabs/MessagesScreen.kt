@@ -44,11 +44,13 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.NoticeAction
 import com.hrsthrt74.afdian.ui.components.AppChip
@@ -92,7 +94,6 @@ import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.Redo
 import top.yukonga.miuix.kmp.icon.extended.Reply
@@ -233,8 +234,14 @@ fun MessagesScreen(
                                         DropdownItem(
                                             text = "全部已读",
                                             icon = {
+                                                // 「全部已读」专用图标：资料库提供的 mark_all_as_read 字形（信封 + 对勾），
+                                                // 自定义 drawable 用 ImageVector.vectorResource 载入，颜色交给 onSurface tint
+                                                // 与下方长按会话菜单里的单个「标为已读」（MiuixIcons.Ok）刻意区分，不要混用
                                                 // 不传 badgeCount 即不带徽标，仅占位以与其他菜单项图标对齐
-                                                MenuIconWithBadge(it, icon = MiuixIcons.Ok)
+                                                MenuIconWithBadge(
+                                                    it,
+                                                    icon = ImageVector.vectorResource(R.drawable.ic_mark_all_as_read),
+                                                )
                                             },
                                             onClick = { markAllDialogState.show() },
                                         ),
