@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.components.basic
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,9 +16,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.LinkInteractionListener
 import androidx.compose.ui.text.SpanStyle
@@ -34,7 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
+import coil3.memory.MemoryCache
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.ui.components.image.LocalImageViewer
 import com.hrsthrt74.afdian.ui.components.post.normalizeImageUrl
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import org.jsoup.Jsoup
@@ -229,6 +239,8 @@ private fun InlineParagraph(nodes: List<Node>, onUrlClick: (String) -> Unit) {
 /** 正文图片：<img> 或 <figure> 里包的图片（可多张），宽度撑满、16dp 圆角；加载中/失败显示占位块 */
 @Composable
 private fun HtmlImage(element: Element) {
+    // 正文图片点击后交给全局查看器，从被点的这张图的位置展开
+    val viewer = LocalImageViewer.current
     val scope = element.select("img").ifEmpty { element.getElementsByTag("img") }
     val images = if (element.tagName() == "img") listOf(element) else scope
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -243,38 +255,51 @@ private fun HtmlImage(element: Element) {
             }
             // 用 SubcomposeAsyncImage 而非 AsyncImage：图片高度自适应、加载完成前高度为 0，
             // 普通 AsyncImage 就算铺占位背景也看不见；这里在加载中/失败时先渲染一块
-            // 固定 4:3 的占位块撑起高度，加载成功后再切换成真实图片（内存缓存命中时无闪烁）
-            SubcomposeAsyncImage(
-                model = normalizeImageUrl(raw),
-                contentDescription = img.attr("alt").ifBlank { null },
-                contentScale = ContentScale.FillWidth,
-                // 圆角统一裁在最外层，占位块和图片都吃到
-                modifier = Modifier.fillMaxWidth().squircleClip(cornerRadius = 16.dp),
-                // 加载中：统一占位底色（见 DESIGN.md「占位元素」），固定 4:3 撑出可见区域
-                loading = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(4f / 3f)
-                            .background(MiuixTheme.colorScheme.disabledSecondary),
-                    )
-                },
-                // 加载失败：保持同样的占位块，高度不塌陷，让用户知道「这里本来有张图」
-                error = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(4f / 3f)
-                            .background(MiuixTheme.colorScheme.disabledSecondary),
-                    )
-                },
-                // 加载成功：按 scope 默认参数渲染图片（FillWidth + 撑满宽度）
-                success = { SubcomposeAsyncImageContent(modifier = Modifier.fillMaxWidth()) },
-                // 失败落日志：URL 形态五花八门，排查「图挂了」时先看这里
-                onError = { state ->
-                    AppLog.w("HtmlContent", "图片加载失败: $raw -> ${state.result.throwable.message}")
-                },
-            )
+            // 固定 4:3 的占位块撑起高度，加载成功后再切换成真实图片（内存缓存命中时无闪烁）。
+            // 外层 Box 负责圆角、点击热区与位置采集：圆角统一裁在最外层，占位块和图片都吃到。
+            val imageUrl = normalizeImageUrl(raw)
+            var imageBounds by remember { mutableStateOf(Rect.Zero) }
+            // 正文图加载成功后的缓存 key：查看器用它做低清占位，打开时不再闪一下
+            var imageCacheKey by remember { mutableStateOf<MemoryCache.Key?>(null) }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { imageBounds = it.boundsInRoot() }
+                    .squircleClip(cornerRadius = 16.dp)
+                    .clickable { viewer.open(listOf(imageUrl), 0, imageBounds, imageCacheKey) },
+            ) {
+                SubcomposeAsyncImage(
+                    model = imageUrl,
+                    contentDescription = img.attr("alt").ifBlank { null },
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxWidth(),
+                    onSuccess = { state -> imageCacheKey = state.result.memoryCacheKey },
+                    // 加载中：统一占位底色（见 DESIGN.md「占位元素」），固定 4:3 撑出可见区域
+                    loading = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(4f / 3f)
+                                .background(MiuixTheme.colorScheme.disabledSecondary),
+                        )
+                    },
+                    // 加载失败：保持同样的占位块，高度不塌陷，让用户知道「这里本来有张图」
+                    error = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(4f / 3f)
+                                .background(MiuixTheme.colorScheme.disabledSecondary),
+                        )
+                    },
+                    // 加载成功：按 scope 默认参数渲染图片（FillWidth + 撑满宽度）
+                    success = { SubcomposeAsyncImageContent(modifier = Modifier.fillMaxWidth()) },
+                    // 失败落日志：URL 形态五花八门，排查「图挂了」时先看这里
+                    onError = { state ->
+                        AppLog.w("HtmlContent", "图片加载失败: $raw -> ${state.result.throwable.message}")
+                    },
+                )
+            }
         }
         // 图注：footnote1 辅助色文本居中显示
         element.selectFirst("figcaption")?.let { caption ->

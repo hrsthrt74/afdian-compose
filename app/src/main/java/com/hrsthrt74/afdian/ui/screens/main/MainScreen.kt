@@ -42,6 +42,9 @@ import com.hrsthrt74.afdian.data.history.toAfadianUser
 import com.hrsthrt74.afdian.data.history.toRecommendedPost
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.PlanDetailSheet
+import com.hrsthrt74.afdian.ui.components.image.ImageViewerController
+import com.hrsthrt74.afdian.ui.components.image.ImageViewerHost
+import com.hrsthrt74.afdian.ui.components.image.LocalImageViewer
 import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColors
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
@@ -231,7 +234,14 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
         onLogout()
     }
 
-    CompositionLocalProvider(LocalAppLinkNavigator provides appLinkNavigator) {
+    // 全局图片查看器：任意页面的缩略图通过 LocalImageViewer 打开，
+    // 宿主在 NavDisplay 之后组合，绘制层级天然盖在所有路由之上。
+    val imageViewer = remember { ImageViewerController() }
+
+    CompositionLocalProvider(
+        LocalAppLinkNavigator provides appLinkNavigator,
+        LocalImageViewer provides imageViewer,
+    ) {
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
@@ -544,6 +554,8 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
             )
         }
         }
+        // 图片查看器覆盖层：与登录页覆盖层同样依赖「后组合者绘制在上层」
+        ImageViewerHost(imageViewer)
     }
 }
 

@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.ui.components.post
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,13 +12,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.memory.MemoryCache
+import com.hrsthrt74.afdian.ui.components.image.LocalImageViewer
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -39,9 +49,10 @@ fun PostImageGrid(images: List<String>) {
     val bgShape = RoundedCornerShape(cornerRadius)
 
     when (images.size) {
-        1 -> AsyncImage(
-            model = normalizeImageUrl(images[0]),
-            contentDescription = null,
+        1 -> ViewerThumb(
+            url = images[0],
+            urls = images,
+            index = 0,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
@@ -50,10 +61,11 @@ fun PostImageGrid(images: List<String>) {
                 .clip(bgShape),
         )
         2, 3 -> Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-            images.forEach { url ->
-                AsyncImage(
-                    model = normalizeImageUrl(url),
-                    contentDescription = null,
+            images.forEachIndexed { index, url ->
+                ViewerThumb(
+                    url = url,
+                    urls = images,
+                    index = index,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .weight(1f)
@@ -82,9 +94,11 @@ fun PostImageGrid(images: List<String>) {
                                     .weight(1f)
                                     .aspectRatio(1f),
                             ) {
-                                AsyncImage(
-                                    model = normalizeImageUrl(url),
-                                    contentDescription = null,
+                                ViewerThumb(
+                                    url = url,
+                                    urls = images,
+                                    // 按 3 列换算成原图列表中的真实下标
+                                    index = rowIndex * 3 + colIndex,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -120,6 +134,39 @@ fun PostImageGrid(images: List<String>) {
             }
         }
     }
+}
+
+/**
+ * 可点击的缩略图：点击后交给全局图片查看器，从当前格子的位置展开。
+ *
+ * 用 `boundsInRoot()` 采集位置而不是传坐标参数：
+ * 查看器宿主与页面在同一个根布局里，坐标系一致，放大/收起动画才能严丝合缝地对上。
+ *
+ * 除图片网格外，动态封面图（PostCard / 详情页）也复用它——
+ * 单图场景传 `urls = listOf(url)`、`index = 0` 即可。
+ */
+@Composable
+internal fun ViewerThumb(
+    url: String,
+    urls: List<String>,
+    index: Int,
+    contentScale: ContentScale,
+    modifier: Modifier = Modifier,
+) {
+    val viewer = LocalImageViewer.current
+    // 布局完成前是 Rect.Zero，此时点击也能打开，只是动画起点在左上角
+    var bounds by remember { mutableStateOf(Rect.Zero) }
+    // 缩略图加载成功后的内存缓存 key：交给查看器做占位图，避免打开时重新解码导致闪一下
+    var cacheKey by remember { mutableStateOf<MemoryCache.Key?>(null) }
+    AsyncImage(
+        model = normalizeImageUrl(url),
+        contentDescription = null,
+        contentScale = contentScale,
+        modifier = modifier
+            .onGloballyPositioned { bounds = it.boundsInRoot() }
+            .clickable { viewer.open(urls, index, bounds, cacheKey) },
+        onSuccess = { cacheKey = it.result.memoryCacheKey },
+    )
 }
 
 /** 把动态图片地址归一化成 Coil 能直接加载的 https 绝对地址（HTML 正文与 pics 网格共用） */

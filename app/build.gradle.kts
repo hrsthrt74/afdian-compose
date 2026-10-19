@@ -207,6 +207,8 @@ dependencies {
     implementation(libs.jsoup)
     implementation(libs.coil.compose)
     implementation(libs.coil.network)
+    // Telephoto：图片查看器的双指缩放 / 拖动 / 大图子采样
+    implementation(libs.telephoto.coil3)
     implementation(libs.miuix.ui)
     implementation(libs.miuix.preference)
     implementation(libs.miuix.icons)

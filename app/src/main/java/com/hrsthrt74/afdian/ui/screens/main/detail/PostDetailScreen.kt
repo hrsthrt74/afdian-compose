@@ -34,6 +34,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,6 +51,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import coil3.memory.MemoryCache
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -62,6 +66,7 @@ import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
 import com.hrsthrt74.afdian.ui.components.basic.HtmlContent
+import com.hrsthrt74.afdian.ui.components.image.LocalImageViewer
 import com.hrsthrt74.afdian.ui.components.basic.LoadMoreEffect
 import com.hrsthrt74.afdian.ui.components.basic.LoadingComponent
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
@@ -73,6 +78,7 @@ import com.hrsthrt74.afdian.ui.components.post.CommentSectionHeader
 import com.hrsthrt74.afdian.ui.components.post.PostActionBar
 import com.hrsthrt74.afdian.ui.components.post.PostHeader
 import com.hrsthrt74.afdian.ui.components.post.PostPaidBlock
+import com.hrsthrt74.afdian.ui.components.post.ViewerThumb
 import com.hrsthrt74.afdian.ui.components.post.normalizeImageUrl
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
@@ -366,11 +372,14 @@ fun PostDetailScreen(
                     )
                 }
                 // ── 封面图 ──
-                if (!detail.cover.isNullOrBlank()) {
+                val cover = detail.cover
+                if (!cover.isNullOrBlank()) {
                     item(key = "cover") {
-                        AsyncImage(
-                            model = detail.cover,
-                            contentDescription = null,
+                        // 封面图同样支持点击放大（单图，不翻页）
+                        ViewerThumb(
+                            url = cover,
+                            urls = listOf(cover),
+                            index = 0,
                             contentScale = ContentScale.FillWidth,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -429,18 +438,27 @@ fun PostDetailScreen(
                 //    详情页不用卡片那种网格，逐张全宽铺开展示（阅读场景更像文章配图）──
                 if (!detail.pics.isNullOrEmpty() && !detail.content.orEmpty().contains("<img")) {
                     item(key = "pics") {
+                        val viewer = LocalImageViewer.current
+                        val pics = detail.pics.orEmpty()
                         Column(
                             modifier = Modifier.padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            detail.pics.orEmpty().forEach { url ->
+                            pics.forEachIndexed { index, url ->
+                                // 记录每张图在根布局里的位置，点开时查看器从这里展开
+                                var bounds by remember { mutableStateOf(Rect.Zero) }
+                                // 缩略图缓存 key：查看器用它做占位，避免打开时重新解码闪一下
+                                var cacheKey by remember { mutableStateOf<MemoryCache.Key?>(null) }
                                 AsyncImage(
                                     model = normalizeImageUrl(url),
                                     contentDescription = null,
                                     contentScale = ContentScale.FillWidth,
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .onGloballyPositioned { bounds = it.boundsInRoot() }
                                         .squircleClip(cornerRadius = 16.dp)
+                                        .clickable { viewer.open(pics, index, bounds, cacheKey) },
+                                    onSuccess = { cacheKey = it.result.memoryCacheKey },
                                 )
                             }
                         }

@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.AfadianCreator
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
@@ -99,10 +98,13 @@ fun PostCard(
 private fun PostContent(post: RecommendedPost, onCreatorClick: (() -> Unit)?) {
     Column {
         // 有封面图时显示在文字之前，不再显示其他图片
-        if (!post.cover.isNullOrBlank()) {
-            AsyncImage(
-                model = post.cover,
-                contentDescription = null,
+        val cover = post.cover
+        if (!cover.isNullOrBlank()) {
+            // 封面图：单图，点开后不翻页；其余交互与图片网格一致
+            ViewerThumb(
+                url = cover,
+                urls = listOf(cover),
+                index = 0,
                 contentScale = ContentScale.FillWidth,
                 modifier = Modifier
                     .padding(horizontal = 16.dp)

@@ -12,6 +12,8 @@ composeBom = "2026.09.00"
 serialization = "1.11.0"
 okhttp = "5.5.0"
 coil = "3.6.3"
+# 图片查看器：缩放手势 + 大图子采样（0.19.0 提供 Coil 3 专用包）
+telephoto = "0.19.0"
 jsoup = "1.23.2"
 miuix = "0.9.4"
 datastorePreferences = "1.2.1"
@@ -46,6 +48,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+# Telephoto：全屏图片查看器的缩放/拖动，Coil 3 专用集成包
+telephoto-coil3 = { group = "me.saket.telephoto", name = "zoomable-image-coil3", version.ref = "telephoto" }
 androidx-compose-material-icons = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
