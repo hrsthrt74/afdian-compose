@@ -41,16 +41,26 @@ sealed interface AuthState {
  *
  * 刻意不塞进 [AuthState]：遮罩需要跨越「预检旧 token」和「新会话加载」两个阶段，
  * 而登录态在预检期间根本不该变化（失败要留在原账号）。
+ *
+ * [from] 是切换的起点账号，仅用于遮罩上的「左移换脸」动画（原头像 → 新头像）。
+ * 老用户记录缺失、或当前账号还不在列表里时会是 null，此时遮罩退化成只显示目标头像。
  */
 sealed interface AccountSwitchPhase {
     /** 没有进行中的切换 */
     data object Idle : AccountSwitchPhase
 
     /** 遮罩已出现，正在解密并预检目标账号的 token；此刻仍是旧会话 */
-    data class Preparing(val target: SavedAccountSummary) : AccountSwitchPhase
+    data class Preparing(
+        val target: SavedAccountSummary,
+        val from: SavedAccountSummary? = null,
+    ) : AccountSwitchPhase
 
     /** 新 token 已提交，等待新会话首屏数据就绪 */
-    data class Waiting(val target: SavedAccountSummary, val epoch: Long) : AccountSwitchPhase
+    data class Waiting(
+        val target: SavedAccountSummary,
+        val epoch: Long,
+        val from: SavedAccountSummary? = null,
+    ) : AccountSwitchPhase
 }
 
 /** 登录目的：普通登录，还是在已登录状态下「添加账号」 */
@@ -348,7 +358,8 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
             avatar = user.avatar,
             lastUsedAt = System.currentTimeMillis(),
         )
-        runCatching { commitSession(token, user.user_id, summary) }.onFailure {
+        // 添加账号同样是一次切换：起点是当前仍登录着的账号
+        runCatching { commitSession(token, user.user_id, summary, currentAccountSummary()) }.onFailure {
             _switchPhase.value = AccountSwitchPhase.Idle
             _switchNotice.value = "切换账号失败：${it.message ?: "未知错误"}"
             AppLog.w("AuthSession", "添加账号后切换失败", it)
@@ -356,6 +367,17 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
     }
 
     // ── 账号切换 ──
+
+    /**
+     * 当前账号的摘要，即「切换起点」。
+     *
+     * 一次切换内只算一次并向下传递：`commitSession` 会更新 [CurrentAccount]，
+     * 中途重算可能已经拿到新身份，导致遮罩上的原账号头像变成目标账号。
+     */
+    private fun currentAccountSummary(): SavedAccountSummary? {
+        val currentId = CurrentAccount.userId.value ?: return null
+        return _accounts.value.firstOrNull { it.userId == currentId }
+    }
 
     /**
      * 切换到已保存的另一个账号。
@@ -368,11 +390,13 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
         if (_isAddingAccount.value) return
         if (userId == CurrentAccount.userId.value) return
         val target = _accounts.value.firstOrNull { it.userId == userId } ?: return
+        // 切换起点在整条链路上保持不变（见 currentAccountSummary 的说明）
+        val from = currentAccountSummary()
 
         val seq = ++switchSeq
         switchJob?.cancel()
         switchJob = viewModelScope.launch {
-            _switchPhase.value = AccountSwitchPhase.Preparing(target)
+            _switchPhase.value = AccountSwitchPhase.Preparing(target, from)
             AppLog.d("AuthSession", "开始切换账号")
 
             val result = runCatching {
@@ -404,7 +428,7 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
                     AppLog.w("AuthSession", "预检返回的 user_id 与本地记录不一致")
                     return@onSuccess
                 }
-                commitSession(token, userId, target)
+                commitSession(token, userId, target, from)
             }
         }
     }
@@ -415,10 +439,15 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
      * 顺序不能变：`ProfileCache` 的归属由 token 指纹判定，必须在新 token 落盘前清掉，
      * 否则新会话会读到上一个账号的资料。
      */
-    private suspend fun commitSession(token: String, userId: String, target: SavedAccountSummary) {
+    private suspend fun commitSession(
+        token: String,
+        userId: String,
+        target: SavedAccountSummary,
+        from: SavedAccountSummary?,
+    ) {
         val epoch = SessionEpoch.next()
         // 先置 Waiting 再换 state：中间任何一帧都不能让遮罩消失
-        _switchPhase.value = AccountSwitchPhase.Waiting(target, epoch)
+        _switchPhase.value = AccountSwitchPhase.Waiting(target, epoch, from)
 
         withContext(Dispatchers.IO) {
             profileCache.clear()
@@ -487,10 +516,12 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
                 performLogout()
                 return@launch
             }
+            // 切换起点：被删的就是当前账号，所以 from 就是它自己
+            val from = currentAccountSummary()
 
             for (candidate in candidates) {
                 val target = candidate.toSummary()
-                _switchPhase.value = AccountSwitchPhase.Preparing(target)
+                _switchPhase.value = AccountSwitchPhase.Preparing(target, from)
                 val result = runCatching {
                     withContext(Dispatchers.IO) {
                         val token = savedAccountStore.readToken(candidate.userId)
@@ -501,7 +532,7 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
                 val pair = result.getOrNull()
                 if (pair != null) {
                     withContext(Dispatchers.IO) { savedAccountStore.remove(userId) }
-                    commitSession(pair.first, candidate.userId, target)
+                    commitSession(pair.first, candidate.userId, target, from)
                     return@launch
                 }
                 val failure = classifySwitchFailure(result.exceptionOrNull() ?: RuntimeException("未知错误"))
