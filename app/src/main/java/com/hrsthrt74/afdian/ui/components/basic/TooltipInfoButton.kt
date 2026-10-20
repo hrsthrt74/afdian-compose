@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -106,6 +107,12 @@ private val MiuixIconWeight.infoIcon: ImageVector
  *     tooltipText = "该数据每 15 分钟同步一次",
  *     style = TooltipInfoButtonStyle.Small,
  * )
+ *
+ * // 自定义图标颜色：用在警示/强调语境，让 ⓘ 跟着该语境的主色走
+ * TooltipInfoButton(
+ *     tooltipText = "此操作不可撤销",
+ *     iconTint = MiuixTheme.colorScheme.error,
+ * )
  * ```
  *
  * @param tooltipText 气泡文案，同时也是图标的无障碍描述默认值
@@ -113,6 +120,7 @@ private val MiuixIconWeight.infoIcon: ImageVector
  * @param modifier 外部修饰符（例如行内排版需要的 `Modifier.padding(...)`）
  * @param enabled 是否可点；false 时点击不响应，也不弹气泡
  * @param style 预设样式（图标大小 + 字重 + 热区留白成套），默认 [TooltipInfoButtonStyle.Default]
+ * @param iconTint 图标颜色，默认 [MiuixTheme.colorScheme.onSurfaceVariantActions]（低调的附注色）
  * @param positioning 气泡相对按钮的方位，默认在上方；空间不足时 Miuix 会自动翻转到另一侧
  * @param persistent 是否常驻：true 一直显示到点外部/返回键/再次点击，false 沿用 Miuix 默认的短时自动消失
  * @param contentDescription 无障碍描述，默认取 [tooltipText]（两者一致时不必重复传）
@@ -124,6 +132,7 @@ fun TooltipInfoButton(
     enabled: Boolean = true,
     onClick: () -> Unit = {},
     style: TooltipInfoButtonStyle = TooltipInfoButtonStyle.Default,
+    iconTint: Color = MiuixTheme.colorScheme.onSurfaceVariantActions,
     positioning: TooltipAnchorPosition = TooltipAnchorPosition.Above,
     persistent: Boolean = true,
     contentDescription: String = tooltipText,
@@ -174,12 +183,13 @@ fun TooltipInfoButton(
             minHeight = minTouchTarget,
         ) {
             // ⓘ 图标：尺寸与字重都由预设成套给出，调用处不需要再传；
-            // 颜色固定 onSurfaceVariantActions——ⓘ 永远只是「附注」而不是主操作，
-            // 固定成动作色的浅档，保证放进任何一层卡片/表格都不会抢正文内容的视觉层级
+            // 颜色默认 onSurfaceVariantActions——ⓘ 默认只是「附注」而不是主操作，
+            // 用动作色的浅档保证放进任何一层卡片/表格都不会抢正文内容的视觉层级；
+            // 需要在警示/强调场景里突出时，调用处用 iconTint 覆盖即可
             Icon(
                 imageVector = style.iconWeight.infoIcon,
                 contentDescription = contentDescription,
-                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                tint = iconTint,
                 modifier = Modifier.size(style.iconSize),
             )
         }
