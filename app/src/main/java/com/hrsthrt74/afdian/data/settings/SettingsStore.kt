@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian.data.settings
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -11,12 +12,16 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.BuildConfig
+import com.hrsthrt74.afdian.data.auth.CurrentAccount
 import com.hrsthrt74.afdian.data.content.PinnedDialogCard
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
 import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import kotlin.math.roundToInt
@@ -168,29 +173,68 @@ class SettingsStore(private val context: Context) {
         val DATACARD_FONT_WIDTH = intPreferencesKey("datacard_font_width")
         // 浏览历史开关：关闭后不再写入新的历史记录或头像缓存
         val HISTORY_ENABLED = booleanPreferencesKey("history_enabled")
-        val HOME_CREATOR_DATA = booleanPreferencesKey("home_creator_data")
-        val HOME_SPONSORING = booleanPreferencesKey("home_sponsoring")
-        val HOME_MARKED_CREATORS = booleanPreferencesKey("home_marked_creators")
-        val HOME_WITHDRAWAL_REMINDER = booleanPreferencesKey("home_withdrawal_reminder")
-        val HOME_CREATOR_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("home_creator_layout")
-        val HOME_ENABLED_MODULES = androidx.datastore.preferences.core.stringPreferencesKey("home_enabled_modules")
-        val HOME_MODULE_ORDER = androidx.datastore.preferences.core.stringPreferencesKey("home_module_order")
-        // 首页「快捷方式」模块选中的入口，存 QuickEntryPreset.storageValue（逗号拼接）
-        val HOME_QUICK_ENTRY_KEYS = androidx.datastore.preferences.core.stringPreferencesKey("home_quick_entries")
-        val MANAGEMENT_LAYOUT = androidx.datastore.preferences.core.stringPreferencesKey("management_layout")
-        // 「每月汇总」页的金额口径：抽成前 / 抽成后（存 IncomeAmountMode.storageValue）
-        val MONTHLY_SUMMARY_AMOUNT_MODE = androidx.datastore.preferences.core.stringPreferencesKey("monthly_summary_amount_mode")
-        // 消息页「发电明细」开关
-        val MSG_SHOW_SPONSOR_DETAIL = booleanPreferencesKey("msg_show_sponsor_detail")
-        // 消息页置顶会话的**卡片快照**（JSON 数组）。存整卡而非只存 id：置顶的老会话可能落在
-        // 后面的分页里，只存 id 会造成「有置顶配置但列表里没有入口」
-        val MSG_PINNED_DIALOG_CARDS = stringPreferencesKey("msg_pinned_dialog_cards")
+        // 以下「首页布局 / 管理页布局 / 消息页」类设置是账号维度的，键名见 AccountKeys
         // 上一版实现只存了 user_id 集合（没有卡片数据，无法补位渲染）。写入新格式时顺手清掉
         val MSG_PINNED_DIALOGS_LEGACY = stringSetPreferencesKey("msg_pinned_dialogs")
         // 图片缓存（Coil 全局磁盘缓存）的体积上限，存 ImageCacheLimit.storageValue
         val IMAGE_CACHE_LIMIT = androidx.datastore.preferences.core.stringPreferencesKey("image_cache_limit")
         // 外部爱发电链接是否优先交给官方客户端，默认关闭（优先使用 Custom Tabs）
         val PREFER_OFFICIAL_CLIENT = booleanPreferencesKey("prefer_official_client")
+    }
+
+    /**
+     * 账号维度设置的基础键名。
+     *
+     * 实际存储键为 `<基础名>@<user_id>`：同一个设置项每个账号各存一份，
+     * 换账号后自动读到自己那份，互不影响。
+     *
+     * 判断标准：**内容属于账号自己**的配置才放这里（首页模块可见性、卡片布局、
+     * 置顶会话、金额口径…）。主题、字体、手势、日志、缓存上限这些跟设备走，留在 [Keys]。
+     */
+    private object AccountKeys {
+        const val HOME_CREATOR_DATA = "home_creator_data"
+        const val HOME_SPONSORING = "home_sponsoring"
+        const val HOME_MARKED_CREATORS = "home_marked_creators"
+        const val HOME_WITHDRAWAL_REMINDER = "home_withdrawal_reminder"
+        const val HOME_CREATOR_LAYOUT = "home_creator_layout"
+        const val HOME_ENABLED_MODULES = "home_enabled_modules"
+        const val HOME_MODULE_ORDER = "home_module_order"
+        const val HOME_QUICK_ENTRY_KEYS = "home_quick_entries"
+        const val MANAGEMENT_LAYOUT = "management_layout"
+        const val MONTHLY_SUMMARY_AMOUNT_MODE = "monthly_summary_amount_mode"
+        const val MSG_SHOW_SPONSOR_DETAIL = "msg_show_sponsor_detail"
+        const val MSG_PINNED_DIALOG_CARDS = "msg_pinned_dialog_cards"
+
+        /** 全部基础名，用于迁移前判断「还有没有旧版本的全局键」 */
+        val ALL = listOf(
+            HOME_CREATOR_DATA, HOME_SPONSORING, HOME_MARKED_CREATORS, HOME_WITHDRAWAL_REMINDER,
+            HOME_CREATOR_LAYOUT, HOME_ENABLED_MODULES, HOME_MODULE_ORDER, HOME_QUICK_ENTRY_KEYS,
+            MANAGEMENT_LAYOUT, MONTHLY_SUMMARY_AMOUNT_MODE, MSG_SHOW_SPONSOR_DETAIL,
+            MSG_PINNED_DIALOG_CARDS,
+        )
+    }
+
+    /** 账号维度键名：`<基础名>@<user_id>`；账号未确定时后缀为空，读到的是默认值。 */
+    private fun accountKeyName(base: String, owner: String?): String = "$base@${owner.orEmpty()}"
+
+    /** 账号维度设置的读取入口：账号身份变化时自动切换订阅，读取该账号自己的分区。 */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun <T> accountSetting(read: (owner: String?) -> Flow<T>): Flow<T> =
+        CurrentAccount.userId.flatMapLatest { owner -> read(owner) }
+
+    /**
+     * 账号维度设置的写入入口：未确定账号时拒绝写入。
+     *
+     * 拒绝而不是写进「空账号」分区：这些配置只可能在已登录界面被修改，
+     * 万一登录态与界面不同步，写到无主分区也只会变成读不到的死数据。
+     */
+    private suspend fun editAccountSettings(block: (MutablePreferences, owner: String) -> Unit) {
+        val owner = CurrentAccount.userId.value?.takeIf { it.isNotBlank() }
+        if (owner == null) {
+            AppLog.w("Settings", "账号身份未就绪，已拒绝本次账号级设置写入")
+            return
+        }
+        context.settingsDataStore.edit { block(it, owner) }
     }
 
     /** 启动页索引，未设置时默认第 0 页 */
@@ -310,37 +354,65 @@ class SettingsStore(private val context: Context) {
         normalizeDataCardFontWidth(it[Keys.DATACARD_FONT_WIDTH] ?: DATACARD_FONT_WIDTH_DEFAULT)
     }
 
-    /** 首页模块开关，默认全部开启；新账号无需额外初始化配置。 */
-    val homeCreatorData: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_CREATOR_DATA] ?: true }
-    val homeSponsoring: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_SPONSORING] ?: true }
-    val homeMarkedCreators: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_MARKED_CREATORS] ?: true }
-    val homeWithdrawalReminder: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.HOME_WITHDRAWAL_REMINDER] ?: true }
+    /**
+     * 首页模块开关（账号维度）。
+     *
+     * 这四个分散布尔值只服务旧版本数据：新版本把开关统一存进 [homeEnabledModules] 的集合，
+     * 保留读取是为了升级用户不丢配置，同时也是迁移的来源。
+     */
+    val homeCreatorData: Flow<Boolean> = accountSetting { owner ->
+        context.settingsDataStore.data.map {
+            it[booleanPreferencesKey(accountKeyName(AccountKeys.HOME_CREATOR_DATA, owner))] ?: true
+        }
+    }
+    val homeSponsoring: Flow<Boolean> = accountSetting { owner ->
+        context.settingsDataStore.data.map {
+            it[booleanPreferencesKey(accountKeyName(AccountKeys.HOME_SPONSORING, owner))] ?: true
+        }
+    }
+    val homeMarkedCreators: Flow<Boolean> = accountSetting { owner ->
+        context.settingsDataStore.data.map {
+            it[booleanPreferencesKey(accountKeyName(AccountKeys.HOME_MARKED_CREATORS, owner))] ?: true
+        }
+    }
+    val homeWithdrawalReminder: Flow<Boolean> = accountSetting { owner ->
+        context.settingsDataStore.data.map {
+            it[booleanPreferencesKey(accountKeyName(AccountKeys.HOME_WITHDRAWAL_REMINDER, owner))] ?: true
+        }
+    }
     /** 首页创作者数据布局，和管理页共用卡片、图表、标题、分割线布局元素。 */
-    val homeCreatorDataLayout: Flow<List<ManagementLayoutEntry>> = context.settingsDataStore.data.map { preferences ->
-        preferences[Keys.HOME_CREATOR_LAYOUT]
-            ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
-            ?.filter { it.isKnownLayoutEntry() }
-            ?: defaultHomeCreatorDataLayout
+    val homeCreatorDataLayout: Flow<List<ManagementLayoutEntry>> = accountSetting { owner ->
+        context.settingsDataStore.data.map { preferences ->
+            preferences[stringPreferencesKey(accountKeyName(AccountKeys.HOME_CREATOR_LAYOUT, owner))]
+                ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
+                ?.filter { it.isKnownLayoutEntry() }
+                ?: defaultHomeCreatorDataLayout
+        }
     }
     /** 首页启用模块集合；未写入时从旧版分散布尔开关迁移，确保升级不丢用户配置。 */
-    val homeEnabledModules: Flow<Set<HomeModule>> = context.settingsDataStore.data.map { preferences ->
-        val stored = preferences[Keys.HOME_ENABLED_MODULES]
-        if (stored != null) {
-            // 已有用户配置也自动补入新增模块，避免历史记录模块升级后悄悄消失。
-            stored.split(",").mapNotNull(HomeModule::fromStorage).toSet()
-        } else {
-            HomeModule.entries.filter { module ->
-                when (module) {
-                    HomeModule.QuickEntries -> true
-                    HomeModule.CreatorData -> preferences[Keys.HOME_CREATOR_DATA] ?: true
-                    HomeModule.Sponsoring -> preferences[Keys.HOME_SPONSORING] ?: true
-                    HomeModule.MarkedCreators -> preferences[Keys.HOME_MARKED_CREATORS] ?: true
-                    HomeModule.WithdrawalReminder -> preferences[Keys.HOME_WITHDRAWAL_REMINDER] ?: true
-                    // 「近5天收入」没有旧版分散开关可比对，一律按枚举声明的默认值（关闭）
-                    HomeModule.RecentIncome -> module.defaultEnabled
-                    HomeModule.History -> true
-                }
-            }.toSet()
+    val homeEnabledModules: Flow<Set<HomeModule>> = accountSetting { owner ->
+        context.settingsDataStore.data.map { preferences ->
+            val stored = preferences[stringPreferencesKey(accountKeyName(AccountKeys.HOME_ENABLED_MODULES, owner))]
+            if (stored != null) {
+                // 已有用户配置也自动补入新增模块，避免历史记录模块升级后悄悄消失。
+                stored.split(",").mapNotNull(HomeModule::fromStorage).toSet()
+            } else {
+                // 旧版分散开关同样按账号分区读取（迁移会把它们搬进当前账号）
+                fun legacy(base: String) =
+                    preferences[booleanPreferencesKey(accountKeyName(base, owner))] ?: true
+                HomeModule.entries.filter { module ->
+                    when (module) {
+                        HomeModule.QuickEntries -> true
+                        HomeModule.CreatorData -> legacy(AccountKeys.HOME_CREATOR_DATA)
+                        HomeModule.Sponsoring -> legacy(AccountKeys.HOME_SPONSORING)
+                        HomeModule.MarkedCreators -> legacy(AccountKeys.HOME_MARKED_CREATORS)
+                        HomeModule.WithdrawalReminder -> legacy(AccountKeys.HOME_WITHDRAWAL_REMINDER)
+                        // 「近5天收入」没有旧版分散开关可比对，一律按枚举声明的默认值（关闭）
+                        HomeModule.RecentIncome -> module.defaultEnabled
+                        HomeModule.History -> true
+                    }
+                }.toSet()
+            }
         }
     }
     /**
@@ -348,12 +420,14 @@ class SettingsStore(private val context: Context) {
      * 新补入的模块插到它在枚举声明顺序里的前驱之后（见 [mergeHomeModuleOrder]），
      * 这样新增模块的位置符合预期，而不是一律排到末尾。
      */
-    val homeModuleOrder: Flow<List<HomeModule>> = context.settingsDataStore.data.map { preferences ->
-        val saved = preferences[Keys.HOME_MODULE_ORDER]
-            ?.split(",")
-            ?.mapNotNull(HomeModule::fromStorage)
-            .orEmpty()
-        mergeHomeModuleOrder(saved)
+    val homeModuleOrder: Flow<List<HomeModule>> = accountSetting { owner ->
+        context.settingsDataStore.data.map { preferences ->
+            val saved = preferences[stringPreferencesKey(accountKeyName(AccountKeys.HOME_MODULE_ORDER, owner))]
+                ?.split(",")
+                ?.mapNotNull(HomeModule::fromStorage)
+                .orEmpty()
+            mergeHomeModuleOrder(saved)
+        }
     }
 
     /**
@@ -362,31 +436,46 @@ class SettingsStore(private val context: Context) {
      * 这里只当字符串存取，不认识具体预设：过滤未知值、去重、截断到 4 个与默认值回落
      * 统一交给 `normalizeQuickEntries`（与预设目录同文件、可单测），设置层不必依赖 UI 枚举。
      */
-    val homeQuickEntryKeys: Flow<List<String>> = context.settingsDataStore.data.map { preferences ->
-        preferences[Keys.HOME_QUICK_ENTRY_KEYS]
-            ?.split(",")
-            ?.filter { it.isNotBlank() }
-            .orEmpty()
+    val homeQuickEntryKeys: Flow<List<String>> = accountSetting { owner ->
+        context.settingsDataStore.data.map { preferences ->
+            preferences[stringPreferencesKey(accountKeyName(AccountKeys.HOME_QUICK_ENTRY_KEYS, owner))]
+                ?.split(",")
+                ?.filter { it.isNotBlank() }
+                .orEmpty()
+        }
     }
 
     /** 管理页布局；未知卡片会被过滤，用户关闭的卡片不会被自动重新加入。 */
-    val managementLayout: Flow<List<ManagementLayoutEntry>> = context.settingsDataStore.data.map { preferences ->
-        val stored = preferences[Keys.MANAGEMENT_LAYOUT]
-            ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
-            ?: defaultManagementLayout
-        // 旧版本布局中的卡片键已不再认识时直接过滤掉，不做旧键转换。
-        // 不再要求布局必须含数据卡：编辑态已保证至少保留一张卡片，
-        // 且设置页有「重置布局」兜底。
-        stored.filter { it.isKnownLayoutEntry() }
+    val managementLayout: Flow<List<ManagementLayoutEntry>> = accountSetting { owner ->
+        context.settingsDataStore.data.map { preferences ->
+            val stored = preferences[stringPreferencesKey(accountKeyName(AccountKeys.MANAGEMENT_LAYOUT, owner))]
+                ?.let { runCatching { Json.decodeFromString<List<ManagementLayoutEntry>>(it) }.getOrNull() }
+                ?: defaultManagementLayout
+            // 旧版本布局中的卡片键已不再认识时直接过滤掉，不做旧键转换。
+            // 不再要求布局必须含数据卡：编辑态已保证至少保留一张卡片，
+            // 且设置页有「重置布局」兜底。
+            stored.filter { it.isKnownLayoutEntry() }
+        }
     }
 
-    suspend fun setHomeCreatorData(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_CREATOR_DATA] = enabled } }
-    suspend fun setHomeSponsoring(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_SPONSORING] = enabled } }
-    suspend fun setHomeMarkedCreators(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_MARKED_CREATORS] = enabled } }
-    suspend fun setHomeWithdrawalReminder(enabled: Boolean) { context.settingsDataStore.edit { it[Keys.HOME_WITHDRAWAL_REMINDER] = enabled } }
+    suspend fun setHomeCreatorData(enabled: Boolean) = editAccountSettings { prefs, owner ->
+        prefs[booleanPreferencesKey(accountKeyName(AccountKeys.HOME_CREATOR_DATA, owner))] = enabled
+    }
+    suspend fun setHomeSponsoring(enabled: Boolean) = editAccountSettings { prefs, owner ->
+        prefs[booleanPreferencesKey(accountKeyName(AccountKeys.HOME_SPONSORING, owner))] = enabled
+    }
+    suspend fun setHomeMarkedCreators(enabled: Boolean) = editAccountSettings { prefs, owner ->
+        prefs[booleanPreferencesKey(accountKeyName(AccountKeys.HOME_MARKED_CREATORS, owner))] = enabled
+    }
+    suspend fun setHomeWithdrawalReminder(enabled: Boolean) = editAccountSettings { prefs, owner ->
+        prefs[booleanPreferencesKey(accountKeyName(AccountKeys.HOME_WITHDRAWAL_REMINDER, owner))] = enabled
+    }
     suspend fun setHomeCreatorDataLayout(layout: List<ManagementLayoutEntry>) {
         AppLog.d("Settings", "保存首页创作者数据卡布局，项目数=${layout.size}")
-        context.settingsDataStore.edit { it[Keys.HOME_CREATOR_LAYOUT] = Json.encodeToString(layout) }
+        editAccountSettings { prefs, owner ->
+            prefs[stringPreferencesKey(accountKeyName(AccountKeys.HOME_CREATOR_LAYOUT, owner))] =
+                Json.encodeToString(layout)
+        }
     }
 
     /**
@@ -396,24 +485,34 @@ class SettingsStore(private val context: Context) {
      */
     suspend fun resetHomeCreatorDataLayout() {
         AppLog.d("Settings", "重置首页创作者数据卡布局为默认")
-        context.settingsDataStore.edit { it.remove(Keys.HOME_CREATOR_LAYOUT) }
+        editAccountSettings { prefs, owner ->
+            prefs.remove(stringPreferencesKey(accountKeyName(AccountKeys.HOME_CREATOR_LAYOUT, owner)))
+        }
     }
-    suspend fun setHomeEnabledModules(modules: Set<HomeModule>) {
-        context.settingsDataStore.edit { it[Keys.HOME_ENABLED_MODULES] = modules.joinToString(",") { module -> module.storageValue } }
+    suspend fun setHomeEnabledModules(modules: Set<HomeModule>) = editAccountSettings { prefs, owner ->
+        prefs[stringPreferencesKey(accountKeyName(AccountKeys.HOME_ENABLED_MODULES, owner))] =
+            modules.joinToString(",") { module -> module.storageValue }
     }
-    suspend fun setHomeModuleOrder(order: List<HomeModule>) {
-        context.settingsDataStore.edit { it[Keys.HOME_MODULE_ORDER] = order.joinToString(",") { module -> module.storageValue } }
+    suspend fun setHomeModuleOrder(order: List<HomeModule>) = editAccountSettings { prefs, owner ->
+        prefs[stringPreferencesKey(accountKeyName(AccountKeys.HOME_MODULE_ORDER, owner))] =
+            order.joinToString(",") { module -> module.storageValue }
     }
 
     /** 保存首页「快捷方式」模块选中的入口，参数是预设的 storageValue（顺序即展示顺序）。 */
     suspend fun setHomeQuickEntryKeys(keys: List<String>) {
         AppLog.d("Settings", "保存首页快捷方式，入口数=${keys.size}")
-        context.settingsDataStore.edit { it[Keys.HOME_QUICK_ENTRY_KEYS] = keys.joinToString(",") }
+        editAccountSettings { prefs, owner ->
+            prefs[stringPreferencesKey(accountKeyName(AccountKeys.HOME_QUICK_ENTRY_KEYS, owner))] =
+                keys.joinToString(",")
+        }
     }
 
     suspend fun setManagementLayout(layout: List<ManagementLayoutEntry>) {
         AppLog.d("Settings", "保存管理页数据卡片布局，项目数=${layout.size}")
-        context.settingsDataStore.edit { it[Keys.MANAGEMENT_LAYOUT] = Json.encodeToString(layout) }
+        editAccountSettings { prefs, owner ->
+            prefs[stringPreferencesKey(accountKeyName(AccountKeys.MANAGEMENT_LAYOUT, owner))] =
+                Json.encodeToString(layout)
+        }
     }
 
     /**
@@ -422,16 +521,26 @@ class SettingsStore(private val context: Context) {
      */
     suspend fun resetManagementLayout() {
         AppLog.d("Settings", "重置管理页数据卡片布局为默认")
-        context.settingsDataStore.edit { it.remove(Keys.MANAGEMENT_LAYOUT) }
+        editAccountSettings { prefs, owner ->
+            prefs.remove(stringPreferencesKey(accountKeyName(AccountKeys.MANAGEMENT_LAYOUT, owner)))
+        }
     }
 
     /** 「每月汇总」页的金额口径，默认抽成前（与爱发电网页版月度账单口径一致）。 */
-    val monthlySummaryAmountMode: Flow<IncomeAmountMode> =
-        context.settingsDataStore.data.map { IncomeAmountMode.fromStorage(it[Keys.MONTHLY_SUMMARY_AMOUNT_MODE]) }
+    val monthlySummaryAmountMode: Flow<IncomeAmountMode> = accountSetting { owner ->
+        context.settingsDataStore.data.map {
+            IncomeAmountMode.fromStorage(
+                it[stringPreferencesKey(accountKeyName(AccountKeys.MONTHLY_SUMMARY_AMOUNT_MODE, owner))]
+            )
+        }
+    }
 
     suspend fun setMonthlySummaryAmountMode(mode: IncomeAmountMode) {
         AppLog.d("Settings", "保存每月汇总金额口径，mode=${mode.storageValue}")
-        context.settingsDataStore.edit { it[Keys.MONTHLY_SUMMARY_AMOUNT_MODE] = mode.storageValue }
+        editAccountSettings { prefs, owner ->
+            prefs[stringPreferencesKey(accountKeyName(AccountKeys.MONTHLY_SUMMARY_AMOUNT_MODE, owner))] =
+                mode.storageValue
+        }
     }
 
     /**
@@ -545,23 +654,27 @@ class SettingsStore(private val context: Context) {
     }
 
     /** 消息页「发电明细」开关，默认关闭 */
-    val msgShowSponsorDetail: Flow<Boolean> =
-        context.settingsDataStore.data.map { it[Keys.MSG_SHOW_SPONSOR_DETAIL] ?: false }
+    val msgShowSponsorDetail: Flow<Boolean> = accountSetting { owner ->
+        context.settingsDataStore.data.map {
+            it[booleanPreferencesKey(accountKeyName(AccountKeys.MSG_SHOW_SPONSOR_DETAIL, owner))] ?: false
+        }
+    }
 
-    suspend fun setMsgShowSponsorDetail(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.MSG_SHOW_SPONSOR_DETAIL] = enabled }
+    suspend fun setMsgShowSponsorDetail(enabled: Boolean) = editAccountSettings { prefs, owner ->
+        prefs[booleanPreferencesKey(accountKeyName(AccountKeys.MSG_SHOW_SPONSOR_DETAIL, owner))] = enabled
     }
 
     /**
      * 消息页置顶的会话卡片列表（顺序即列表里的置顶顺序，新置顶的在前）。
      *
-     * 爱发电没有会话置顶接口，这里只做本地持久化：换设备 / 清数据会丢，不做账号级隔离。
+     * 爱发电没有会话置顶接口，这里只做本地持久化；但置顶是「这个账号关心哪些会话」，
+     * 所以按账号分区存储 —— 换账号后互不可见，换设备 / 清数据仍会丢。
      * 解析失败（旧版本字段改名、手工改坏）按「没有置顶」处理，不让坏数据把消息页搞崩；
      * 空白 userId 的条目直接丢弃——它在列表里既打不开也无法取消置顶。
      */
-    val msgPinnedDialogCards: Flow<List<PinnedDialogCard>> =
+    val msgPinnedDialogCards: Flow<List<PinnedDialogCard>> = accountSetting { owner ->
         context.settingsDataStore.data.map { preferences ->
-            preferences[Keys.MSG_PINNED_DIALOG_CARDS]
+            preferences[stringPreferencesKey(accountKeyName(AccountKeys.MSG_PINNED_DIALOG_CARDS, owner))]
                 ?.let { json ->
                     runCatching { pinnedCardsJson.decodeFromString<List<PinnedDialogCard>>(json) }
                         .onFailure { AppLog.w("Settings", "置顶会话解析失败，按无置顶处理", it) }
@@ -570,6 +683,7 @@ class SettingsStore(private val context: Context) {
                 ?.filter { it.userId.isNotBlank() }
                 .orEmpty()
         }
+    }
 
     /**
      * 写入置顶会话卡片列表。
@@ -580,14 +694,74 @@ class SettingsStore(private val context: Context) {
      */
     suspend fun setMsgPinnedDialogCards(cards: List<PinnedDialogCard>) {
         AppLog.d("Settings", "保存消息页置顶会话，数量=${cards.size}")
-        context.settingsDataStore.edit { preferences ->
+        editAccountSettings { preferences, owner ->
             preferences.remove(Keys.MSG_PINNED_DIALOGS_LEGACY)
+            val key = stringPreferencesKey(accountKeyName(AccountKeys.MSG_PINNED_DIALOG_CARDS, owner))
             if (cards.isEmpty()) {
-                preferences.remove(Keys.MSG_PINNED_DIALOG_CARDS)
+                preferences.remove(key)
             } else {
-                preferences[Keys.MSG_PINNED_DIALOG_CARDS] = pinnedCardsJson.encodeToString(cards)
+                preferences[key] = pinnedCardsJson.encodeToString(cards)
             }
         }
+    }
+
+    /**
+     * 把升级前「全局」的账号级设置迁移到指定账号名下。
+     *
+     * 旧版本这些键不带账号后缀，内容必然属于升级前最后登录的那个账号；
+     * 新版本第一次确定账号身份时把它们搬进该账号的分区，避免老用户升级后
+     * 首页布局、置顶会话等配置凭空消失。
+     *
+     * 幂等：旧键不存在时什么都不做；目标账号已有同名键时不覆盖，只删旧键。
+     */
+    suspend fun migrateLegacyAccountSettings(ownerUserId: String) {
+        val owner = ownerUserId.takeIf { it.isNotBlank() } ?: return
+        // 先读一次判断有没有旧键：正常（已迁移过）的情况下直接返回，
+        // 避免每次首页刷新都触发一次「没有变化」的写盘。
+        val hasLegacy = context.settingsDataStore.data.first()
+            .asMap().keys.any { it.name in AccountKeys.ALL }
+        if (!hasLegacy) return
+        context.settingsDataStore.edit { preferences ->
+            var migrated = 0
+            // 旧版分散的首页模块开关
+            if (preferences.migrateBoolean(AccountKeys.HOME_CREATOR_DATA, owner)) migrated++
+            if (preferences.migrateBoolean(AccountKeys.HOME_SPONSORING, owner)) migrated++
+            if (preferences.migrateBoolean(AccountKeys.HOME_MARKED_CREATORS, owner)) migrated++
+            if (preferences.migrateBoolean(AccountKeys.HOME_WITHDRAWAL_REMINDER, owner)) migrated++
+            // 首页布局 / 快捷方式 / 管理页布局 / 金额口径 / 置顶会话
+            if (preferences.migrateString(AccountKeys.HOME_CREATOR_LAYOUT, owner)) migrated++
+            if (preferences.migrateString(AccountKeys.HOME_ENABLED_MODULES, owner)) migrated++
+            if (preferences.migrateString(AccountKeys.HOME_MODULE_ORDER, owner)) migrated++
+            if (preferences.migrateString(AccountKeys.HOME_QUICK_ENTRY_KEYS, owner)) migrated++
+            if (preferences.migrateString(AccountKeys.MANAGEMENT_LAYOUT, owner)) migrated++
+            if (preferences.migrateString(AccountKeys.MONTHLY_SUMMARY_AMOUNT_MODE, owner)) migrated++
+            // 消息页
+            if (preferences.migrateBoolean(AccountKeys.MSG_SHOW_SPONSOR_DETAIL, owner)) migrated++
+            if (preferences.migrateString(AccountKeys.MSG_PINNED_DIALOG_CARDS, owner)) migrated++
+            if (migrated > 0) {
+                AppLog.d("Settings", "已把 $migrated 项旧版账号级设置迁移到当前账号")
+            }
+        }
+    }
+
+    /** 把一个旧的全局布尔设置搬到当前账号分区；返回是否真的发生了迁移。 */
+    private fun MutablePreferences.migrateBoolean(base: String, owner: String): Boolean {
+        val legacyKey = booleanPreferencesKey(base)
+        val value = this[legacyKey] ?: return false
+        val targetKey = booleanPreferencesKey(accountKeyName(base, owner))
+        if (this[targetKey] == null) this[targetKey] = value
+        remove(legacyKey)
+        return true
+    }
+
+    /** 把一个旧的全局字符串设置搬到当前账号分区；返回是否真的发生了迁移。 */
+    private fun MutablePreferences.migrateString(base: String, owner: String): Boolean {
+        val legacyKey = stringPreferencesKey(base)
+        val value = this[legacyKey] ?: return false
+        val targetKey = stringPreferencesKey(accountKeyName(base, owner))
+        if (this[targetKey] == null) this[targetKey] = value
+        remove(legacyKey)
+        return true
     }
 
     suspend fun acceptDisclaimer() {

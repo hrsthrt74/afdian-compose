@@ -102,6 +102,8 @@ private const val CODE_LENGTH = 4
  * @param onLogin 密码登录回调（账号, 密码）
  * @param onCodeLogin 验证码登录回调（账号, 验证码）
  * @param onSendCode 发送验证码回调（账号, 图形验证码）；首次发送图形码传空串
+ * @param initialAccount 账号输入框的初始值。登录成功后的首屏过渡层会把刚提交的账号带过来，
+ *                       让输入框保持原样，而不是「人已经登录成功、表单却被清空」。
  */
 @Composable
 fun LoginScreen(
@@ -114,10 +116,11 @@ fun LoginScreen(
     captchaBytes: ByteArray? = null,
     errorMessage: String? = null,
     buildExpiresAtMs: Long? = null,
+    initialAccount: String = "",
     onClearError: () -> Unit = {},
 ) {
     // 表单草稿：rememberSaveable 保证进程重建后不丢用户已输入的内容
-    var account by rememberSaveable { mutableStateOf("") }
+    var account by rememberSaveable { mutableStateOf(initialAccount) }
     var password by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
     // 记录已经自动提交过的验证码：同一组 4 位数字只发一次登录请求，

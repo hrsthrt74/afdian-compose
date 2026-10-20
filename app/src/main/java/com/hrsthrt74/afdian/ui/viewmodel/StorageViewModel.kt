@@ -206,10 +206,12 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                 SingletonImageLoader.get(app).diskCache?.clear()
             }
             // 历史记录：按勾选的子项只清需要的那份。
-            // clearAll 同时会顺带回收旧版遗留的头像缓存目录，所以「浏览历史」这一项涵盖了它。
+            // 这里用 clearAllAccounts 而不是 clear：存储管理面向磁盘占用，
+            // 必须把所有账号的分区都清掉，否则用户点完「清理」发现空间没变化。
+            // clearAllAccounts 同时会顺带回收旧版遗留的头像缓存目录，所以「浏览历史」这一项涵盖了它。
             StorageCategory.History -> {
-                if (HistoryPart.Browsing in parts) historyStore.clearAll()
-                if (HistoryPart.Search in parts) searchHistoryStore.clear()
+                if (HistoryPart.Browsing in parts) historyStore.clearAllAccounts()
+                if (HistoryPart.Search in parts) searchHistoryStore.clearAllAccounts()
             }
             // 快照缓存：首页与「我的」两个快照一起清，避免只清一半造成观感不一致
             StorageCategory.Snapshot -> {

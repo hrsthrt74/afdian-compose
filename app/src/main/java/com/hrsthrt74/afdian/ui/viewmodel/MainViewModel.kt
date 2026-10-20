@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
+import com.hrsthrt74.afdian.data.auth.CurrentAccount
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.data.content.AfadianAccount
@@ -16,6 +17,7 @@ import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.HomeCache
 import com.hrsthrt74.afdian.data.content.HomeCacheSnapshot
 import com.hrsthrt74.afdian.data.content.HomeCacheCard
+import com.hrsthrt74.afdian.data.history.HistoryStore
 import com.hrsthrt74.afdian.data.search.SearchHistoryStore
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.stats.ChartDataItem
@@ -46,6 +48,8 @@ import java.math.BigDecimal
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
     private val searchHistoryStore = SearchHistoryStore(application)
+    // 浏览历史仓库：这里只用来在绑定账号时迁移升级前的旧数据，展示逻辑在 HistoryViewModel
+    private val historyStore = HistoryStore(application)
     private val settingsStore = SettingsStore(application)
     private val statsRepository = CreatorStatsRepository(AuthTokenStore(application))
     // 首页「近5天收入」模块的数据源：与收入明细页同一个 /api/my/stat 接口（按日维度）
@@ -232,6 +236,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _account.value = result.account
                 _profile.value = result.profile
+                // 资料到手就能确定账号身份了：浏览历史/搜索历史立刻切到这个账号的分区
+                bindAccount(result.profile.user.user_id)
                 // 刷新成功后把资料写回磁盘缓存，供下次冷启动回填（内部已容错，失败不影响主流程）
                 profileCache.save(result.profile)
                 _sponsoring.value = result.sponsoring
@@ -313,19 +319,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 登出时清理本地资料：内存态立即置空 + 异步清空磁盘缓存，避免换账号后串显旧名字 */
+    /**
+     * 登出时清空本 ViewModel 持有的全部账号相关内存态。
+     *
+     * 磁盘缓存（资料 / 首页快照）不在这里清：本方法调用后 ViewModel 会被会话作用域销毁，
+     * viewModelScope 随之取消，这里的异步清理可能来不及落盘，统一交给 AuthSession 处理。
+     */
     fun onLoggedOut() {
+        // 账号身份立即清空：历史/搜索历史马上切回空分区，不用等磁盘清理跑完
+        CurrentAccount.update(null)
+        // 资料与账号概要：首页顶部的关注/粉丝等数字都来自 _account，漏清会显示上一个账号
         _profile.value = null
-        viewModelScope.launch {
-            profileCache.clear()
-            homeCache.clear()
-            _sponsoring.value = emptyList()
-            _markedCreators.value = emptyList()
-            _creatorCards.value = emptyMap()
-            _creatorCharts.value = emptyMap()
-            _unconfirmedAmount.value = null
-            _recentIncomeRecords.value = emptyList()
-        }
+        _account.value = null
+        // 动态流与分页游标：不清会让下一个账号一进来就看到上一个账号的推荐流
+        _posts.value = emptyList()
+        nextPublishSN = ""
+        _hasMore.value = true
+        // 创作者数据与图表
+        _sponsoring.value = emptyList()
+        _markedCreators.value = emptyList()
+        _creatorCards.value = emptyMap()
+        _creatorCharts.value = emptyMap()
+        _unconfirmedAmount.value = null
+        _recentIncomeRecords.value = emptyList()
+        // 搜索态：结果和错误提示都属于上一个账号的上下文
+        searchJob?.cancel()
+        searchQuery = ""
+        searchPage = 0
+        _searchResults.value = emptyList()
+        _searchHasMore.value = false
+        _searchError.value = null
+        // 通用错误提示
+        _error.value = null
+        // 点赞/收藏是进程级单例，生命周期比会话长，必须显式清空
+        interactions.reset()
+        AppLog.d("Home", "登出：首页相关内存态已清空")
     }
 
     /** 将当前首页数据合并写入快照；任一独立模块刷新成功都能更新自己的缓存内容。 */
@@ -354,8 +382,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** 只在网络刷新开始前读取一次缓存，避免缓存回填与网络结果发生竞态。 */
     private suspend fun restoreHomeCache() {
         val cachedProfile = profileCache.load()
-        cachedProfile?.let { _profile.value = it }
-        homeCache.load(cachedProfile?.user?.user_id)?.let { snapshot ->
+        // 资料缓存无效（没有缓存或属于其他账号）时不回填首页快照：
+        // 账号不明的情况下展示旧数据，比让页面先空着再被网络结果填满更糟。
+        if (cachedProfile == null) {
+            AppLog.d("Home", "资料缓存无效，跳过首页快照回填")
+            return
+        }
+        _profile.value = cachedProfile
+        // 缓存里的资料属于当前 token，可以先拿它当账号身份，不必等网络把首屏等白
+        bindAccount(cachedProfile.user.user_id)
+        homeCache.load(cachedProfile.user.user_id)?.let { snapshot ->
             _sponsoring.value = snapshot.sponsoring
             _markedCreators.value = snapshot.markedCreators
             _creatorCards.value = snapshot.creatorCards.associate {
@@ -373,6 +409,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _unconfirmedAmount.value = snapshot.unconfirmedAmount?.toBigDecimalOrNull()
             AppLog.d("Home", "已用缓存回填首页首屏（图表=${snapshot.creatorCharts.size}）")
         }
+    }
+
+    /**
+     * 绑定当前账号身份。
+     *
+     * 浏览历史与搜索历史按 user_id 分区存储，必须先确定身份才谈得上读写。
+     * 顺带执行一次升级迁移：旧版本只有一个无归属的键，把它接到当前账号名下，
+     * 避免老用户升级后历史「凭空消失」。迁移是幂等的，没有旧数据时只是一次缓存读取。
+     */
+    private suspend fun bindAccount(userId: String) {
+        if (userId.isBlank()) return
+        CurrentAccount.update(userId)
+        // 身份绑定本身不会失败；迁移只是「有旧数据则搬一次」的收尾动作，
+        // 磁盘异常绝不能把已经拿到的首页数据一起丢掉（否则网络成功却整页报错）。
+        runCatching {
+            historyStore.migrateLegacyEntries(userId)
+            searchHistoryStore.migrateLegacy(userId)
+            // 首页布局、管理页布局、置顶会话等账号级设置同样需要从旧版全局键迁过来（幂等）
+            settingsStore.migrateLegacyAccountSettings(userId)
+        }.onFailure { AppLog.w("Home", "旧版账号级数据迁移失败，不影响本次刷新", it) }
     }
 
     fun loadMore() {

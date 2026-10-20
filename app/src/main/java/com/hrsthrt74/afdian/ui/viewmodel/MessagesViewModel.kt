@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
+import com.hrsthrt74.afdian.data.auth.CurrentAccount
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.BlackedType
 import com.hrsthrt74.afdian.data.content.MessageDialog
@@ -160,17 +161,25 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
         refresh()
         // 首次进入立即拉取未读计数，不等 auto-refresh
         viewModelScope.launch { refreshUnreadCount() }
-        // 从 DataStore 恢复发电明细开关状态
+        // 发电明细开关与置顶会话都是「按账号隔离」的设置，必须等账号身份就绪后再读。
+        // 不能只读一次：换账号登录时本 ViewModel 会先于资料接口创建，此刻 CurrentAccount
+        // 还是空的，只读一次会拿到空分区，导致新账号的置顶与开关整场会话都不生效。
         viewModelScope.launch {
-            _showSponsorDetail.value = settingsStore.msgShowSponsorDetail.first()
-        }
-        // 从 DataStore 恢复置顶会话卡片。加空值守卫：读取是异步的，若用户在回填前就点了置顶，
-        // 直接用存储值覆盖会把这次操作吞掉（概率极低，但守卫成本几乎为零）
-        viewModelScope.launch {
-            val stored = settingsStore.msgPinnedDialogCards.first()
-            if (_pinnedCards.value.isEmpty()) {
-                _pinnedCards.value = stored
-                AppLog.d("Messages", "置顶会话已恢复，数量=${stored.size}")
+            var lastOwner: String? = null
+            CurrentAccount.userId.collect { owner ->
+                if (owner == null || owner == lastOwner) return@collect
+                val storedDetail = settingsStore.msgShowSponsorDetail.first()
+                val storedPinned = settingsStore.msgPinnedDialogCards.first()
+                // 换账号（lastOwner 非空）必须整体替换，不能保留上一个账号的内存态；
+                // 同一账号的首次回填保留「用户已手动改过」的内存态，避免吞掉刚做的操作。
+                if (lastOwner != null || _pinnedCards.value.isEmpty()) {
+                    _pinnedCards.value = storedPinned
+                }
+                if (lastOwner != null || !_showSponsorDetail.value) {
+                    _showSponsorDetail.value = storedDetail
+                }
+                lastOwner = owner
+                AppLog.d("Messages", "账号就绪，已恢复置顶与发电明细开关，置顶数=${storedPinned.size}")
             }
         }
     }

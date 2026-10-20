@@ -10,6 +10,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -21,12 +23,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.crossfade
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
+import com.hrsthrt74.afdian.data.auth.CurrentAccount
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
@@ -42,6 +46,10 @@ import com.hrsthrt74.afdian.ui.theme.AfdianBrandColor
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
 import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
+import com.hrsthrt74.afdian.ui.util.rememberSessionViewModelStoreOwner
+import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -134,6 +142,17 @@ private fun AfdianApp(
     // 否则首页可能先用默认值触发首次图片加载、把 ImageLoader 定型，用户设的上限要等下次启动才生效。
     val imageCacheLimitState = settingsStore.imageCacheLimit.collectAsState(initial = null)
 
+    // 免责声明同意状态：null 表示「还没从 DataStore 读出来」。
+    //
+    // 必须是三态而不是 initial = false：登出会让组合从 MainScreen 切到未登录分支，
+    // 那时 collectAsState 重新订阅，首帧拿到 false 就会先把免责声明页画出来，
+    // 下一帧读到真实的 true 才切到登录页 —— 已同意过的用户每次登出都会看到它闪一下。
+    //
+    // 放在登录态分支之前收集，已登录期间值就已经就绪，登出瞬间可直接渲染正确页面。
+    val disclaimerAccepted: Boolean? by settingsStore.disclaimerAccepted
+        .map<Boolean, Boolean?> { it }
+        .collectAsState(initial = null)
+
     // 全局 ImageLoader：开启 crossfade，并给磁盘缓存套上用户设置的体积上限。
     // 必须在任何 AsyncImage 首次组合前调用（setSafe 要求早于 Coil 首次 get），
     // 放在根组合 AfdianApp 顶部即满足；各调用点无需再单独包 ImageRequest。
@@ -205,60 +224,124 @@ private fun AfdianApp(
                 AuthState.Loading -> Unit
 
                 is AuthState.LoggedIn -> {
-                    // 主页首帧布局就绪前，继续把登录页（「登录中…」转圈态）盖在上面，
-                    // 避免切屏瞬间露出空白背景闪一下；MainScreen 两帧后回调 onReady 再撤掉。
-                    // 注意组合顺序：先 MainScreen 后 LoginScreen，后者才能绘制在上层。
+                    // 主页布局是否已经测量完成（MainScreen 两帧后回调）
                     var mainReady by rememberSaveable { mutableStateOf(false) }
-                    if (mainReady) appReady.value = true
+                    // 刚提交登录的账号：过渡层继续展示登录页时用它回填输入框
+                    val lastAccount by session.lastAccount.collectAsState()
+                    // 会话级 ViewModel 作用域：登出时整批销毁、重新登录时整批重建，
+                    // 避免复用上一个账号的 MainViewModel / MessagesViewModel / HistoryViewModel
+                    val sessionViewModelOwner = rememberSessionViewModelStoreOwner()
+                    // 只有真正登出（登录态已不是 LoggedIn）才销毁会话内的 ViewModel。
+                    // Activity 因旋转屏幕、切换深色模式而重建时登录态仍是 LoggedIn，
+                    // 此时必须保留，否则一次旋转就等于把首页数据全部清空重拉。
+                    DisposableEffect(sessionViewModelOwner) {
+                        onDispose {
+                            if (session.state.value !is AuthState.LoggedIn) {
+                                sessionViewModelOwner.clear()
+                            }
+                        }
+                    }
                     // 数字滚动动画总开关在这里下发为组合局部（而不是让 MainScreen 往全局对象里写）：
                     // 数据卡读到它就会订阅，开关一变必然重组并切换渲染方式，
                     // 不会再出现「开关关了、卡片还在播动画」。
                     CompositionLocalProvider(
+                        // ViewModel 作用域必须包在最外层：MainScreen 及其内部所有 viewModel() 都要落进会话里
+                        LocalViewModelStoreOwner provides sessionViewModelOwner,
                         LocalRollingNumberEnabled provides rollingNumberEnabled,
                         // 数值窄体字体同样以组合局部下发：卡片读到它就订阅，开关/宽度一变必然重组
                         LocalDataCardFontFamily provides providedDataCardFontFamily,
                     ) {
-                        MainScreen(onReady = { mainReady = true }, onLogout = session::logout)
-                    }
-                    if (!mainReady) {
-                        LoginScreen(onLogin = session::login, isLoggingIn = true, errorMessage = null)
-                    }
-                }
-
-                // 未登录：先确认免责声明（读取未完成前按未同意处理）
-                AuthState.LoggedOut -> {
-                    // 登录页/免责声明本身就是首个界面，组合即放行 SplashScreen
-                    SideEffect { appReady.value = true }
-                    val accepted by settingsStore.disclaimerAccepted.collectAsState(initial = false)
-                    // 免责声明确认后使用 Compose 默认转场，避免页面从免责声明硬切到登录页。
-                    AnimatedContent(
-                        targetState = accepted,
-                        label = "disclaimerToLogin",
-                    ) { isAccepted ->
-                        if (!isAccepted) {
-                            DisclaimerScreen(
-                                onAgree = { scope.launch { settingsStore.acceptDisclaimer() } },
-                                onDisagree = { (context as? Activity)?.finishAndRemoveTask() },
-                            )
-                        } else {
-                            val isLoggingIn by session.isLoggingIn.collectAsState()
-                            val error by session.error.collectAsState()
-                            // 验证码登录的配套状态：发码进度、60 秒倒计时、图形验证码图片
-                            val isSendingCode by session.isSendingCode.collectAsState()
-                            val codeCooldown by session.codeCooldown.collectAsState()
-                            val captchaBytes by session.captchaBytes.collectAsState()
+                        // 在会话作用域内取 MainViewModel 并显式传给 MainScreen：
+                        // 过渡层什么时候撤，取决于它手里的首屏数据，而不只是布局有没有量完。
+                        val mainViewModel: MainViewModel = viewModel()
+                        val creatorCards by mainViewModel.creatorCards.collectAsState()
+                        val homeLoading by mainViewModel.isLoading.collectAsState()
+                        // 账号身份：首页的模块布局/顺序等设置都按 user_id 分区，
+                        // 身份没绑定前读到的是空分区的默认值，此时露主页就会先闪一版错误布局
+                        val currentOwner by CurrentAccount.userId.collectAsState()
+                        // 必须观察到一次「正在加载」：refresh 在协程里启动，首帧 isLoading 还是 false，
+                        // 不记这个窗口就会把「还没开始」误判成「已经结束」，过渡层提前撤掉。
+                        var sawHomeLoading by remember { mutableStateOf(false) }
+                        LaunchedEffect(homeLoading) {
+                            if (homeLoading) sawHomeLoading = true
+                        }
+                        // 兜底超时：弱网/接口异常时不能让用户永远停在过渡页
+                        var waitTimedOut by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            delay(HOME_FIRST_LOAD_TIMEOUT_MS)
+                            waitTimedOut = true
+                        }
+                        // 创作者卡片是切号后最刺眼的一块：为空时继续盖着，
+                        // 等它出数据、本轮刷新结束、或超时再露主页。
+                        // 冷启动有缓存回填时 creatorCards 一上来就非空，因此依旧秒进。
+                        val creatorDataSettled = creatorCards.isNotEmpty() ||
+                            waitTimedOut ||
+                            (sawHomeLoading && !homeLoading)
+                        // 账号身份绑定与数据就绪必须同时满足：只等数据的话，
+                        // 首页会先用空分区的默认布局渲染，等身份绑定时再整页跳一次布局。
+                        // 超时兜底不看身份：弱网下宁可显示默认布局，也不能永远卡在过渡页。
+                        val accountReady = currentOwner != null
+                        val canShowMain = mainReady &&
+                            (waitTimedOut || (creatorDataSettled && accountReady))
+                        if (canShowMain) appReady.value = true
+                        // 注意组合顺序：先 MainScreen 后过渡层，后者才能绘制在上层。
+                        MainScreen(
+                            onReady = { mainReady = true },
+                            onLogout = session::logout,
+                            viewModel = mainViewModel,
+                        )
+                        if (!canShowMain) {
+                            // 过渡层继续沿用登录页：表单和输入框原地保留，按钮转「登录中…」，
+                            // 而不是整页换成另一个加载页 —— 那会让用户以为自己填的内容被吞了。
+                            // isLoggingIn 固定传 true：此时登录已经成功，表单只用于展示过渡。
                             LoginScreen(
                                 onLogin = session::login,
                                 onCodeLogin = session::loginWithCode,
                                 onSendCode = session::sendLoginCode,
-                                isLoggingIn = isLoggingIn,
-                                isSendingCode = isSendingCode,
-                                codeCooldownSeconds = codeCooldown,
-                                captchaBytes = captchaBytes,
-                                errorMessage = error,
-                                buildExpiresAtMs = expiresAtMs,
-                                onClearError = session::clearError,
+                                isLoggingIn = true,
+                                initialAccount = lastAccount,
                             )
+                        }
+                    }
+                }
+
+                // 未登录：先确认免责声明。状态还没读出来时什么都不渲染，
+                // 否则会先画一帧免责声明、再跳登录页（见上方 disclaimerAccepted 的注释）
+                AuthState.LoggedOut -> {
+                    val accepted = disclaimerAccepted
+                    if (accepted != null) {
+                        // 登录页/免责声明本身就是首个界面，组合即放行 SplashScreen
+                        SideEffect { appReady.value = true }
+                        // 免责声明确认后使用 Compose 默认转场，避免页面从免责声明硬切到登录页。
+                        AnimatedContent(
+                            targetState = accepted,
+                            label = "disclaimerToLogin",
+                        ) { isAccepted ->
+                            if (!isAccepted) {
+                                DisclaimerScreen(
+                                    onAgree = { scope.launch { settingsStore.acceptDisclaimer() } },
+                                    onDisagree = { (context as? Activity)?.finishAndRemoveTask() },
+                                )
+                            } else {
+                                val isLoggingIn by session.isLoggingIn.collectAsState()
+                                val error by session.error.collectAsState()
+                                // 验证码登录的配套状态：发码进度、60 秒倒计时、图形验证码图片
+                                val isSendingCode by session.isSendingCode.collectAsState()
+                                val codeCooldown by session.codeCooldown.collectAsState()
+                                val captchaBytes by session.captchaBytes.collectAsState()
+                                LoginScreen(
+                                    onLogin = session::login,
+                                    onCodeLogin = session::loginWithCode,
+                                    onSendCode = session::sendLoginCode,
+                                    isLoggingIn = isLoggingIn,
+                                    isSendingCode = isSendingCode,
+                                    codeCooldownSeconds = codeCooldown,
+                                    captchaBytes = captchaBytes,
+                                    errorMessage = error,
+                                    buildExpiresAtMs = expiresAtMs,
+                                    onClearError = session::clearError,
+                                )
+                            }
                         }
                     }
                 }
@@ -266,3 +349,11 @@ private fun AfdianApp(
         }
     }
 }
+
+/**
+ * 登录后等待首页首屏数据的上限。
+ *
+ * 超过这个时间即使创作者数据还没到也放行：弱网或接口异常时，
+ * 把用户永远挡在过渡页比看到一块空模块更糟。
+ */
+private const val HOME_FIRST_LOAD_TIMEOUT_MS = 8_000L

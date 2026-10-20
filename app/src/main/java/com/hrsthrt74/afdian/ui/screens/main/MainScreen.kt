@@ -228,8 +228,9 @@ fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainVi
     // 读取设备屏幕圆角，供「主页展开」过渡在全屏停稳时对齐（直角屏为 0.dp）
     CreatorExpandOrigin.screenCorner = rememberNavSystemCornerRadius()
 
-    // 包装登出回调：先把本地资料清掉（内存态 + 磁盘缓存），再执行真正的登出，
-    // 避免 Activity 级 MainViewModel 的旧资料在换账号登录后短暂显示上一个账号的名字
+    // 包装登出回调：先清空首页内存态，再执行真正的登出。
+    // token 与磁盘缓存由 AuthSession 负责清理；本 ViewModel 随后会被会话作用域整批销毁，
+    // 重新登录时拿到的是全新实例，不会再复用上一个账号的数据。
     val handleLogout: () -> Unit = {
         viewModel.onLoggedOut()
         onLogout()
