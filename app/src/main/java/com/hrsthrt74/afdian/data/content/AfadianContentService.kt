@@ -44,6 +44,14 @@ class AfadianContentService(tokenStore: AuthTokenStore, client: OkHttpClient = s
 
     suspend fun fetchProfile(): AfadianProfile = accountService.fetchProfile()
 
+    /**
+     * 用指定 token 拉取资料。
+     *
+     * 只用于「还没切过去」的账号：切换前预检凭证是否有效、添加账号后确认身份。
+     * 不能走 [fetchProfile] 的默认 token —— 那一刻活动 token 还是旧账号的。
+     */
+    suspend fun fetchProfileWithToken(token: String): AfadianProfile = accountService.fetchProfile(token)
+
     suspend fun fetchSponsoring(): List<SponsoringItem> = accountService.fetchSponsoring()
 
     /** 轻量未读检查，供底部导航栏刷新全局未读数。 */

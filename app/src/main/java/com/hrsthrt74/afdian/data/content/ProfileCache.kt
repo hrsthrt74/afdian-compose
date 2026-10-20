@@ -67,12 +67,22 @@ class ProfileCache(private val application: Application) {
             .getOrNull()
     }
 
-    /** 网络刷新成功后写回缓存；写盘失败静默忽略，不影响主流程 */
-    suspend fun save(profile: AfadianProfile) {
+    /**
+     * 网络刷新成功后写回缓存；写盘失败静默忽略，不影响主流程。
+     *
+     * @param expectedSessionKey 发起该次网络请求时的会话指纹。写入时会再算一次当前指纹，
+     *   两者不一致说明期间切过账号，这份资料属于上一个账号，必须丢弃——
+     *   否则它会被打上新账号的指纹，下一个账号冷启动读到的就是别人的昵称头像。
+     */
+    suspend fun save(profile: AfadianProfile, expectedSessionKey: String? = null) {
         val sessionKey = withContext(Dispatchers.IO) { authSessionFingerprint(application) }
         // 没有登录态时不写：登出瞬间仍在收尾的网络请求不能把旧账号资料又写回缓存
         if (sessionKey == null) {
             AppLog.d("ProfileCache", "当前无登录态，跳过资料缓存写入")
+            return
+        }
+        if (expectedSessionKey != null && expectedSessionKey != sessionKey) {
+            AppLog.d("ProfileCache", "会话已变化，丢弃上一会话的资料写入")
             return
         }
         runCatching {

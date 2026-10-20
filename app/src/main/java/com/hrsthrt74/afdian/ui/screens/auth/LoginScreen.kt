@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -118,6 +119,9 @@ fun LoginScreen(
     buildExpiresAtMs: Long? = null,
     initialAccount: String = "",
     onClearError: () -> Unit = {},
+    // 嵌入弹层（如 WindowDialog）时使用：不套全屏 Scaffold、不叠加系统栏 insets，
+    // 高度由内容决定，避免撑满整个对话框
+    embedded: Boolean = false,
 ) {
     // 表单草稿：rememberSaveable 保证进程重建后不丢用户已输入的内容
     var account by rememberSaveable { mutableStateOf(initialAccount) }
@@ -217,35 +221,41 @@ fun LoginScreen(
         onSendCode(account.trim(), if (captchaBytes != null) captchaInput.trim() else "")
     }
 
-    // 可滚动根布局：外层用 Miuix Scaffold 铺 colorScheme.background，
-    // 跟随明暗模式（否则裸 Column 透出的是系统白色窗口底）；内层滚动 + safeDrawing insets
-    // 一次性处理状态栏、导航栏、刘海和 IME 的避让（其中已含 IME，无需再叠 imePadding）
-    Scaffold { _ ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .windowInsetsPadding(WindowInsets.safeDrawing),
-        ) {
-            // 顶部留白约屏高 1/4，让标题落在视觉舒适区（纯 Spacer 撑开，不引入额外组件）
-            Spacer(Modifier.weight(1f))
+    // 横向内边距：全屏页需要，弹层里由 WindowDialog 自身提供，再加会双重留白。
+    // 这里保持「内边距下沉到各组件」的既有做法（而不是给页面外层套 padding）：
+    // 页面铺满宽度，转场动画才能滑到屏幕边缘而不被提前裁掉。
+    val horizontalPadding = if (embedded) 0.dp else 24.dp
 
-            // 横向内边距下沉到各组件：页面本身铺满宽度，转场才能滑到屏幕边缘，
-            // 不会被外层 padding 提前裁掉（这也是其他页面的做法）。
-            Text(
-                text = "爱发电",
-                style = MiuixTheme.textStyles.title1,
-                textAlign = TextAlign.Center,
-                color = MiuixTheme.colorScheme.onBackground,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-            )
-            Text(
-                text = "登录以继续",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 24.dp, end = 24.dp),
-            )
+    // 表单内容：全屏页与弹层（WindowDialog）共用，避免维护两份表单。
+    // 用 ColumnScope 接收者是为了让内容里的 weight 留白在「全屏页」模式下仍然生效。
+    val formContent: @Composable ColumnScope.() -> Unit = {
+            // 顶部留白：全屏页顶到约 1/4 屏高；嵌入弹层时不需要推这么远
+            if (embedded) {
+                Spacer(Modifier.height(8.dp))
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+
+            // 品牌标题只在全屏登录页显示：弹层已有「添加账号」标题，
+            // 再来一遍「爱发电 / 登录以继续」属于重复表意，纯属噪音
+            if (!embedded) {
+                Text(
+                    text = "爱发电",
+                    style = MiuixTheme.textStyles.title1,
+                    textAlign = TextAlign.Center,
+                    color = MiuixTheme.colorScheme.onBackground,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = horizontalPadding)
+                )
+                Text(
+                    text = "登录以继续",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, start = horizontalPadding, end = horizontalPadding),
+                )
+            }
 
             // 登录方式切换：透明底融入页面，不额外铺一层 surface
             TabRow(
@@ -263,7 +273,10 @@ fun LoginScreen(
                     }
                 },
                 colors = TabRowDefaults.tabRowColors(Color.Transparent),
-                modifier = Modifier.fillMaxWidth().padding(top = 20.dp, start = 24.dp, end = 24.dp),
+                // 弹层里没有品牌标题，顶部间距相应收紧，避免上空一大截
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = if (embedded) 8.dp else 20.dp, start = horizontalPadding, end = horizontalPadding),
             )
 
             // 标题与表单之间拉开一段距离
@@ -293,8 +306,9 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         // 横向留白放在转场内部：AnimatedContent 本身铺满宽度，
-                        // 内容自带内边距，滑动才能一直滑到屏幕边缘而不被外层 padding 提前裁住
-                        .padding(horizontal = 24.dp),
+                        // 内容自带内边距，滑动才能一直滑到屏幕边缘而不被外层 padding 提前裁住。
+                        // 弹层模式下为 0：左右留白已由 WindowDialog 提供
+                        .padding(horizontal = horizontalPadding),
                 ) {
                     // 账号输入框：单行，回车跳到下一个输入项（密码或验证码）
                     TextField(
@@ -444,23 +458,30 @@ fun LoginScreen(
                     text = errorMessage.orEmpty(),
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 12.dp, start = 24.dp, end = 24.dp),
+                    modifier = Modifier
+                        .padding(top = 12.dp, start = horizontalPadding, end = horizontalPadding),
                 )
             }
 
             // 主操作按钮：占满宽度 + 主色；登录中内嵌旋转指示器并禁用防重复提交
             Button(
-                onClick = { submit() },
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    submit()
+                    },
                 enabled = submitEnabled,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 24.dp, start = 24.dp, end = 24.dp),
+                    .padding(top = 24.dp, start = horizontalPadding, end = horizontalPadding),
                 colors = ButtonDefaults.buttonColorsPrimary(),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 登录中的进度反馈：复用全局 Loading 同款指示器
                     if (isLoggingIn) {
-                        InfiniteProgressIndicator(modifier = Modifier.size(18.dp))
+                        InfiniteProgressIndicator(
+                            color = MiuixTheme.colorScheme.disabledOnPrimaryButton,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.padding(start = 8.dp))
                     }
                     Text(if (isLoggingIn) "登录中…" else "登录")
@@ -477,12 +498,39 @@ fun LoginScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 24.dp, start = 24.dp, end = 24.dp),
+                        .padding(top = 24.dp, start = horizontalPadding, end = horizontalPadding),
                 )
             }
 
-            // 底部留白约屏高 1/3，整体内容略偏上、符合登录页视觉习惯
-            Spacer(Modifier.weight(1.3f))
+            // 底部留白：全屏页用 weight 把内容略往上推；嵌入弹层时不需要
+            if (embedded) {
+                Spacer(Modifier.height(8.dp))
+            } else {
+                Spacer(Modifier.weight(1.3f))
+            }
+    }
+
+    if (embedded) {
+        // 嵌入弹层：不套 Scaffold（它会铺满整个对话框），也不叠加系统栏 insets；
+        // 高度由内容决定，滚动交给弹层窗口的尺寸约束
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            content = formContent,
+        )
+    } else {
+        // 全屏页：外层用 Miuix Scaffold 铺 colorScheme.background，跟随明暗模式
+        // （否则裸 Column 透出的是系统白色窗口底）；内层滚动 + safeDrawing insets
+        // 一次性处理状态栏、导航栏、刘海和 IME 的避让（其中已含 IME，无需再叠 imePadding）
+        Scaffold { _ ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .windowInsetsPadding(WindowInsets.safeDrawing),
+                content = formContent,
+            )
         }
     }
 }

@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.auth.CurrentAccount
+import com.hrsthrt74.afdian.data.auth.SessionEpoch
+import com.hrsthrt74.afdian.data.auth.authSessionFingerprint
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.data.content.AfadianAccount
@@ -194,6 +196,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // 动态点赞/收藏的全局共享互动状态（乐观更新 + 失败回滚；状态来自服务端 has_like / marked-post）
     val interactions = PostInteractionController.get(application)
 
+    /**
+     * 本 ViewModel 所属的会话代次。
+     *
+     * 切换账号 / 登出会让代次递增；所有异步结果（首页刷新、创作者流式帧、翻页、缓存写入）
+     * 在写回 StateFlow 之前都要比对，否则旧账号的慢请求会把数据写进新账号的界面，
+     * 也就是 A→B→A 快速连切时看到的数据错乱。
+     */
+    private val sessionEpoch = SessionEpoch.current()
+
+    /** 当前是否仍是这个 ViewModel 所属的会话。 */
+    private fun sessionAlive(): Boolean = SessionEpoch.current() == sessionEpoch
+
+    private val _homeRestoredFromCache = MutableStateFlow(false)
+
+    /**
+     * 本次会话的首页数据是否来自磁盘缓存（冷启动回填）。
+     *
+     * 首屏门控用它区分两种进入方式：
+     * - 冷启动有缓存：缓存是上一轮的完整快照，可直接秒进，不必等网络；
+     * - 切号 / 首次登录（无缓存）：必须等整轮刷新结束，否则流式中间帧会让
+     *   「创作者数据」模块先露出再消失（账单类卡片还没到，模块判定不可显示）。
+     */
+    val homeRestoredFromCache: StateFlow<Boolean> = _homeRestoredFromCache.asStateFlow()
+
+    private val _hasCompletedFirstLoad = MutableStateFlow(false)
+
+    /**
+     * 本次会话是否已完成至少一轮首页刷新（成功或失败都算）。
+     *
+     * 门控不能靠 UI 观察 `isLoading` 的 true→false 来推断「刷新结束」：
+     * 网络快时这个摆动可能发生在同一帧内，Compose 只看到终值 false，
+     * 中间态被跳过，遮罩就会一直等到超时。用 ViewModel 自己的完成标志最可靠。
+     */
+    val hasCompletedFirstLoad: StateFlow<Boolean> = _hasCompletedFirstLoad.asStateFlow()
+
     init {
         // 先异步回填上次的资料缓存，让「我的」页立即显示真实用户名/头像；
         // 随后的 refresh() 拿到网络结果后会覆盖（失败时保留缓存，断网也能显示）
@@ -206,8 +243,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refresh() {
         viewModelScope.launch {
+            if (!sessionAlive()) return@launch
             _isLoading.value = true
             _error.value = null
+            // 发起请求前记下会话指纹：切号后 token 会变，写缓存时据此丢弃旧会话的资料
+            val requestSessionKey = withContext(Dispatchers.IO) {
+                authSessionFingerprint(getApplication())
+            }
             // 创作者数据与主页内容并行加载，但共享同一个 isLoading 窗口：
             // 修复「刷新图标先停、创作者卡片晚一拍才更新」的错位问题
             val creatorJob = launch { refreshCreatorData() }
@@ -234,12 +276,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                 }
+                // 会话已切换：这批数据属于上一个账号，绝不能写进新账号的界面
+                if (!sessionAlive()) {
+                    AppLog.d("Home", "会话已切换，丢弃本次首页刷新结果")
+                    return@launch
+                }
                 _account.value = result.account
                 _profile.value = result.profile
                 // 资料到手就能确定账号身份了：浏览历史/搜索历史立刻切到这个账号的分区
                 bindAccount(result.profile.user.user_id)
                 // 刷新成功后把资料写回磁盘缓存，供下次冷启动回填（内部已容错，失败不影响主流程）
-                profileCache.save(result.profile)
+                profileCache.save(result.profile, requestSessionKey)
                 _sponsoring.value = result.sponsoring
                 _markedCreators.value = result.markedCreators
                 // 先回填收藏/点赞状态再上屏，保证列表首帧图标就是正确的
@@ -259,6 +306,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 creatorJob.join()
                 recentIncomeJob.join()
                 _isLoading.value = false
+                // 首轮刷新结束（无论成功失败）都通知门控：不能让切号遮罩干等超时
+                if (sessionAlive()) _hasCompletedFirstLoad.value = true
             }
         }
     }
@@ -276,6 +325,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 incomeStatRepository.fetch(IncomeStatType.Day, page = 1)
             }
             val records = page.list.take(RECENT_INCOME_RECORD_COUNT)
+            // 会话已切换：旧账号的统计不能出现在新账号首页
+            if (!sessionAlive()) return
             _recentIncomeRecords.value = records
             AppLog.d("Home", "近5天收入加载成功，天数=${records.size}")
         } catch (e: Exception) {
@@ -291,6 +342,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 订单多的账号不用陪账单翻页一起等最慢的接口。
             val overview = withContext(Dispatchers.IO) {
                 statsRepository.loadOverviewStreaming { partial ->
+                    // 流式帧可能在切号之后才到：旧账号的卡片/图表不能再写进新界面
+                    if (!sessionAlive()) return@loadOverviewStreaming
                     // 中间帧只覆盖「本帧真正拿到值」的卡片：
                     // 流式加载的早期帧里，账单/按日统计这些还没回来的数据源是 Unavailable，
                     // 整份替换会让冷启动回填的缓存数字（今日收入等）先被抹成 “--”，
@@ -306,6 +359,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _creatorCharts.value = _creatorCharts.value + partial.charts
                 }
             }
+            // 会话已切换：最终快照同样不能落到新账号上
+            if (!sessionAlive()) return
             // 最终快照兜底：中间帧为避免闪烁保留了旧值，这里再落一次权威结果，
             // 让真正失败的数据源回到 “--”。成功路径上它与最后一帧内容相等，
             // 会被 StateFlow 的相等合流直接吞掉，不产生任何额外重组。
@@ -358,9 +413,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 将当前首页数据合并写入快照；任一独立模块刷新成功都能更新自己的缓存内容。 */
     private fun saveHomeCache() {
+        // 旧会话的写盘请求直接丢弃：即使 HomeCache 有 ownerUserId 兜底，
+        // 让上一代的数据覆盖磁盘也是没必要的风险
+        if (!sessionAlive()) return
         val ownerUserId = _profile.value?.user?.user_id ?: return
         viewModelScope.launch {
             homeCacheSaveMutex.withLock {
+                if (!sessionAlive()) return@withLock
                 homeCache.save(
                     HomeCacheSnapshot(
                         ownerUserId = ownerUserId,
@@ -407,6 +466,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _creatorCharts.value = snapshot.creatorCharts
             // 未确认金额文本回填为数值；旧快照无该字段或格式异常时保持 null，走实时帧兜底
             _unconfirmedAmount.value = snapshot.unconfirmedAmount?.toBigDecimalOrNull()
+            // 标记「首屏已由缓存填好」：MainActivity 的门控据此放行，不必等网络
+            _homeRestoredFromCache.value = true
             AppLog.d("Home", "已用缓存回填首页首屏（图表=${snapshot.creatorCharts.size}）")
         }
     }
@@ -420,6 +481,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun bindAccount(userId: String) {
         if (userId.isBlank()) return
+        // 旧会话不得改写当前账号身份：切号后它会把新账号的 CurrentAccount 覆盖回旧值
+        if (!sessionAlive()) return
         CurrentAccount.update(userId)
         // 身份绑定本身不会失败；迁移只是「有旧数据则搬一次」的收尾动作，
         // 磁盘异常绝不能把已经拿到的首页数据一起丢掉（否则网络成功却整页报错）。
@@ -439,6 +502,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val page = withContext(Dispatchers.IO) { service.fetchRecommendedPosts(nextPublishSN) }
                 AppLog.d("Discover", "loadMore result: newPosts=${page.posts.size}, nextSN=${page.nextPublishSN}, hasMore=${page.hasMore}")
+                // 会话已切换：旧账号的下一页不能追加到新账号的列表
+                if (!sessionAlive()) return@launch
                 // 翻页数据同样要先播种点赞状态再追加
                 interactions.seedLiked(page.posts.filter { it.has_like == 1 }.map { p -> p.id }.toSet())
                 _posts.value = _posts.value + page.posts

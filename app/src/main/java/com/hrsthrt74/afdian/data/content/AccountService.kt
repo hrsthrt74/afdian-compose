@@ -35,9 +35,14 @@ internal class AccountService(
         get("/api/my/account", AfadianAccountResponse.serializer()).data
             ?: error("账号信息加载失败")
 
-    /** 个人资料：当前登录用户的公开主页信息。 */
-    suspend fun fetchProfile(): AfadianProfile =
-        get("/api/my/profile", AfadianProfileResponse.serializer()).data
+    /**
+     * 个人资料：当前登录用户的公开主页信息。
+     *
+     * @param token 指定凭证，用于「切换账号前预检」和「添加账号后验证」——
+     *              这两条路径上活动 token 还是旧账号的，不能直接用默认值。
+     */
+    suspend fun fetchProfile(token: String? = tokenStore.token): AfadianProfile =
+        get("/api/my/profile", AfadianProfileResponse.serializer(), token = token).data
             ?: error("个人信息加载失败")
 
     /** 我支持的创作者列表（含最新动态提示）。 */
@@ -83,12 +88,14 @@ internal class AccountService(
         path: String,
         serializer: kotlinx.serialization.KSerializer<T>,
         host: String = AFDIAN_HOST,
+        // 默认取活动 token；切换/添加账号的预检会显式传入目标 token
+        token: String? = tokenStore.token,
     ): T {
         val url = (host + path).toHttpUrl().newBuilder()
-            .addQueryParameter("auth_token", tokenStore.token)
+            .addQueryParameter("auth_token", token)
             .build()
         val request = Request.Builder().url(url).get()
-            .header("Cookie", "auth_token=${tokenStore.token}")
+            .header("Cookie", "auth_token=${token.orEmpty()}")
             .build()
         // 埋点：请求发出前记录起始时间，用于统计接口耗时
         val start = System.currentTimeMillis()

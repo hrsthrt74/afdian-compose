@@ -6,8 +6,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,10 +54,14 @@ import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_SLIDER_STEPS
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.resolveForSdk
 import com.hrsthrt74.afdian.ui.components.DataCard
+import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
+import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
+import com.hrsthrt74.afdian.ui.components.basic.TooltipInfoButton
+import com.hrsthrt74.afdian.ui.components.basic.TooltipInfoButtonStyle
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
@@ -78,16 +84,18 @@ import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Remove
 import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
@@ -289,6 +297,9 @@ private fun SettingsScreenContent(
     // 「重置卡片布局」确认弹窗状态
     val resetManagementDialogState = rememberDialogState()
     val resetHomeCreatorDialogState = rememberDialogState()
+    // 「退出当前账号」确认弹窗：登出会清掉凭证并回到登录页，
+    // 属于不可撤销的操作，必须二次确认（误触即掉线的代价太高）
+    val logoutDialogState = rememberDialogState()
 
 
     Scaffold(
@@ -319,10 +330,113 @@ private fun SettingsScreenContent(
                     bottom = (contentBottomPadding() + 48.dp)
                 )
             ) {
-                // 设置项目
+                // 账号管理
+                item {
+                    val accountSwitcher = LocalAccountSwitcher.current
+                    if (accountSwitcher != null) {
+                        Column {
+                            Row(
+//                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                SmallTitle(text = "账号", modifier = Modifier.padding(start = 4.dp))
+                                Spacer(Modifier.weight(1f))
+                                TooltipInfoButton(
+                                    tooltipText = "也可以长按「我的」页的头像来快速切换",
+                                    style = TooltipInfoButtonStyle.Small,
+                                    iconTint = MiuixTheme.colorScheme.onBackgroundVariant,
+                                    modifier = Modifier.padding(end = 28.dp)
+                                )
+                            }
+                            Card(modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 12.dp)) {
+                                accountSwitcher.accounts.forEach { account ->
+                                    val isCurrent = account.userId == accountSwitcher.currentUserId
+                                    // 失效账号给出提示：点击仍会走切换流程，由根层预检失败后再提示，
+                                    // 这样「设置页点它」与「弹层点它」的表现完全一致
+                                    val isInvalid = account.userId in accountSwitcher.invalidUserIds
+                                    BasicComponent(
+                                        title = account.name.ifBlank { "爱发电用户" },
+                                        summary = when {
+                                            isCurrent -> "当前账号"
+                                            isInvalid -> "登录已失效"
+                                            else -> null
+                                        },
+                                        startAction = {
+                                            Avatar(
+                                                model = account.avatar,
+                                                size = 32.dp,
+                                                contentDescription = "账号头像",
+                                            )
+                                        },
+                                        endActions = {
+                                            if (isCurrent) {
+                                                // 自己的账号不叫「删除」，走的是退出登录：
+                                                // 清掉当前凭证与本条账号记录，其他账号保留，回到登录页。
+                                                // 用 Remove（移除）而不是 Delete（删除），语义上不误伤数据
+                                                IconButton(
+                                                    onClick = {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.Reject)
+                                                        // 先确认再登出：误触一次就掉线、还要重新登录
+                                                        logoutDialogState.show()
+                                                    }) {
+                                                    Icon(
+                                                        imageVector = MiuixIcons.Remove,
+                                                        contentDescription = "退出当前账号",
+                                                    )
+                                                }
+                                            } else {
+                                                // 删除其他账号：根层弹确认框，不动当前会话
+                                                IconButton(
+                                                    onClick = {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.Reject)
+                                                        accountSwitcher.onDelete(account)
+                                                    }) {
+                                                    Icon(
+                                                        imageVector = MiuixIcons.Delete,
+                                                        contentDescription = "删除该账号",
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        // 点账号即切换；当前账号本身不触发（避免无谓的一次会话重建）
+                                        onClick = if (isCurrent) {
+                                            null
+                                        } else {
+                                            {
+                                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                accountSwitcher.onSwitch(account.userId)
+                                            }
+                                        },
+                                    )
+                                }
+                                // 添加账号：与切换菜单里的「添加」是同一个动作
+                                BasicComponent(
+                                    title = "添加账号",
+                                    startAction = {
+                                        Icon(
+                                            imageVector = MiuixIcons.Add,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(4.dp),
+                                        )
+                                    },
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        accountSwitcher.onAddAccount()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
                 item { SmallTitle(text = "通用", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp)) {
                         // 启动页
                         OverlaySpinnerPreference(
                             title = "打开 App 后默认进入",
@@ -352,7 +466,9 @@ private fun SettingsScreenContent(
 
                 item { SmallTitle(text = "外观", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp)) {
                         // 底栏样式：常规（贴底整条）/ 悬浮（胶囊），MainScreen 订阅后立即生效
                         OverlayDropdownPreference(
                             title = "底栏样式",
@@ -406,7 +522,9 @@ private fun SettingsScreenContent(
                 }
 
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
+                    Card(modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp)){
                         // legacy 低配版不支持模糊（SUPPORT_BLUR=false），开关直接隐藏，
                         // 避免用户打开一个永远不会生效的选项
                         if (BuildConfig.SUPPORT_BLUR) {
@@ -430,7 +548,9 @@ private fun SettingsScreenContent(
 
                 item { SmallTitle(text = "动画", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp)) {
                         SwitchPreference(
                             checked = advancedTransition,
                             onCheckedChange = viewModel::setAdvancedTransition,
@@ -496,7 +616,9 @@ private fun SettingsScreenContent(
                     }
                 }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp)) {
                         // 数字动画总开关：关闭后所有数据卡的数字回退为普通文本显示
                         SwitchPreference(
                             checked = rollingNumberEnabled,
@@ -581,7 +703,9 @@ private fun SettingsScreenContent(
 
                 item { SmallTitle(text = "其他", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp)) {
                         ArrowPreference(
                             title = "存储空间管理",
                             onClick = { if (backStack.none { it == Route.Storage }) backStack.add(Route.Storage) },
@@ -600,7 +724,9 @@ private fun SettingsScreenContent(
                 }
 
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
+                    Card(modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp)){
                         ArrowPreference(
                             title = "重置管理页卡片布局",
                             onClick = {
@@ -617,18 +743,11 @@ private fun SettingsScreenContent(
                     }
                 }
 
-                // 退出登录
-                item {
-                    TextButton(
-                        text = "退出登录",
-                        onClick = onLogout,
-                        modifier = Modifier.fillMaxWidth().padding(16.dp)
-                    )
-                }
-
                 item { SmallTitle(text = "关于", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp)) {
                         ArrowPreference(
                             title = "开源许可",
                             onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
@@ -650,7 +769,9 @@ private fun SettingsScreenContent(
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                     )
                 }
             }
@@ -676,7 +797,9 @@ private fun SettingsScreenContent(
         Text(
             "确定要恢复默认布局吗？当前自定义的卡片顺序将丢失。",
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
         )
     }
 
@@ -691,7 +814,26 @@ private fun SettingsScreenContent(
         Text(
             "确定要恢复默认布局吗？当前自定义的卡片顺序将丢失。",
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        )
+    }
+
+    // 退出当前账号确认弹窗（破坏性：确认按钮变红）
+    AppDialog(
+        state = logoutDialogState,
+        title = "退出当前账号",
+        confirmText = "退出",
+        destructive = true,
+        onConfirm = onLogout,
+    ) {
+        Text(
+            "退出后需要重新输入账号密码登录；该账号会从账号列表中移除，其他已保存的账号不受影响。",
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
         )
     }
 }

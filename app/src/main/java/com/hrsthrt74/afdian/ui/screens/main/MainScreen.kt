@@ -155,7 +155,11 @@ private fun PredictiveBackGuard(enabled: Boolean, onCommit: () -> Unit) {
  *                （如登录页「登录中…」），避免切页瞬间露出空白背景闪一下。
  */
 @Composable
-fun MainScreen(onReady: () -> Unit = {}, onLogout: () -> Unit, viewModel: MainViewModel = viewModel()) {
+fun MainScreen(
+    onReady: () -> Unit = {},
+    onLogout: () -> Unit,
+    viewModel: MainViewModel = viewModel(),
+) {
     val messagesViewModel: MessagesViewModel = viewModel()
     val historyViewModel: HistoryViewModel = viewModel(
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(

@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian
 import android.app.Activity
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
@@ -16,6 +17,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -28,15 +30,23 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.crossfade
+import com.hrsthrt74.afdian.data.auth.AccountSwitchPhase
 import com.hrsthrt74.afdian.data.auth.AuthSession
 import com.hrsthrt74.afdian.data.auth.AuthState
 import com.hrsthrt74.afdian.data.auth.CurrentAccount
+import com.hrsthrt74.afdian.data.auth.SavedAccountSummary
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
 import com.hrsthrt74.afdian.data.storage.buildImageDiskCache
 import com.hrsthrt74.afdian.ui.components.LocalRollingNumberEnabled
+import com.hrsthrt74.afdian.ui.components.account.AccountSwitchOverlay
+import com.hrsthrt74.afdian.ui.components.account.AccountSwitcherActions
+import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
+import com.hrsthrt74.afdian.ui.components.basic.AppDialog
+import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
+import com.hrsthrt74.afdian.ui.screens.auth.AddAccountOverlay
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
@@ -51,6 +61,7 @@ import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Text
 
 class MainActivity : ComponentActivity() {
     // 界面是否已可显示：SplashScreen 依据它决定是否继续停留在启动画面上。
@@ -220,87 +231,141 @@ private fun AfdianApp(
         // 缓存上限读出来之前也不渲染：一旦有图片开始加载，Coil 的 ImageLoader 就被定型了
         // （磁盘缓存上限是构建期配置，之后改不了），见上方 imageCacheLimitState 的说明。
         if (imageCacheLimitState.value != null) {
+            // ── 账号相关浮层 ──
+            // 都挂在登录态分支之外：切换账号会按 epoch 重建整棵已登录子树，
+            // 浮层如果挂进去会跟着被销毁（面板瞬间消失、遮罩闪断）。
+            val accounts by session.accounts.collectAsState()
+            val currentAccountId by CurrentAccount.userId.collectAsState()
+            val invalidAccountIds by session.invalidAccountIds.collectAsState()
+            val switchPhase by session.switchPhase.collectAsState()
+            val isAddingAccount by session.isAddingAccount.collectAsState()
+            val switchNotice by session.switchNotice.collectAsState()
+            // 待删除账号：删除确认对话框的标题与文案要用
+            var pendingDelete by remember { mutableStateOf<SavedAccountSummary?>(null) }
+            val deleteAccountDialog = rememberDialogState()
+            // 账号切换弹层的数据与动作：注入组合局部，由「我的」页头像旁的菜单消费。
+            // 用 remember 绑定数据快照，避免每次重组都生成新对象导致菜单整棵重组。
+            val accountSwitcher = remember(accounts, currentAccountId, invalidAccountIds) {
+                AccountSwitcherActions(
+                    accounts = accounts,
+                    currentUserId = currentAccountId,
+                    invalidUserIds = invalidAccountIds,
+                    onSwitch = { userId -> session.switchAccount(userId) },
+                    onDelete = { account ->
+                        pendingDelete = account
+                        deleteAccountDialog.show()
+                    },
+                    onAddAccount = { session.beginAddAccount() },
+                    onRefresh = { session.refreshAccountList() },
+                )
+            }
+
+            // 切换/删除失败的一次性提示：用系统 Toast 而不是页面内浮层。
+            // Toast 是独立窗口，不受登录态切换、epoch 重建、对话框层级影响，
+            // 提示发出后即使已登录子树被整棵销毁也能正常显示完。
+            LaunchedEffect(switchNotice) {
+                val message = switchNotice ?: return@LaunchedEffect
+                // 先消费再弹：避免 Snackbar/Toast 期间旧值让重组重复触发
+                session.consumeSwitchNotice()
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
+
             when (authState) {
                 AuthState.Loading -> Unit
 
                 is AuthState.LoggedIn -> {
-                    // 主页布局是否已经测量完成（MainScreen 两帧后回调）
-                    var mainReady by rememberSaveable { mutableStateOf(false) }
-                    // 刚提交登录的账号：过渡层继续展示登录页时用它回填输入框
-                    val lastAccount by session.lastAccount.collectAsState()
-                    // 会话级 ViewModel 作用域：登出时整批销毁、重新登录时整批重建，
-                    // 避免复用上一个账号的 MainViewModel / MessagesViewModel / HistoryViewModel
-                    val sessionViewModelOwner = rememberSessionViewModelStoreOwner()
-                    // 只有真正登出（登录态已不是 LoggedIn）才销毁会话内的 ViewModel。
-                    // Activity 因旋转屏幕、切换深色模式而重建时登录态仍是 LoggedIn，
-                    // 此时必须保留，否则一次旋转就等于把首页数据全部清空重拉。
-                    DisposableEffect(sessionViewModelOwner) {
-                        onDispose {
-                            if (session.state.value !is AuthState.LoggedIn) {
-                                sessionViewModelOwner.clear()
+                    // 取一次快照：epoch 决定整棵已登录子树的身份。
+                    // 切号时代次变化 → key 变 → 子树连同全部会话级 ViewModel 一起重建。
+                    val loggedInState = authState as AuthState.LoggedIn
+                    key(loggedInState.epoch) {
+                        // 主页布局是否已经测量完成（MainScreen 两帧后回调）
+                        var mainReady by rememberSaveable { mutableStateOf(false) }
+                        // 刚提交登录的账号：过渡层继续展示登录页时用它回填输入框
+                        val lastAccount by session.lastAccount.collectAsState()
+                        // 切换阶段：非 Idle 时遮罩由窗口层接管，这里的登录过渡层要让位
+                        val switchPhase by session.switchPhase.collectAsState()
+                        // 会话级 ViewModel 作用域：每次登录/切号都会拿到一个全新的 Store
+                        val sessionViewModelOwner = rememberSessionViewModelStoreOwner(loggedInState.epoch)
+                        // 只有真正登出（登录态已不是 LoggedIn）才销毁会话内的 ViewModel。
+                        // Activity 因旋转屏幕、切换深色模式而重建时登录态仍是 LoggedIn，
+                        // 此时必须保留，否则一次旋转就等于把首页数据全部清空重拉。
+                        DisposableEffect(sessionViewModelOwner) {
+                            onDispose {
+                                if (session.state.value !is AuthState.LoggedIn) {
+                                    sessionViewModelOwner.clear()
+                                }
                             }
                         }
-                    }
-                    // 数字滚动动画总开关在这里下发为组合局部（而不是让 MainScreen 往全局对象里写）：
-                    // 数据卡读到它就会订阅，开关一变必然重组并切换渲染方式，
-                    // 不会再出现「开关关了、卡片还在播动画」。
-                    CompositionLocalProvider(
-                        // ViewModel 作用域必须包在最外层：MainScreen 及其内部所有 viewModel() 都要落进会话里
-                        LocalViewModelStoreOwner provides sessionViewModelOwner,
-                        LocalRollingNumberEnabled provides rollingNumberEnabled,
-                        // 数值窄体字体同样以组合局部下发：卡片读到它就订阅，开关/宽度一变必然重组
-                        LocalDataCardFontFamily provides providedDataCardFontFamily,
-                    ) {
-                        // 在会话作用域内取 MainViewModel 并显式传给 MainScreen：
-                        // 过渡层什么时候撤，取决于它手里的首屏数据，而不只是布局有没有量完。
-                        val mainViewModel: MainViewModel = viewModel()
-                        val creatorCards by mainViewModel.creatorCards.collectAsState()
-                        val homeLoading by mainViewModel.isLoading.collectAsState()
-                        // 账号身份：首页的模块布局/顺序等设置都按 user_id 分区，
-                        // 身份没绑定前读到的是空分区的默认值，此时露主页就会先闪一版错误布局
-                        val currentOwner by CurrentAccount.userId.collectAsState()
-                        // 必须观察到一次「正在加载」：refresh 在协程里启动，首帧 isLoading 还是 false，
-                        // 不记这个窗口就会把「还没开始」误判成「已经结束」，过渡层提前撤掉。
-                        var sawHomeLoading by remember { mutableStateOf(false) }
-                        LaunchedEffect(homeLoading) {
-                            if (homeLoading) sawHomeLoading = true
-                        }
-                        // 兜底超时：弱网/接口异常时不能让用户永远停在过渡页
-                        var waitTimedOut by remember { mutableStateOf(false) }
-                        LaunchedEffect(Unit) {
-                            delay(HOME_FIRST_LOAD_TIMEOUT_MS)
-                            waitTimedOut = true
-                        }
-                        // 创作者卡片是切号后最刺眼的一块：为空时继续盖着，
-                        // 等它出数据、本轮刷新结束、或超时再露主页。
-                        // 冷启动有缓存回填时 creatorCards 一上来就非空，因此依旧秒进。
-                        val creatorDataSettled = creatorCards.isNotEmpty() ||
-                            waitTimedOut ||
-                            (sawHomeLoading && !homeLoading)
-                        // 账号身份绑定与数据就绪必须同时满足：只等数据的话，
-                        // 首页会先用空分区的默认布局渲染，等身份绑定时再整页跳一次布局。
-                        // 超时兜底不看身份：弱网下宁可显示默认布局，也不能永远卡在过渡页。
-                        val accountReady = currentOwner != null
-                        val canShowMain = mainReady &&
-                            (waitTimedOut || (creatorDataSettled && accountReady))
-                        if (canShowMain) appReady.value = true
-                        // 注意组合顺序：先 MainScreen 后过渡层，后者才能绘制在上层。
-                        MainScreen(
-                            onReady = { mainReady = true },
-                            onLogout = session::logout,
-                            viewModel = mainViewModel,
-                        )
-                        if (!canShowMain) {
-                            // 过渡层继续沿用登录页：表单和输入框原地保留，按钮转「登录中…」，
-                            // 而不是整页换成另一个加载页 —— 那会让用户以为自己填的内容被吞了。
-                            // isLoggingIn 固定传 true：此时登录已经成功，表单只用于展示过渡。
-                            LoginScreen(
-                                onLogin = session::login,
-                                onCodeLogin = session::loginWithCode,
-                                onSendCode = session::sendLoginCode,
-                                isLoggingIn = true,
-                                initialAccount = lastAccount,
+                        // 数字滚动动画总开关在这里下发为组合局部（而不是让 MainScreen 往全局对象里写）：
+                        // 数据卡读到它就会订阅，开关一变必然重组并切换渲染方式，
+                        // 不会再出现「开关关了、卡片还在播动画」。
+                        CompositionLocalProvider(
+                            // ViewModel 作用域必须包在最外层：MainScreen 及其内部所有 viewModel() 都要落进会话里
+                            LocalViewModelStoreOwner provides sessionViewModelOwner,
+                            // 账号切换菜单的数据：由「我的」页头像旁的弹层消费
+                            LocalAccountSwitcher provides accountSwitcher,
+                            LocalRollingNumberEnabled provides rollingNumberEnabled,
+                            // 数值窄体字体同样以组合局部下发：卡片读到它就订阅，开关/宽度一变必然重组
+                            LocalDataCardFontFamily provides providedDataCardFontFamily,
+                        ) {
+                            // 在会话作用域内取 MainViewModel 并显式传给 MainScreen：
+                            // 过渡层什么时候撤，取决于它手里的首屏数据，而不只是布局有没有量完。
+                            val mainViewModel: MainViewModel = viewModel()
+                            // 冷启动是否已用磁盘缓存填好首屏
+                            val restoredFromCache by mainViewModel.homeRestoredFromCache.collectAsState()
+                            // 本次会话是否已完成首轮刷新（ViewModel 自己记账，不受帧合并影响）
+                            val firstLoadDone by mainViewModel.hasCompletedFirstLoad.collectAsState()
+                            // 账号身份：首页的模块布局/顺序等设置都按 user_id 分区，
+                            // 身份没绑定前读到的是空分区的默认值，此时露主页就会先闪一版错误布局
+                            val currentOwner by CurrentAccount.userId.collectAsState()
+                            // 必须观察到一次「正在加载」的窗口已经不再需要：
+                            // ViewModel 用 hasCompletedFirstLoad 直接给出「首轮刷新结束」的事实。
+                            // 兜底超时：弱网/接口异常时不能让用户永远停在过渡页
+                            var waitTimedOut by remember { mutableStateOf(false) }
+                            LaunchedEffect(Unit) {
+                                delay(HOME_FIRST_LOAD_TIMEOUT_MS)
+                                waitTimedOut = true
+                            }
+                            // 首屏放行条件：
+                            // - 冷启动有缓存：快照是上一轮的完整结果，直接放行（秒进）；
+                            // - 切号 / 首次登录：必须等整轮刷新结束。
+                            //   只看「创作者卡片非空」不够 —— 流式首帧只包含最先返回的那个数据源，
+                            //   账单类卡片还是 Unavailable，首页会判定「创作者数据」不可显示，
+                            //   于是遮罩解除后模块先消失、等账单回来再长出来，就是那 1 秒。
+                            val creatorDataSettled = waitTimedOut ||
+                                restoredFromCache ||
+                                firstLoadDone
+                            // 账号身份绑定与数据就绪必须同时满足：只等数据的话，
+                            // 首页会先用空分区的默认布局渲染，等身份绑定时再整页跳一次布局。
+                            // 超时兜底不看身份：弱网下宁可显示默认布局，也不能永远卡在过渡页。
+                            val accountReady = currentOwner != null
+                            val canShowMain = mainReady &&
+                                (waitTimedOut || (creatorDataSettled && accountReady))
+                            if (canShowMain) appReady.value = true
+                            // 首屏就绪上报：切换遮罩只认「当前代次」就绪，旧代次的回调会被忽略
+                            LaunchedEffect(canShowMain, loggedInState.epoch) {
+                                if (canShowMain) session.notifyFirstScreenReady(loggedInState.epoch)
+                            }
+                            // 注意组合顺序：先 MainScreen 后过渡层，后者才能绘制在上层。
+                            MainScreen(
+                                onReady = { mainReady = true },
+                                onLogout = session::logout,
+                                viewModel = mainViewModel,
                             )
+                            // 切号时不要弹登录过渡页：那一刻界面正在重建，
+                            // 盖上来只会闪一张「用上一个账号回填」的表单，遮罩已经由窗口层负责。
+                            if (!canShowMain && switchPhase is AccountSwitchPhase.Idle) {
+                                // 过渡层继续沿用登录页：表单和输入框原地保留，按钮转「登录中…」，
+                                // 而不是整页换成另一个加载页 —— 那会让用户以为自己填的内容被吞了。
+                                // isLoggingIn 固定传 true：此时登录已经成功，表单只用于展示过渡。
+                                LoginScreen(
+                                    onLogin = session::login,
+                                    onCodeLogin = session::loginWithCode,
+                                    onSendCode = session::sendLoginCode,
+                                    isLoggingIn = true,
+                                    initialAccount = lastAccount,
+                                )
+                            }
                         }
                     }
                 }
@@ -346,6 +411,44 @@ private fun AfdianApp(
                     }
                 }
             }
+
+            // 添加账号：WindowDialog 承载登录表单，成功后自动保存并切过去。
+            // 始终组合、用 show 控制显隐，关闭时才能播放退出动画。
+            val addLoggingIn by session.isLoggingIn.collectAsState()
+            val addError by session.error.collectAsState()
+            val addSendingCode by session.isSendingCode.collectAsState()
+            val addCooldown by session.codeCooldown.collectAsState()
+            val addCaptcha by session.captchaBytes.collectAsState()
+            AddAccountOverlay(
+                show = isAddingAccount,
+                isLoggingIn = addLoggingIn,
+                isSendingCode = addSendingCode,
+                codeCooldownSeconds = addCooldown,
+                captchaBytes = addCaptcha,
+                errorMessage = addError,
+                initialAccount = "",
+                onLogin = session::loginNewAccount,
+                onCodeLogin = session::loginNewAccountWithCode,
+                onSendCode = session::sendLoginCode,
+                onClearError = session::clearError,
+                onCancel = session::cancelAddAccount,
+            )
+
+            // 切换遮罩：不可取消，直到新账号首屏就绪或超时兜底
+            AccountSwitchOverlay(switchPhase)
+
+            // 删除确认：破坏性操作走统一的 AppDialog 样式
+            AppDialog(
+                state = deleteAccountDialog,
+                title = "删除账号",
+                confirmText = "删除",
+                destructive = true,
+                summary = "确定要删除账号「${pendingDelete?.name?.ifBlank { "该账号" } ?: "该账号"}」吗？",
+                onConfirm = {
+                    pendingDelete?.let { session.deleteAccount(it.userId) }
+                    pendingDelete = null
+                },
+            )
         }
     }
 }

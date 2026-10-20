@@ -15,10 +15,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.data.content.AfadianUser
+import com.hrsthrt74.afdian.ui.components.account.AccountSwitchPopup
+import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
@@ -70,6 +75,10 @@ private fun ProfileMainScreen(
     onNavigate: (Route) -> Unit,
     onOpenCreator: (AfadianUser) -> Unit,
 ) {
+    // 账号切换菜单的数据由根层注入；未登录 / 未注入时为 null，长按不响应
+    val accountSwitcher = LocalAccountSwitcher.current
+    // WindowListPopup 要求 Boolean show，这里用 MutableState 方便内外共同读写
+    val showAccountPopup = remember { mutableStateOf(false) }
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = MiuixScrollBehavior(state = topAppBarState)
     val listState = rememberLazyListState()
@@ -89,15 +98,34 @@ private fun ProfileMainScreen(
                     color = blurBarColor(backdrop),
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        Avatar(
-                            model = profile?.user?.avatar,
-                            size = 32.dp,
-                            contentDescription = "头像",
-                            modifier = Modifier.then(avatarOrigin.trackModifier()).padding(8.dp),
-                            onClick = avatarOrigin.onClick {
-                                profile?.user?.takeIf { it.user_id.isNotBlank() }?.let(onOpenCreator)
-                            },
-                        )
+                        // 菜单容器 WindowListPopup 以「调用处的父布局」为锚点，
+                        // 必须和头像同处一个 Box，菜单才会贴着头像下沿弹出
+                        Box {
+                            Avatar(
+                                model = profile?.user?.avatar,
+                                size = 32.dp,
+                                contentDescription = "头像",
+                                modifier = Modifier.then(avatarOrigin.trackModifier()).padding(8.dp),
+                                onClick = avatarOrigin.onClick {
+                                    profile?.user?.takeIf { it.user_id.isNotBlank() }?.let(onOpenCreator)
+                                },
+                                // 长按切换账号：与单击（打开创作者主页）互不干扰
+                                onLongClick = {
+                                    if (accountSwitcher != null) {
+                                        // 打开前刷新一次：昵称/头像与最近使用顺序保持最新
+                                        accountSwitcher.onRefresh()
+                                        showAccountPopup.value = true
+                                    }
+                                },
+                            )
+                            if (accountSwitcher != null) {
+                                AccountSwitchPopup(
+                                    visible = showAccountPopup,
+                                    actions = accountSwitcher,
+                                    onManage = { onNavigate(Route.Settings) },
+                                )
+                            }
+                        }
                     }
                 )
             }

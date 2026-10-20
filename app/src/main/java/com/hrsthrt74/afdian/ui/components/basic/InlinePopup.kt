@@ -108,13 +108,18 @@ interface InlineActionItem {
 /**
  * 通用锚定弹层外壳。
  *
+ * 「点某处 → 在它旁边弹出一块内容」的通用骨架，与业务无关：
+ * 消息气泡菜单、会话长按菜单、账号头像菜单都复用它。
+ * 内部负责遮罩挖洞、三轨动画（展开/淡入/压暗）、锚点摆放与收回手势，
+ * 调用方只关心 [content] 里放什么。
+ *
  * @param visible PopupLayout 的显示开关（调用方持有，PopupLayout 要求 MutableState）
- * @param anchorBounds 锚点（被选中的卡片/气泡）的窗口坐标快照；null 时不画遮罩与菜单
+ * @param anchorBounds 锚点（被选中的卡片/气泡/头像）的窗口坐标快照；null 时不画遮罩与菜单
  * @param alignEnd 菜单是否贴锚点右缘（true）或左缘（false）——同时决定展开动画的缩放原点
  * @param content 菜单内容：直接写列内子项即可，等宽规则由内部的 ListPopupColumn 统一提供
  */
 @Composable
-internal fun InlinePopupLayout(
+fun InlinePopupLayout(
     visible: MutableState<Boolean>,
     anchorBounds: Rect?,
     alignEnd: Boolean,
@@ -294,7 +299,7 @@ fun <T : InlineActionItem> InlineActionPopup(
  *   置灰而不是隐藏：菜单项数量与位置稳定，不会因为一次操作成功就整行消失。
  */
 @Composable
-internal fun <T : InlineActionItem> InlineActionRow(
+fun <T : InlineActionItem> InlineActionRow(
     actions: List<T>,
     onSelected: (T) -> Unit,
     isEnabled: (T) -> Boolean = { true },
