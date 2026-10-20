@@ -40,6 +40,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.seconds
 
 class MessagesViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -568,7 +569,7 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     fun startAutoRefresh() {
         viewModelScope.launch {
             while (isActive) {
-                delay(30000)
+                delay(30.seconds)
                 // 轮询 /api/my/check 更新未读计数（轻量请求，不影响对话列表加载）
                 refreshUnreadCount()
             }

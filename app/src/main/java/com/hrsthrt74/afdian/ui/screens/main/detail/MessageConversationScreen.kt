@@ -127,6 +127,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalScrollBarApi::class)
 @Composable
@@ -332,7 +333,7 @@ fun MessageConversationScreen(
 
     LaunchedEffect(Unit) {
         while (isActive) {
-            delay(30000)
+            delay(30.seconds)
             if (!isLoading && !isSending) {
                 try {
                     val newMessages = viewModel.fetchMessages(userId)

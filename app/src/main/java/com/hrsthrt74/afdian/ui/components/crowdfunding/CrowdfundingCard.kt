@@ -40,6 +40,7 @@ import com.hrsthrt74.afdian.data.content.FavoriteCrowdfundingGoal
 import com.hrsthrt74.afdian.data.content.FavoriteItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlin.time.Duration.Companion.seconds
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -256,7 +257,7 @@ private fun rememberCountdown(targetSec: Long): Countdown? {
     var nowSec by remember(targetSec) { mutableLongStateOf(System.currentTimeMillis() / 1000) }
     LaunchedEffect(targetSec) {
         while (isActive) {
-            delay(1000)
+            delay(1.seconds)
             nowSec = System.currentTimeMillis() / 1000
         }
     }

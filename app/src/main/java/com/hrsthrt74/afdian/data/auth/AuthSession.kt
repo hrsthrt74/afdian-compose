@@ -23,6 +23,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.nio.charset.StandardCharsets
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * 登录态三态：Loading 表示正在从 DataStore 读取 token，此期间不渲染任何界面。
@@ -479,7 +481,7 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
     private fun startSwitchTimeout(epoch: Long) {
         switchTimeoutJob?.cancel()
         switchTimeoutJob = viewModelScope.launch {
-            delay(SWITCH_OVERLAY_TIMEOUT_MS)
+            delay(SWITCH_OVERLAY_TIMEOUT_MS.milliseconds)
             val phase = _switchPhase.value
             if (phase is AccountSwitchPhase.Waiting && phase.epoch == epoch) {
                 _switchPhase.value = AccountSwitchPhase.Idle
@@ -642,7 +644,7 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
         cooldownJob = viewModelScope.launch {
             for (remaining in CODE_COOLDOWN_SECONDS downTo 1) {
                 _codeCooldown.value = remaining
-                delay(1_000)
+                delay(1.seconds)
             }
             _codeCooldown.value = 0
         }

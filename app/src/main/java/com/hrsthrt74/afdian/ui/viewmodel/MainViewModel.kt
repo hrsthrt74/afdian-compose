@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.milliseconds
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val service = AfadianContentService(AuthTokenStore(application))
@@ -131,7 +132,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _searchError.value = null
             try {
                 // 防抖输入，避免用户连续输入时频繁请求并短暂显示错误/空结果。
-                delay(400)
+                delay(400.milliseconds)
                 val page = withContext(Dispatchers.IO) { service.searchCreators(keyword, page = 1) }
                 _searchResults.value = page.creators
                 searchPage = 1

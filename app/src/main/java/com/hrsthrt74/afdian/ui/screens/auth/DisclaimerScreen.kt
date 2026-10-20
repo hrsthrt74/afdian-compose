@@ -41,6 +41,7 @@ import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
+import kotlin.time.Duration.Companion.seconds
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -119,7 +120,7 @@ fun DisclaimerScreen(
     LaunchedEffect(onBack) {
         if (onBack == null) {
             repeat(DISCLAIMER_COUNTDOWN_SECONDS) {
-                delay(1_000L)
+                delay(1.seconds)
                 remainingSeconds--
             }
             AppLog.d("Disclaimer", "免责声明倒计时结束，允许继续")

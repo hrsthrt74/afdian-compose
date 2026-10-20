@@ -55,6 +55,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.time.Duration.Companion.milliseconds
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -622,7 +623,7 @@ private fun DigitReel(
         val target = nextOdometerStop(from, digit)
         // 错峰：首位（最左边第一位）先动、往右依次跟上，收尾时也是首位先落位。
         // 用 delay 而不是 tween 的 delayMillis，因为下面要跑两段动画，错峰只该作用在开头一次。
-        if (staggerSteps > 0) delay((staggerSteps * OdometerRollStaggerMillis).toLong())
+        if (staggerSteps > 0) delay((staggerSteps * OdometerRollStaggerMillis).milliseconds)
         AppLog.d(AppLog.TAG_ODOMETER, "数字滚轮：第 $place 位从第 $from 格滚到第 $target 格")
         val overshoot = OdometerRollOvershootLines
 

@@ -61,6 +61,7 @@ import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 import top.yukonga.miuix.kmp.basic.Text
 
 class MainActivity : ComponentActivity() {
@@ -323,7 +324,7 @@ private fun AfdianApp(
                             // 兜底超时：弱网/接口异常时不能让用户永远停在过渡页
                             var waitTimedOut by remember { mutableStateOf(false) }
                             LaunchedEffect(Unit) {
-                                delay(HOME_FIRST_LOAD_TIMEOUT_MS)
+                                delay(HOME_FIRST_LOAD_TIMEOUT_MS.milliseconds)
                                 waitTimedOut = true
                             }
                             // 首屏放行条件：
