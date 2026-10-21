@@ -76,6 +76,7 @@ import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -336,8 +337,7 @@ private fun SettingsScreenContent(
                     val accountSwitcher = LocalAccountSwitcher.current
                     if (accountSwitcher != null) {
                         Column {
-                            Row(
-//                                horizontalArrangement = Arrangement.SpaceAround,
+                            Row(    // 带tooltip的小标题
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -365,18 +365,19 @@ private fun SettingsScreenContent(
                                             isInvalid -> "登录已失效"
                                             else -> null
                                         },
+                                        insideMargin = PaddingValues(12.dp),    // 紧凑点
                                         startAction = {
                                             Avatar(
                                                 model = account.avatar,
                                                 size = 32.dp,
                                                 contentDescription = "账号头像",
+                                                modifier = Modifier.padding(start = 4.dp)   // 16-12
                                             )
                                         },
                                         endActions = {
                                             if (isCurrent) {
                                                 // 自己的账号不叫「删除」，走的是退出登录：
                                                 // 清掉当前凭证与本条账号记录，其他账号保留，回到登录页。
-                                                // 用 Remove（移除）而不是 Delete（删除），语义上不误伤数据
                                                 IconButton(
                                                     onClick = {
                                                         haptic.performHapticFeedback(HapticFeedbackType.Reject)
@@ -413,9 +414,11 @@ private fun SettingsScreenContent(
                                         },
                                     )
                                 }
+                                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                                 // 添加账号：与切换菜单里的「添加」是同一个动作
                                 BasicComponent(
                                     title = "添加账号",
+                                    insideMargin = PaddingValues(16.dp, 12.dp),
                                     startAction = {
                                         Icon(
                                             imageVector = MiuixIcons.Add,
