@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -21,8 +22,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
@@ -31,6 +34,10 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
+import com.hrsthrt74.afdian.ui.components.account.AccountSwitchPopup
+import com.hrsthrt74.afdian.ui.components.account.AccountSwitcherBadge
+import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
+import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.RefreshButton
@@ -112,9 +119,25 @@ fun HomeScreen(
     // 创作者数据是否处于整页编辑：为 true 时隐藏其它模块，只渲染可拖拽的编辑页。
     var editingCreatorData by remember { mutableStateOf(false) }
 
+    // ── 顶栏账号切换器 ──
+    // 账号列表与切换动作由根层（MainActivity）注入，未登录 / 未注入时为 null
+    val accountSwitcher = LocalAccountSwitcher.current
+    // 当前账号资料：头像优先取它，拿不到再回退到账号记录里的头像
+    val profile by viewModel.profile.collectAsState()
+    // 「首页账号切换器」开关（设备级设置，默认关闭）；初值与存储默认值一致，不会先闪一帧头像
+    val homeAccountSwitcherEnabled by settingsStore.homeAccountSwitcherEnabled.collectAsState(initial = false)
+    // 账号切换菜单的显隐
+    val showAccountPopup = remember { mutableStateOf(false) }
+    // 三个条件同时满足才显示：非编辑态、开关打开、已保存账号多于一个（单账号没有可切换对象）
+    val showHomeAccountSwitcher = !editingCreatorData &&
+        homeAccountSwitcherEnabled &&
+        (accountSwitcher?.accounts?.size ?: 0) > 1
+
     // 下拉刷新状态与指示器：isRefreshing 由「下拉」或「顶栏刷新按钮」共同驱动
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
+
+    val haptic = LocalHapticFeedback.current
 
     // 下拉触发刷新：isRefreshing 变 true 时调用 viewModel.refresh()（与顶栏刷新按钮同一路径）
     LaunchedEffect(isRefreshing) {
@@ -174,6 +197,43 @@ fun HomeScreen(
                     TopAppBar(
                         title = if (editingCreatorData) "编辑创作者数据" else "首页",
                         color = blurBarColor(backdrop), scrollBehavior = scrollBehavior,
+                        navigationIcon = {
+                            // 顶栏起始侧账号切换器：多账号 + 开关打开时才会渲染
+                            if (showHomeAccountSwitcher && accountSwitcher != null) {
+                                // 菜单容器以「调用处的父布局」为锚点，头像与弹层必须同处一个 Box
+                                Box {
+                                    // 头像 + 徽标单独包一层：徽标要压在头像圆边外侧，
+                                    // 而弹层锚点必须仍是外层 Box，所以不能直接套在 Avatar 上
+                                    Box(modifier = Modifier.padding(8.dp)) {
+                                        // 当前账号头像（点击弹菜单，与「我的」页长按弹出的是同一个组件）
+                                        Avatar(
+                                            model = profile?.user?.avatar
+                                                ?: accountSwitcher.accounts
+                                                    .firstOrNull { it.userId == accountSwitcher.currentUserId }?.avatar,
+                                            size = 32.dp,
+                                            contentDescription = "切换账号",
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                // 打开前刷新一次：昵称/头像与最近使用顺序保持最新
+                                                accountSwitcher.onRefresh()
+                                                showAccountPopup.value = true
+                                            },
+                                        )
+                                        // 右下角「可切换」徽标：贴着圆的右下角，往外压 2dp 才像角标
+                                        AccountSwitcherBadge(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomEnd)
+                                                .offset(x = 4.dp, y = 2.dp),
+                                        )
+                                    }
+                                    AccountSwitchPopup(
+                                        visible = showAccountPopup,
+                                        actions = accountSwitcher,
+                                        onManage = { onNavigate(Route.Settings) },
+                                    )
+                                }
+                            }
+                        },
                         actions = {
                             if (!editingCreatorData) {
                                 // 顶栏刷新按钮：转圈动画与最短转圈时长均内聚在 RefreshButton 内

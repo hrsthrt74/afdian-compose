@@ -102,6 +102,23 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 按日图表（近30天收入 / 访问人数趋势）边界处理：`/api/my/stat` 对今天/昨天返回空值，`ChartModel.trimTrailingBlankDays` 只裁掉窗口末端（今天方向）连续的空/0 天，中间为 0 的天保留；全为 0/无数据时回退完整窗口。抓取时额外回溯 `CHART_TRAILING_TRIM_BUFFER_DAYS`(7) 天，保证裁剪后仍有 `CHART_DAILY_WINDOW_DAYS`(30) 个点。
 - 图表指示器（marker）显示「日期 星期 • 值」（`9/6 五 • ¥12.34`）：星期来自 `ChartDataItem.categoryWeekdays`，与 `categories` 一一对应，由 `buildDailyIncomeChart` / `buildUvChart` 用 `weekdayLabelOf()` 填（固定中文表，不跟随系统 Locale）。横轴标签仍只放 `M/d`——10sp、一行最多 6 个，塞不下星期；月度图表的 `categoryWeekdays` 为空，指示器自动退回 `yy/M • 值`。该字段带默认值空集合，旧 HomeCache 快照反序列化不会失败。
 
+### 顶栏账号切换器（HomeScreen）
+
+- 首页 `TopAppBar` 的 **`navigationIcon`** 槽位放当前账号头像，点击弹出 `AccountSwitchPopup`
+  （与「我的」页长按头像弹出的是同一个组件，含「添加 / 管理」底部操作）。
+  注意 Miuix `TopAppBar` 起始侧叫 `navigationIcon`、结束侧叫 `actions`，**没有** `startAction` 参数；
+  小标题居中排布，加 `navigationIcon` 不会把标题挤偏。
+- 显示条件三者同时成立：不在「编辑创作者数据」整页编辑态、设置开关打开、已保存账号数 > 1（单账号没有可切换对象）。
+- 开关是**设备级**设置 `SettingsStore.home_account_switcher`（默认关闭），入口在设置页「账号」分区；
+  不进 `AccountKeys` 是因为它是纯 UI 偏好，切号后行为应保持一致。
+- 头像优先取 `MainViewModel.profile.user.avatar`，profile 还没回来时回退到账号列表里当前账号的 `avatar`，
+  避免冷启动空白帧。弹层锚点规则见 `AccountSwitchPopup`：头像与弹层必须同处一个 `Box`。
+- 头像右下角有主色胶囊徽标（`ui/components/account/AccountSwitcherBadge.kt`）：横向三点，纯装饰不可点。
+  胶囊尺寸写死 17×9dp、图标 13dp —— Miuix `More` 的画布是 24dp **正方形**，墨迹只占中间一条
+  （viewport 1042.8 里宽 13.6%、高 83.3%），若让胶囊跟着正方形 wrapContent 会得到一条又高又胖的胶囊。
+  图标因此用 `requiredSize` 画出去：普通 `size` 会被 9dp 的胶囊高度夹住，墨迹只剩 1.2dp 等于看不见；
+  溢出的部分只是空白画布，被 `clip(Capsule())` 裁掉无视觉影响。
+
 ## 发现页
 
 - 动态流（LazyColumn + PostCard），支持滚动加载。
@@ -500,6 +517,9 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   （`ui/theme/SystemBarAppearance.kt`），按生效色板的底色亮度决定图标深浅。
   开 edge-to-edge 后系统只按「系统深浅色」给图标，App 手动切深色时必须自己覆盖，
   否则黑图标压在深色背景上看不见。状态栏与导航栏一起处理，且是瞬间切换、不参与渐变。
+- 「账号」分区：账号列表卡片（点非当前账号行即切号，当前账号行尾是退出登录、其他账号行尾是删除）+
+  「添加账号」行；下方**独立卡片**是「首页账号切换器」开关（设备级、默认关闭），
+  仅在已保存账号数 > 1 时渲染 —— 单账号没有可切换对象，露出来只会让人困惑。
 - 退出登录。
 - 「其他」分组：`存储空间管理` 与 `日志` 两个入口（原「清除浏览历史」入口已移除，清理统一收敛到存储页）。
 

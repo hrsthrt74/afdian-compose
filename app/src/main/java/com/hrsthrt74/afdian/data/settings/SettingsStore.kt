@@ -173,6 +173,8 @@ class SettingsStore(private val context: Context) {
         val DATACARD_FONT_WIDTH = intPreferencesKey("datacard_font_width")
         // 浏览历史开关：关闭后不再写入新的历史记录或头像缓存
         val HISTORY_ENABLED = booleanPreferencesKey("history_enabled")
+        // 首页账号切换器：开启后已登录多账号时，在首页顶栏起始侧显示当前账号头像
+        val HOME_ACCOUNT_SWITCHER = booleanPreferencesKey("home_account_switcher")
         // 以下「首页布局 / 管理页布局 / 消息页」类设置是账号维度的，键名见 AccountKeys
         // 上一版实现只存了 user_id 集合（没有卡片数据，无法补位渲染）。写入新格式时顺手清掉
         val MSG_PINNED_DIALOGS_LEGACY = stringSetPreferencesKey("msg_pinned_dialogs")
@@ -312,6 +314,15 @@ class SettingsStore(private val context: Context) {
     /** 是否记录浏览历史，默认开启；关闭只暂停新增，不删除已有记录。 */
     val historyEnabled: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.HISTORY_ENABLED] ?: true }
+
+    /**
+     * 首页顶栏是否显示账号切换器，默认关闭。
+     *
+     * 只在「已登录账号数 > 1」时才有意义：单账号没有可切换的对象，
+     * 首页与设置页都会据此把入口整块隐藏（判断在 UI 层做，存储不关心账号数量）。
+     */
+    val homeAccountSwitcherEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.HOME_ACCOUNT_SWITCHER] ?: false }
 
     /** 金额类数据卡是否显示「元」单位，默认关闭（只显示数字）。 */
     val showIncomeUnit: Flow<Boolean> =
@@ -584,6 +595,12 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setHistoryEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.HISTORY_ENABLED] = enabled }
+    }
+
+    /** 写入「首页账号切换器」开关；DataStore 回推后首页顶栏立即显隐，无需重启。 */
+    suspend fun setHomeAccountSwitcherEnabled(enabled: Boolean) {
+        AppLog.d("Settings", "首页账号切换器已${if (enabled) "开启" else "关闭"}")
+        context.settingsDataStore.edit { it[Keys.HOME_ACCOUNT_SWITCHER] = enabled }
     }
 
     suspend fun setShowIncomeUnit(enabled: Boolean) {

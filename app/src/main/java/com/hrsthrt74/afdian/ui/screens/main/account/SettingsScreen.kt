@@ -245,6 +245,7 @@ private fun SettingsScreenContent(
     val predictiveBack by viewModel.predictiveBack.collectAsState()
     val bottomBarStyle by viewModel.bottomBarStyle.collectAsState()
     val historyEnabled by viewModel.historyEnabled.collectAsState()
+    val homeAccountSwitcherEnabled by viewModel.homeAccountSwitcherEnabled.collectAsState()
     val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
     val showCountUnit by viewModel.showCountUnit.collectAsState()
     val rollingNumberEnabled by viewModel.rollingNumberEnabled.collectAsState()
@@ -427,6 +428,20 @@ private fun SettingsScreenContent(
                                         accountSwitcher.onAddAccount()
                                     },
                                 )
+                            }
+                            // 「首页账号切换器」开关：单账号没有可切换对象，整块不渲染
+                            if (accountSwitcher.accounts.size > 1) {
+                                Card(modifier = Modifier
+                                    .padding(horizontal = 16.dp)
+                                    .padding(bottom = 12.dp)) {
+                                    // 控制首页顶栏起始侧是否显示当前账号头像
+                                    SwitchPreference(
+                                        checked = homeAccountSwitcherEnabled,
+                                        onCheckedChange = viewModel::setHomeAccountSwitcherEnabled,
+                                        title = "首页账号切换器",
+                                        summary = "位于首页顶栏左侧，点击即可切换账号",
+                                    )
+                                }
                             }
                         }
                     }

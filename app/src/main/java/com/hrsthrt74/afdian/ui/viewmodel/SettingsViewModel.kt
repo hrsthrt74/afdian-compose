@@ -52,6 +52,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val historyEnabled: StateFlow<Boolean> = store.historyEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    /** 首页顶栏账号切换器开关，默认关闭；仅在已登录多账号时才在设置页露出。 */
+    val homeAccountSwitcherEnabled: StateFlow<Boolean> = store.homeAccountSwitcherEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /** 金额类数据卡显示「元」单位，默认关闭。 */
     val showIncomeUnit: StateFlow<Boolean> = store.showIncomeUnit
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -78,6 +82,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setHistoryEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setHistoryEnabled(enabled) }
+    }
+
+    /** 切换首页账号切换器；DataStore 回推后首页顶栏立即显示/隐藏头像。 */
+    fun setHomeAccountSwitcherEnabled(enabled: Boolean) {
+        viewModelScope.launch { store.setHomeAccountSwitcherEnabled(enabled) }
     }
 
     /** 切换底部导航栏样式（0=常规 1=悬浮），DataStore 回推后 MainScreen 立即重组生效 */
