@@ -16,6 +16,8 @@
 *.txt text eol=lf
 *.pro text eol=lf
 *.keep text eol=lf
+# 无扩展名的法务文书（Apache-2.0 全文）：同样按 LF 落盘
+LICENSE text eol=lf
 
 # 脚本：sh 必须 LF（否则 shebang 失效），Windows 批处理必须 CRLF
 gradlew text eol=lf
