@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -182,6 +183,10 @@ class SettingsStore(private val context: Context) {
         val IMAGE_CACHE_LIMIT = androidx.datastore.preferences.core.stringPreferencesKey("image_cache_limit")
         // 外部爱发电链接是否优先交给官方客户端，默认关闭（优先使用 Custom Tabs）
         val PREFER_OFFICIAL_CLIENT = booleanPreferencesKey("prefer_official_client")
+        // 检查更新：上次自动检查的时间戳（毫秒），用于 24 小时节流，避免每次冷启动都打一次 GitHub API
+        val UPDATE_LAST_CHECK_AT = longPreferencesKey("update_last_check_at")
+        // 检查更新：用户选择「忽略此版本」的版本标识（GitHub Release 的 tag 名），空串表示未忽略
+        val UPDATE_IGNORED_VERSION = stringPreferencesKey("update_ignored_version")
     }
 
     /**
@@ -247,6 +252,17 @@ class SettingsStore(private val context: Context) {
 
     /** 免责声明是否已同意 */
     val disclaimerAccepted: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.DISCLAIMER] ?: false }
+
+    /**
+     * 上次自动检查更新的时间戳（毫秒）；0 表示从未检查过。
+     * 用于 24 小时节流：冷启动时不至于每次都打一次 GitHub API。
+     */
+    val updateLastCheckAt: Flow<Long> =
+        context.settingsDataStore.data.map { it[Keys.UPDATE_LAST_CHECK_AT] ?: 0L }
+
+    /** 用户选择「忽略此版本」的版本标识（GitHub Release 的 tag 名）；空串表示未忽略任何版本 */
+    val updateIgnoredVersion: Flow<String> =
+        context.settingsDataStore.data.map { it[Keys.UPDATE_IGNORED_VERSION] ?: "" }
 
     /** 配色模式：0=跟随系统 1=浅色 2=深色，默认跟随系统 */
     val colorMode: Flow<Int> = context.settingsDataStore.data.map { it[Keys.COLOR_MODE] ?: 0 }
@@ -784,6 +800,17 @@ class SettingsStore(private val context: Context) {
     suspend fun acceptDisclaimer() {
         AppLog.d("Settings", "保存免责声明同意状态")
         context.settingsDataStore.edit { it[Keys.DISCLAIMER] = true }
+    }
+
+    /** 记录上次自动检查更新的时间（毫秒），用于 24 小时节流。 */
+    suspend fun setUpdateLastCheckAt(timestampMs: Long) {
+        context.settingsDataStore.edit { it[Keys.UPDATE_LAST_CHECK_AT] = timestampMs }
+    }
+
+    /** 记录用户选择「忽略此版本」的版本标识（tag 名）；传空串表示取消忽略。 */
+    suspend fun setUpdateIgnoredVersion(version: String) {
+        AppLog.d("Settings", "忽略更新版本：$version")
+        context.settingsDataStore.edit { it[Keys.UPDATE_IGNORED_VERSION] = version }
     }
 }
 

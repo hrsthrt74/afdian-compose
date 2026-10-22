@@ -66,6 +66,8 @@ import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
+import com.hrsthrt74.afdian.ui.components.update.UpdateDialog
+import com.hrsthrt74.afdian.ui.components.update.openUpdateUrl
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.DATACARD_VALUE_FONT_FEATURE_SETTINGS
 import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
@@ -73,6 +75,7 @@ import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.ThemeColorTransition
 import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.UpdateViewModel
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -302,6 +305,21 @@ private fun SettingsScreenContent(
     // 「退出当前账号」确认弹窗：登出会清掉凭证并回到登录页，
     // 属于不可撤销的操作，必须二次确认（误触即掉线的代价太高）
     val logoutDialogState = rememberDialogState()
+
+    // 检查更新：手动检查用的 ViewModel 与弹窗状态。
+    // key 刻意与冷启动自动检查的那个实例区分开 —— 手动检查要如实反馈失败，
+    // 自动检查要求全程静默，两者共用一个实例会互相干扰状态。
+    val updateViewModel: UpdateViewModel = viewModel(
+        key = "update-manual",
+        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
+            LocalContext.current.applicationContext as Application
+        )
+    )
+    val updateState by updateViewModel.uiState.collectAsState()
+    val updateDialogState = rememberDialogState()
+    // 打开下载链接用的 Context
+    val context = LocalContext.current
+
 
     Scaffold(
         topBar = {
@@ -776,6 +794,14 @@ private fun SettingsScreenContent(
 
                 item {
                     Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
+                        // 检查更新：手动查一次，有新版本会给出「忽略此版本 / 稍后 / 去下载」三个出口
+                        ArrowPreference(
+                            title = "检查更新",
+                            onClick = {
+                                updateViewModel.checkManually()
+                                updateDialogState.show()
+                            },
+                        )
                         ArrowPreference(
                             title = "开源许可",
                             onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
@@ -879,6 +905,17 @@ private fun SettingsScreenContent(
                 .padding(bottom = 16.dp)
         )
     }
+
+    // 检查更新弹窗：手动检查的四种状态（检查中 / 无更新 / 有更新 / 失败）都在这一个弹窗里呈现
+    UpdateDialog(
+        state = updateDialogState,
+        uiState = updateState,
+        onIgnore = { tag -> updateViewModel.ignoreVersion(tag) },
+        onOpenDownload = { url -> openUpdateUrl(context, url) },
+        // 关闭后把「有更新」这个状态复位：它是「结果」不是「事件」，
+        // 不复位的话旋转屏幕等重组会再次把弹窗拉起来
+        onDismissed = { updateViewModel.consumeAvailable() },
+    )
 }
 
 /**

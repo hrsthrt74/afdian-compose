@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian
 
 import android.app.Activity
+import android.app.Application
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -25,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.ImageLoader
@@ -46,6 +48,8 @@ import com.hrsthrt74.afdian.ui.components.account.AccountSwitcherActions
 import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
+import com.hrsthrt74.afdian.ui.components.update.UpdateDialog
+import com.hrsthrt74.afdian.ui.components.update.openUpdateUrl
 import com.hrsthrt74.afdian.ui.screens.auth.AddAccountOverlay
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
@@ -58,11 +62,12 @@ import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
 import com.hrsthrt74.afdian.ui.util.rememberSessionViewModelStoreOwner
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.UpdateUiState
+import com.hrsthrt74.afdian.ui.viewmodel.UpdateViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
-import top.yukonga.miuix.kmp.basic.Text
 
 class MainActivity : ComponentActivity() {
     // 界面是否已可显示：SplashScreen 依据它决定是否继续停留在启动画面上。
@@ -449,6 +454,39 @@ private fun AfdianApp(
                     pendingDelete?.let { session.deleteAccount(it.userId) }
                     pendingDelete = null
                 },
+            )
+
+            // ── 检查更新（冷启动静默） ──
+            // 检查本身对用户完全不可见：只有确认有新版才会弹窗。
+            // key 刻意与设置页手动检查的实例区分开 —— 手动检查要如实反馈失败，
+            // 自动检查要求全程静默，两者共用一个实例会互相干扰状态。
+            val updateViewModel: UpdateViewModel = viewModel(
+                key = "update-auto",
+                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
+                    context.applicationContext as Application
+                ),
+            )
+            val updateState by updateViewModel.uiState.collectAsState()
+            val updateDialog = rememberDialogState()
+            // 只在已登录后检查：未登录时界面是登录页，任何弹窗都会抢焦点
+            LaunchedEffect(authState) {
+                if (authState is AuthState.LoggedIn) {
+                    updateViewModel.checkInBackground()
+                }
+            }
+            // 有新版本时才弹窗
+            LaunchedEffect(updateState) {
+                if (updateState !is UpdateUiState.Available) return@LaunchedEffect
+                updateDialog.show()
+            }
+            UpdateDialog(
+                state = updateDialog,
+                uiState = updateState,
+                onIgnore = { tag -> updateViewModel.ignoreVersion(tag) },
+                onOpenDownload = { url -> openUpdateUrl(context, url) },
+                // 关闭后把「有更新」这个状态复位：它是「结果」不是「事件」，
+                // 不复位的话旋转屏幕等重组会再次把弹窗拉起来
+                onDismissed = { updateViewModel.consumeAvailable() },
             )
         }
     }
