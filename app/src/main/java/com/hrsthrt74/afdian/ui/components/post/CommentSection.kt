@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.hrsthrt74.afdian.data.content.PostComment
 import com.hrsthrt74.afdian.data.content.SubReplyState
 import com.hrsthrt74.afdian.data.content.displayLikeCount
+import com.hrsthrt74.afdian.data.content.formatCommentTime
 import com.hrsthrt74.afdian.data.content.isPostAuthor
 import com.hrsthrt74.afdian.data.content.replyTargetName
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
@@ -501,28 +502,4 @@ private fun ReplyExpandRow(
             .padding(start = 44.dp, top = 12.dp)
             .fillMaxWidth(),    // 整行可点
     )
-}
-
-/**
- * 相对时间格式化：刚刚 / N 分钟前 / N 小时前 / N 天前 / M 月 D 日。
- *
- * 评论流时间跨度很大（实测有几个月前的），纯时间戳可读性差；
- * 超过 30 天回落到绝对日期，避免「180 天前」这种无信息量的表达。
- */
-internal fun formatCommentTime(epochSeconds: Long?): String {
-    val ts = epochSeconds?.takeIf { it > 0 } ?: return ""
-    val diff = System.currentTimeMillis() / 1000 - ts
-    val minute = 60L
-    val hour = 60 * minute
-    val day = 24 * hour
-    return when {
-        diff < minute -> "刚刚"
-        diff < hour -> "${diff / minute} 分钟前"
-        diff < day -> "${diff / hour} 小时前"
-        diff < 30 * day -> "${diff / day} 天前"
-        else -> {
-            val cal = java.util.Calendar.getInstance().apply { timeInMillis = ts * 1000 }
-            "${cal.get(java.util.Calendar.MONTH) + 1}月${cal.get(java.util.Calendar.DAY_OF_MONTH)}日"
-        }
-    }
 }

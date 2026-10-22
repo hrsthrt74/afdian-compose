@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.data.content
 
 import kotlinx.serialization.Serializable
+import java.util.Calendar
 
 /**
  * 单条评论，来自 `/api/comment/get-list` 与 `/api/comment/get-sub-list`。
@@ -102,3 +103,47 @@ data class SubReplyState(
     val loading: Boolean = false,
     val attempted: Boolean = false,
 )
+
+/**
+ * 评论时间展示文案，分三段：
+ * - **30 天内**走相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前），评论区高频出现的都是这几档；
+ * - **超过 30 天且同一年**用「M月D日」，避免「180 天前」这种毫无信息量的表达；
+ * - **跨年**补上年份「YYYY年M月D日」——只写「3月5日」会被当成今年的评论，
+ *   而动态详情页里几个月甚至一年前的评论很常见。
+ *
+ * 放在数据层而不是 Composable 文件里，是为了能脱离 Compose 单测跨年这条边界
+ * （与 [replyTargetName]、[isPostAuthor] 同一套约定）；[nowSeconds] 显式可传，
+ * 测试里能钉死「现在」是哪一天。
+ *
+ * @param epochSeconds 服务端 `publish_time`（秒级时间戳）；空或非正数返回空串，UI 不渲染这一行
+ * @param nowSeconds 当前时间（秒），默认取系统时间
+ */
+internal fun formatCommentTime(
+    epochSeconds: Long?,
+    nowSeconds: Long = System.currentTimeMillis() / 1000,
+): String {
+    val ts = epochSeconds?.takeIf { it > 0 } ?: return ""
+    // 服务端时间比本地快时 diff 会是负数，落进「刚刚」分支，不会显示成「-1 分钟前」
+    val diff = nowSeconds - ts
+    val minute = 60L
+    val hour = 60 * minute
+    val day = 24 * hour
+    return when {
+        diff < minute -> "刚刚"
+        diff < hour -> "${diff / minute} 分钟前"
+        diff < day -> "${diff / hour} 小时前"
+        diff < 30 * day -> "${diff / day} 天前"
+        else -> {
+            // 绝对日期：按设备本地时区取年月日（与用户看到的日历一致）
+            val cal = Calendar.getInstance().apply { timeInMillis = ts * 1000 }
+            val now = Calendar.getInstance().apply { timeInMillis = nowSeconds * 1000 }
+            val month = cal.get(Calendar.MONTH) + 1
+            val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
+            if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)) {
+                "${month}月${dayOfMonth}日"
+            } else {
+                "${cal.get(Calendar.YEAR)}年${month}月${dayOfMonth}日"
+            }
+        }
+    }
+}
