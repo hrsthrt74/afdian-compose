@@ -3,6 +3,7 @@ package com.hrsthrt74.afdian
 import com.hrsthrt74.afdian.data.content.PostComment
 import com.hrsthrt74.afdian.data.content.displayLikeCount
 import com.hrsthrt74.afdian.data.content.isPostAuthor
+import com.hrsthrt74.afdian.data.content.mergeComments
 import com.hrsthrt74.afdian.data.content.parseCommentPage
 import com.hrsthrt74.afdian.data.content.replyTargetName
 import kotlinx.serialization.json.Json
@@ -165,6 +166,55 @@ class CommentParserTest {
         )
 
         assertEquals(listOf("dup"), page.comments.map { it.comment_id })
+    }
+
+    @Test
+    fun hotCommentIsNotRepeatedWhenLaterPageReturnsItAgain() {
+        // 首屏：热评 hot1 置顶 + 最新一条 n1
+        val first = parse(
+            """
+            {"ec":200,"em":"ok","data":{
+              "hot_list":[{"comment_id":"hot1","content":"热评","publish_sn":100}],
+              "list":[{"comment_id":"n1","content":"最新","publish_sn":200}],
+              "has_more":1
+            }}
+            """.trimIndent()
+        )
+        // 下一页（更早）：热评是历史高赞的老评论，翻到这里时服务端又把它下发了一次
+        val next = parse(
+            """
+            {"ec":200,"em":"ok","data":{
+              "list":[
+                {"comment_id":"hot1","content":"热评","publish_sn":100},
+                {"comment_id":"n2","content":"更早","publish_sn":50}
+              ],
+              "has_more":0
+            }}
+            """.trimIndent()
+        )
+
+        // 跨页按 comment_id 合并：热评只留顶部那一条，后面的重复项丢掉
+        val merged = mergeComments(first.comments, next.comments)
+
+        assertEquals(listOf("hot1", "n1", "n2"), merged.map { it.comment_id })
+        // 游标仍取「服务端这一页的原始末条」，不受去重影响
+        assertEquals("50", next.nextPublishSn)
+    }
+
+    @Test
+    fun cursorIgnoresHotListWhenListIsEmpty() {
+        // list 为空时游标必须是空串（不能退化成热评的 publish_sn，否则会拿它继续翻页）
+        val page = parse(
+            """
+            {"ec":200,"em":"ok","data":{
+              "hot_list":[{"comment_id":"hot1","content":"热评","publish_sn":100}],
+              "list":[],
+              "has_more":0
+            }}
+            """.trimIndent()
+        )
+
+        assertEquals("", page.nextPublishSn)
     }
 
     @Test

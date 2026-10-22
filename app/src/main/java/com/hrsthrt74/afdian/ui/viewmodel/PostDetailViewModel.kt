@@ -10,6 +10,7 @@ import com.hrsthrt74.afdian.data.content.FeedService
 import com.hrsthrt74.afdian.data.content.PostComment
 import com.hrsthrt74.afdian.data.content.RecommendedPost
 import com.hrsthrt74.afdian.data.content.SubReplyState
+import com.hrsthrt74.afdian.data.content.mergeComments
 import com.hrsthrt74.afdian.data.history.HistoryEntry
 import com.hrsthrt74.afdian.data.history.HistoryStore
 import com.hrsthrt74.afdian.data.network.sharedAfdianHttpClient
@@ -170,10 +171,21 @@ class PostDetailViewModel(
             runCatching {
                 withContext(Dispatchers.IO) { commentService.fetchCommentList(postId, cursor) }
             }.onSuccess { page ->
-                _comments.value = _comments.value + page.comments
+                // 按 comment_id 合并：热评已经置顶在屏幕上，翻页若又翻到同一条（热评本质是
+                // 历史高赞的老评论，很容易落在后面的页里），这里直接丢掉，不再重复显示。
+                // 保留先出现的那条，位置不动，因此热评会稳定停在顶部。
+                val before = _comments.value
+                val merged = mergeComments(before, page.comments)
+                _comments.value = merged
+                // 游标必须用服务端这一页的原始末条：整页都是重复项时，合并后的末条还停在上一页，
+                // 拿它当游标会让下一页原地踏步。
                 nextPublishSn = page.nextPublishSn
                 _commentsHasMore.value = page.hasMore
                 _commentsLoadingMore.value = false
+                val skipped = before.size + page.comments.size - merged.size
+                if (skipped > 0) {
+                    AppLog.d("PostComments", "load more: skipped $skipped duplicated comment(s)")
+                }
                 seedLiked(page.comments)
             }.onFailure {
                 _commentsLoadingMore.value = false

@@ -26,6 +26,44 @@ private val parserJson = Json {
 }
 
 /**
+ * 按 `comment_id` 合并两批评论：保留先出现的一条，丢弃后出现的重复项。
+ *
+ * 两个场景共用同一套口径，避免规则各写一份后漂移：
+ * - **单页内**：`hot_list` 作 existing、`list` 作 incoming —— 热门置顶，普通评论里
+ *   重复下发的同一条（服务端确实会重复下发）直接丢掉；
+ * - **跨页**：屏幕上已有的列表作 existing、新一页作 incoming —— 热门评论本质是
+ *   「历史高赞的老评论」，翻到它所在的年代时会再次出现在 `list` 里，这里同样丢掉，
+ *   让它稳定留在顶部，而不是又冒出来一遍。
+ *
+ * 为什么保留先出现的那条：existing 是已经在屏幕上的内容，位置和当前展示态都以它为准；
+ * 同 id 时既不重复上屏，也不把条目挪到列表尾部造成滚动跳动。
+ *
+ * `comment_id` 为空白直接丢弃：多个空串会在 `LazyColumn` 里变成重复 key 而闪退
+ * （解析层已过滤一次，这里再兜一层，防别的调用方忘记过滤）。
+ *
+ * 纯函数、不打日志：单测里 `AppLog` 最终落到 `android.util.Log`，未 mock 会抛异常；
+ * 丢弃了多少条由调用方按需记录。
+ */
+internal fun mergeComments(
+    existing: List<PostComment>,
+    incoming: List<PostComment>,
+): List<PostComment> {
+    val merged = ArrayList<PostComment>(existing.size + incoming.size)
+    val seen = HashSet<String>(existing.size + incoming.size)
+    // 先收已有列表：既给它自身去重，也占住位置，让后面同 id 的旧页数据被丢弃
+    for (comment in existing) {
+        if (comment.comment_id.isBlank()) continue
+        if (seen.add(comment.comment_id)) merged += comment
+    }
+    // 再追加新页里没见过的，保持服务端顺序
+    for (comment in incoming) {
+        if (comment.comment_id.isBlank()) continue
+        if (seen.add(comment.comment_id)) merged += comment
+    }
+    return merged
+}
+
+/**
  * 解析 `/api/comment/get-list` 与 `/api/comment/get-sub-list` 的响应。
  * 两个接口返回结构一致（`data.list` + `data.has_more`），只有主列表会带 `hot_list`。
  *
@@ -39,15 +77,16 @@ internal fun parseCommentPage(root: JsonObject): CommentListPage {
     val hotComments = data["hot_list"]?.let { parseComments(it) }.orEmpty()
     val list = data["list"]?.let { parseComments(it) }.orEmpty()
 
-    // 去重合并：热门置前。理论上两者不重叠，个别情况下服务端可能重复下发，这里兜一层
-    val seen = mutableSetOf<String>()
-    val merged = (hotComments + list).filter { seen.add(it.comment_id) }
+    // 去重合并：热门置前。热门里已经有了的评论，普通评论里再下发就丢掉（保留热评那一条）
+    val merged = mergeComments(hotComments, list)
 
     // list 为空说明已经翻到底（此时只剩热门），不能再拿游标去翻，否则会死循环
     val hasMore = list.isNotEmpty() && data.boolOf("has_more")
 
-    // 游标取合并后的末条，与官方 oldest_publish_sn 口径一致
-    val nextPublishSn = merged.lastOrNull()?.publish_sn?.toString().orEmpty()
+    // 游标取**原始 list** 的末条，与官方 oldest_publish_sn 口径一致。
+    // 不能用 merged 的末条：若 list 末条恰好是热评的重复项，去重后末条会退到倒数第二条，
+    // 游标变新会漏拉下一段数据。
+    val nextPublishSn = list.lastOrNull()?.publish_sn?.toString().orEmpty()
 
     return CommentListPage(
         comments = merged,
