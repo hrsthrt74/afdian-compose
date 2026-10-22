@@ -85,7 +85,7 @@ private val affiliateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatt
  * 优惠码页（创作者后台 creator/list-affiliate）。
  *
  * 列表展示每个优惠码的折扣、适用范围、已使用量、有效期与启用状态；
- * 编辑与创建入口后续再补，本页仅提供读取与复制优惠码。
+ * 新增 / 编辑 / 删除走页内的创建面板（见 [AffiliateCreateSheet]），复制优惠码码值也在这里。
  *
  * @param onBack 返回
  * @param backStack 供返回按钮读取来源做过渡动画
