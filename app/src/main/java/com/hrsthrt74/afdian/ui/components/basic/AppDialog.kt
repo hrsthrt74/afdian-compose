@@ -81,11 +81,14 @@ fun rememberDialogState(initialShow: Boolean = false): DialogState =
  * @param modifier 应用到 Dialog 内容上的修饰符
  * @param title 标题
  * @param summary 说明文字
- * @param cancelText 取消按钮文案（默认「取消」）
+ * @param cancelText 取消按钮文案（默认「取消」）；传 null 则不渲染取消按钮，变成单键弹窗
  * @param confirmText 确认按钮文案
  * @param confirmEnabled 确认按钮是否可点击（默认 true）；为 false 时置灰禁用，
  *   常用于需要等待一段时间（如倒计时）后才允许确认的场景
  * @param destructive 是否为破坏性操作；为 true 时确认按钮使用错误色（红色）
+ * @param extraActionText 第三个动作的文案（默认不显示）；渲染在取消/确认按钮**上方**独占一行。
+ *   用于「更新提示」这类第三种选择：忽略此版本 / 稍后 / 去下载
+ * @param onExtraAction 点击第三个动作时的回调；传 null 时该动作不生效
  * @param onConfirm 点击确认按钮时的回调；确认后对话框由本组件自动关闭
  * @param onDismissed 关闭动画完成后的回调（用于清理临时状态）；注意 show 为 false 但从未显示时不会触发
  * @param content 按钮区上方的额外内容（可省略）
@@ -96,10 +99,12 @@ fun AppDialog(
     modifier: Modifier = Modifier,
     title: String? = null,
     summary: String? = null,
-    cancelText: String = "取消",
+    cancelText: String? = "取消",
     confirmText: String,
     confirmEnabled: Boolean = true,
     destructive: Boolean = false,
+    extraActionText: String? = null,
+    onExtraAction: (() -> Unit)? = null,
     onConfirm: () -> Unit,
     onDismissed: (() -> Unit)? = null,
     content: @Composable () -> Unit = {},
@@ -122,20 +127,38 @@ fun AppDialog(
         // miuix 居然没这个间距，没了看起来很奇怪哎
         Spacer(modifier = Modifier.height(4.dp))
 
+        // 第三个动作（可选）：独占一行放在取消/确认上方。
+        // 场景是「有三种选择」的弹窗，如更新提示的「忽略此版本 / 稍后 / 去下载」——
+        // 塞进主按钮行会挤成三等分，文字长时必然截断。
+        if (extraActionText != null) {
+            TextButton(
+                text = extraActionText,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onExtraAction?.invoke()
+                    state.dismiss()
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         // 按钮
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            // 左侧固定为取消按钮
-            TextButton(
-                text = cancelText,
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    state.dismiss()
-                },
-                modifier = Modifier.weight(1f)
-            )
+            // 取消按钮：cancelText 为 null 时不渲染，退化成单键弹窗
+            // （「我知道了」这类只有一个出口的确认框，不需要再摆一个无意义的「取消」）
+            if (cancelText != null) {
+                TextButton(
+                    text = cancelText,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        state.dismiss()
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
             if (destructive) {
                 // 破坏性操作：确认按钮用错误色填充，突出「不可撤销」的警告
