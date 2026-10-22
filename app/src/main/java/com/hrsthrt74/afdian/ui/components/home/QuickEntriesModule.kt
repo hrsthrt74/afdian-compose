@@ -13,11 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,17 +36,15 @@ import top.yukonga.miuix.kmp.utils.pressable
  * 首页「快捷方式」模块：一行最多 4 个自定义入口。
  *
  * 入口来自预设目录 [com.hrsthrt74.afdian.ui.navigation.QuickEntryPreset]，
- * 选哪几个、什么顺序存在 DataStore，由 [QuickEntryPickerSheet] 负责改。
+ * 选哪几个、什么顺序存在 DataStore（由 [QuickEntryPickerSheet] 负责改），
+ * 读取由首页容器统一做，再经 [HomeModuleContentContext.quickEntryKeys] 下发到这里。
  */
 @Composable
 fun QuickEntriesModule(context: HomeModuleContentContext) {
-    // 用可空状态等待 DataStore 真值：真值到之前不渲染模块，
-    // 避免首页先用默认的 4 个入口闪一帧再跳成用户配置（与创作者数据模块同一处理）。
-    var savedKeys by remember { mutableStateOf<List<String>?>(null) }
-    LaunchedEffect(context.settingsStore) {
-        context.settingsStore.homeQuickEntryKeys.collect { savedKeys = it }
-    }
-    val entries = savedKeys?.let { normalizeQuickEntries(it) } ?: return
+    // 入口配置由首页容器统一订阅后传进来：容器要等它到齐才铺模块，
+    // 这里再用可空兜一层，保证任何情况下都不会渲染出一个 0 高度的空壳
+    // （空壳会被 LazyColumn 记成「首个可见项」，等真值把模块排到后面时列表会自己滚过去）。
+    val entries = context.quickEntryKeys?.let { normalizeQuickEntries(it) } ?: return
 
     Column {
         // 标题行

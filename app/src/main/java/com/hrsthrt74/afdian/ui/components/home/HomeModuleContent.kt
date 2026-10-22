@@ -46,6 +46,14 @@ data class HomeModuleContentContext(
     val recentIncomeRecords: List<IncomeStatRecord> = emptyList(),
     /** 打开「收入明细」页（近5天收入模块的标题点击入口）。 */
     val onOpenIncomeDetail: () -> Unit = {},
+    /**
+     * 「快捷方式」模块已选中的入口（预设 storageValue，顺序即展示顺序）。
+     *
+     * 由首页容器统一订阅后下发，而不是让模块自己读 DataStore：
+     * 容器要等它到齐才肯铺整个列表，两边各订阅一份会出现「容器已铺、模块还是空壳」的错位帧。
+     * null 表示尚未读到真值。
+     */
+    val quickEntryKeys: List<String>? = null,
 )
 
 /** 模块注册入口。新增模块时在 HomeModuleRegistry 中注册，不需要修改首页容器。 */

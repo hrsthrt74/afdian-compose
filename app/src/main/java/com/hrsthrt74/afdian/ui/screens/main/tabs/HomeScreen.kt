@@ -32,7 +32,6 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.hrsthrt74.afdian.data.content.AfadianUser
-import com.hrsthrt74.afdian.data.settings.HomeModule
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.account.AccountSwitchPopup
 import com.hrsthrt74.afdian.ui.components.account.AccountSwitcherBadge
@@ -108,10 +107,25 @@ fun HomeScreen(
     val unconfirmedAmount by viewModel.unconfirmedAmount.collectAsState()
     val markedCreators by viewModel.markedCreators.collectAsState()
     val historyEntries by historyViewModel.entries.collectAsState()
-    // 初值用「默认启用集合」而不是全部模块：默认关闭的模块（如近5天收入）
-    // 在 DataStore 读到真值前不应先闪一帧出来
-    val enabledModules by settingsStore.homeEnabledModules.collectAsState(initial = HomeModule.defaultEnabledSet)
-    val moduleOrder by settingsStore.homeModuleOrder.collectAsState(initial = HomeModule.entries)
+    // ── 首页模块形状：启用集合 / 顺序 / 快捷方式入口 ──
+    // 三份配置都来自 DataStore，读取是异步的，这里一律等真值（初值 null）。
+    //
+    // 不能先用默认值铺一版：LazyColumn 会按 item key 把「首个可见项」钉在原处。
+    // 首帧若按默认顺序渲染，快捷方式模块因为入口还没读到而只是个 0 高度的空壳；
+    // 等真值把它的顺序排到后面时，LazyColumn 仍然把这个空壳的 key 留在视口顶部，
+    // 于是列表自己往下滚了一大截 —— 这就是「快捷方式不在首位时启动会滚动」的成因。
+    // 真值到齐前不铺任何模块，列表形状只定一次，就没有这一步跳动了。
+    val enabledModulesState by settingsStore.homeEnabledModules.collectAsState(initial = null)
+    val moduleOrderState by settingsStore.homeModuleOrder.collectAsState(initial = null)
+    val homeQuickEntryKeys by settingsStore.homeQuickEntryKeys.collectAsState(initial = null)
+    // 三者共同决定列表形状，缺一项都不能铺
+    val homeModulesReady = enabledModulesState != null && moduleOrderState != null && homeQuickEntryKeys != null
+    // 真正参与渲染的模块（顺序 × 启用集合）；未就绪时为空
+    val visibleModules = remember(moduleOrderState, enabledModulesState) {
+        val order = moduleOrderState
+        val enabled = enabledModulesState
+        if (order == null || enabled == null) emptyList() else order.filter { it in enabled }
+    }
     var showCustomizeSheet by remember { mutableStateOf(false) }
     // 「快捷方式」模块的挑选面板：同样挂在页面底部而非模块内部，
     // 否则模块滚出视口被 LazyColumn 回收时，正在显示的弹层会跟着消失
@@ -164,8 +178,11 @@ fun HomeScreen(
     )
 
     // 首页是根页面：首次进入时清掉 Compose 可能恢复的旧滚动位置，确保顶部模块可见。
+    // 必须等模块配置到齐后再校准：配置没齐时列表还没铺出来，
+    // 提前滚到 0 没有意义，反而会被随后定型的 key 锚点带偏。
     // 只执行一次，返回创作者详情页后不会因为重组而把用户滚动位置拉回顶部。
-    LaunchedEffect(Unit) {
+    LaunchedEffect(homeModulesReady) {
+        if (!homeModulesReady) return@LaunchedEffect
         listState.scrollToItem(0)
         topAppBarState.heightOffset = 0f
         topAppBarState.contentOffset = 0f
@@ -187,6 +204,9 @@ fun HomeScreen(
         onOpenIncomeDetail = onOpenIncomeDetail,
         onNavigate = onNavigate,
         onEditQuickEntries = { showQuickEntrySheet = true },
+        // 快捷方式入口由容器统一订阅后下发：容器要用它判断整个列表能否铺，
+        // 模块自己再订阅一份会出现「容器已就绪、模块还是空壳」的错位帧
+        quickEntryKeys = homeQuickEntryKeys,
     )
 
     Scaffold(
@@ -280,28 +300,32 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection).scrollEndHaptic(),
                     contentPadding = PaddingValues(top = paddingValues.calculateTopPadding(), bottom = contentBottomPadding()),
                 ) {
-                    moduleOrder.filter { it in enabledModules }.forEach { module ->
-                        item(key = module.storageValue) { HomeModuleContent(module, moduleContext) }
-                    }
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
+                    // 配置未就绪时整段不铺：一旦先铺了「自定义」按钮或半个列表，
+                    // 真值到达后的重排又会让 LazyColumn 按 key 拽走滚动位置
+                    if (homeModulesReady) {
+                        visibleModules.forEach { module ->
+                            item(key = module.storageValue) { HomeModuleContent(module, moduleContext) }
+                        }
+                        item {
                             Box(
-                                modifier = Modifier
-                                    .pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
-                                    .clip(Capsule())
-                                    .clickable { showCustomizeSheet = true }
-                                    .background(MiuixTheme.colorScheme.surfaceContainer)
-                                    .padding(16.dp, 8.dp)
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Text(
-                                    "自定义",
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    textAlign = TextAlign.Center,
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .pressable(interactionSource = null, indication = SinkFeedback(), delay = null)
+                                        .clip(Capsule())
+                                        .clickable { showCustomizeSheet = true }
+                                        .background(MiuixTheme.colorScheme.surfaceContainer)
+                                        .padding(16.dp, 8.dp)
+                                ) {
+                                    Text(
+                                        "自定义",
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
                             }
                         }
                     }
