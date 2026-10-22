@@ -14,12 +14,41 @@ plugins {
 // 读取签名配置文件，如果文件不存在则跳过（方便 CI 等无密钥环境构建 debug 包）
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties: Map<String, String> = if (keystorePropertiesFile.exists()) {
-    keystorePropertiesFile.readLines().associate { line ->
-        val (key, value) = line.split("=", limit = 2)
-        key.trim() to value.trim()
-    }
+    // 逐行解析而不是直接 associate：手写的 key.properties 里常有空行和 # 注释，
+    // 直接 associate 遇到空行会抛 IndexOutOfBoundsException，堆栈还指向构建脚本，
+    // 使用者根本不知道是自己配置文件写歪了。这里统一跳过空行、注释行与非法行。
+    keystorePropertiesFile.readLines()
+        .map { it.trim().removePrefix("\uFEFF") } // 去 UTF-8 BOM（Windows 记事本保存的默认带）
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .mapNotNull { line ->
+            // 没有 "=" 的行不是合法配置项，忽略而不是让整次构建失败
+            val separator = line.indexOf('=')
+            if (separator <= 0) {
+                null
+            } else {
+                val key = line.substring(0, separator).trim()
+                // 值两端的引号一并去掉，避免 keyPassword="123" 这种写法把引号存进去
+                val value = line.substring(separator + 1).trim().trim('"').trim('\'')
+                key to value
+            }
+        }
+        .toMap()
 } else {
     emptyMap()
+}
+
+// release 签名需要的四个键。齐全才绑定签名配置：
+// 否则 assembleRelease 会在配置阶段因非空断言直接崩掉，
+// 外部贡献者（手上没有项目密钥）连 release 都编不出来。
+val releaseSigningKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+val hasReleaseSigning = releaseSigningKeys.all { keystoreProperties[it].orEmpty().isNotEmpty() }
+if (!hasReleaseSigning) {
+    // 用 lifecycle 而不是 warn：Gradle 控制台默认只显示到 QUIET 级，warn 会整条被吞掉，
+    // 贡献者根本不知道自己少了什么配置。这条提示必须真的出现在构建输出里。
+    logger.lifecycle(
+        "[警告] 未找到完整的签名配置：key.properties 需要包含 ${releaseSigningKeys.joinToString(" / ")}，" +
+            "release 产物将为未签名（不可直接分发）。debug 构建与单元测试不受影响。"
+    )
 }
 
 // standard（完整版）的最低系统要求。同一个数字承担两件事：
@@ -111,12 +140,14 @@ android {
     // 签名配置：从 key.properties 读取密钥库信息
     signingConfigs {
         create("release") {
-            // 仅在 key.properties 存在且包含必要字段时才配置签名
-            if (keystorePropertiesFile.exists()) {
-                storeFile = rootProject.file(keystoreProperties["storeFile"]!!)
-                storePassword = keystoreProperties["storePassword"]!!
-                keyAlias = keystoreProperties["keyAlias"]!!
-                keyPassword = keystoreProperties["keyPassword"]!!
+            // 仅在 key.properties 存在且四个键都齐全时才配置签名。
+            // 用 getValue 而不是 map["key"]!!：缺键时给出明确的「键缺失」信息，
+            // 而不是一句 NPE，让人猜是不是 key.properties 路径写错了。
+            if (hasReleaseSigning) {
+                storeFile = rootProject.file(keystoreProperties.getValue("storeFile"))
+                storePassword = keystoreProperties.getValue("storePassword")
+                keyAlias = keystoreProperties.getValue("keyAlias")
+                keyPassword = keystoreProperties.getValue("keyPassword")
             }
         }
     }
@@ -128,8 +159,12 @@ android {
             optimization {
                 enable = false
             }
-            // release 构建类型使用 release 签名配置
-            signingConfig = signingConfigs.getByName("release")
+            // release 构建类型使用 release 签名配置。
+            // 没有密钥时保持未签名：产物无法分发，但构建本身必须能跑通 ——
+            // 开源仓库的贡献者手上通常没有项目密钥，不能让 assembleRelease 直接失败。
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
