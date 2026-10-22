@@ -282,6 +282,11 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   官方客服消息链接进入消息页的客服会话。
 - 未实现的站内页面和其他合法网页统一使用 Chrome Custom Tabs；设备没有可用 Custom Tabs 服务时回退系统浏览器。
 - 动态正文、私信、订单/发货通知、商品方案、提现提醒、开源许可等入口均使用同一套策略。
+- 正文里的裸链接识别集中在 `ui/components/basic/LinkifiedText.kt`：匹配交给系统 `Linkify`
+  （与 `autoLink="web"` 同一套规则，支持 `www.` 与裸域名），再把 Linkify 生成的 `URLSpan`
+  换成应用内的 `ClickableSpan`，点击统一走 `AppLinkNavigator`。Linkify 按 IRI 规则会把紧贴
+  链接的中文一起算进 URL（如「文档：example.com」），因此匹配后还要用 `trimCjkEdges`
+  收一次首尾边界。
 - 设置页「其他」提供「优先使用官方客户端」开关，默认关闭即使用 CCT；开启后按官方
   `afd://app/openapp` 协议（`type=1` 网页参数）尝试拉起 `net.afdian.afdian`，
   未安装或拉起失败自动回退 CCT。

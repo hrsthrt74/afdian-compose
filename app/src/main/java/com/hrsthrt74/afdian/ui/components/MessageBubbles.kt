@@ -1,19 +1,15 @@
 package com.hrsthrt74.afdian.ui.components
 
 // 会话页普通消息气泡：头像行布局 + 文本气泡（TextView 可选中、链接可点），
-// 以及 TextView 选择手柄染色、链接 Spannable、气泡时间格式化三个配套工具。
+// 以及 TextView 选择手柄染色、气泡时间格式化两个配套工具。
 // 从 MessageConversationScreen 拆出，仅负责展示，不持有业务状态；
 // 点击气泡通过 onBubbleTapped 回调（携带气泡窗口坐标）交给调用方弹操作菜单
 // （弹层与挖洞压暗见同包 MessageBubbleActionPopup.kt）。
 // 特殊消息卡片见同包 MessageCards.kt。
+// 正文里的裸链接识别与链接 Span 见 basic/LinkifiedText.kt，本文件不再关心那套规则。
 
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.TextPaint
 import android.text.method.LinkMovementMethod
-import android.text.style.ClickableSpan
 import android.view.MotionEvent
-import android.view.View
 import android.widget.TextView
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
@@ -44,11 +40,12 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.hrsthrt74.afdian.data.content.MessageTextLink
 import com.hrsthrt74.afdian.data.content.AutoMessageKind
 import com.hrsthrt74.afdian.data.content.MessageContent
 import com.hrsthrt74.afdian.data.content.MessageItem
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
+import com.hrsthrt74.afdian.ui.components.basic.buildLinkifiedText
+import com.hrsthrt74.afdian.ui.components.basic.hitLinkSpan
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
@@ -257,7 +254,7 @@ fun MessageContentBubble(
                             // 每次重组都更新，确保切换深浅主题后立即生效。
                             textView.highlightColor = selectionColor.toArgb()
                             tintTextSelectionHandles(textView, selectionHandleColor.toArgb())
-                            textView.setText(buildSelectableMessageText(
+                            textView.setText(buildLinkifiedText(
                                 text = content.text,
                                 links = content.links,
                                 linkColor = linkColor.toArgb(),
@@ -358,77 +355,6 @@ private fun tintTextSelectionHandles(textView: TextView, color: Int) {
     textView.textSelectHandleRight?.mutate()?.apply {
         setTint(color)
         textView.setTextSelectHandleRight(this)
-    }
-}
-
-/**
- * 判断点击坐标是否落在链接 Span 上：命中则本次点击交给 LinkMovementMethod
- * 打开链接，不弹气泡菜单。
- * 坐标换算与 LinkMovementMethod 一致：事件坐标减 padding 加 scroll 转成文本
- * 布局坐标，再按行取字符 offset 查询 Span。
- */
-private fun hitLinkSpan(textView: TextView, x: Float, y: Float): Boolean {
-    val layout = textView.layout ?: return false
-    val spanned = textView.text as? Spanned ?: return false
-    val textX = x - textView.totalPaddingLeft + textView.scrollX
-    val textY = y - textView.totalPaddingTop + textView.scrollY
-    if (textY < 0f || textY >= layout.height) return false
-    val line = layout.getLineForVertical(textY.toInt())
-    val offset = layout.getOffsetForHorizontal(line, textX)
-    return spanned.getSpans(offset, offset, ClickableSpan::class.java).isNotEmpty()
-}
-
-/**
- * 把消息构建成 TextView 可点击、可选择原文的 Spannable，同时保留普通文本的原生选择能力。
- * 链接来源有两类：
- * - [links]：数据层 HTML 清洗记录的 <a> 标签区间（客服自动回复里的富文本链接）；
- * - 裸 URL：用户手打的 http(s) 链接，按正则识别。
- * TextView 的长按菜单由 Android 系统负责，便于与设备当前的文本选择体验保持一致。
- */
-private fun buildSelectableMessageText(
-    text: String,
-    links: List<MessageTextLink>,
-    linkColor: Int,
-    onLinkClick: (String) -> Unit,
-): SpannableString {
-    val spannable = SpannableString(text)
-    // 先挂 <a> 标签还原出的链接
-    for (link in links) {
-        spannable.setSpan(
-            messageLinkSpan(url = link.url, linkColor = linkColor, onLinkClick = onLinkClick),
-            link.start,
-            link.end,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-        )
-    }
-    // 再识别裸 URL；与已有链接区间重叠的跳过，避免同一 URL 叠加两个点击 Span
-    val urlPattern = Regex("https?://[^\\s]+")
-    for (match in urlPattern.findAll(text)) {
-        val range = match.range
-        if (links.any { range.first < it.end && range.last + 1 > it.start }) continue
-        spannable.setSpan(
-            messageLinkSpan(url = match.value, linkColor = linkColor, onLinkClick = onLinkClick),
-            range.first,
-            range.last + 1,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-        )
-    }
-    return spannable
-}
-
-/** 构造一个消息内可点击链接的 Span：主题色 + 下划线，点击交给 [onLinkClick] 打开。 */
-private fun messageLinkSpan(
-    url: String,
-    linkColor: Int,
-    onLinkClick: (String) -> Unit,
-) = object : ClickableSpan() {
-    override fun onClick(widget: View) {
-        onLinkClick(url)
-    }
-
-    override fun updateDrawState(ds: TextPaint) {
-        ds.color = linkColor
-        ds.isUnderlineText = true
     }
 }
 
