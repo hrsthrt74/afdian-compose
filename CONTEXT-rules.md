@@ -4,7 +4,6 @@
 
 ## Miuix 规则
 
-- 需要读取 Miuix 源码时，请访问 `C:\Users\hrsth\Documents\GitHub\miuix`，如果找不到此路径，请询问用户
 - 根部只创建一个 `MiuixTheme`。
   - 唯一例外：设置页的 `ThemeColorTransition` 会在本页范围内再套一层 `MiuixTheme(colors = ...)`
     提供过渡色板。这是为了让切配色时只重算可见的设置页（被它盖住的四个 Tab 页

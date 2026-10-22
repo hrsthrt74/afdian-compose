@@ -5,7 +5,6 @@
 本文件是项目文档索引：记录基线版本，并告诉 AI 每个任务该读哪个子文档。不要一次性全读，按需加载。
 
 - 爱发电（afdian.com）Android 第三方客户端，Miuix（HyperOS 设计语言）构建。
-- Android 工程：`C:\Users\hrsth\AndroidStudioProjects\afdian`
 
 ## 当前 Android 基线
 
