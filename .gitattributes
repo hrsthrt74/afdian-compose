@@ -1,1 +1,40 @@
+# 默认按文本处理，交给 git 自行判断是否二进制
 * text=auto
+
+# 源码与配置统一以 LF 落盘：
+# 1) Windows 检出成 CRLF 会让 gradlew 的 shebang 失效，Linux CI 报 bad interpreter；
+# 2) 跨平台协作时整文件 diff 变成噪声。
+*.kt text eol=lf
+*.kts text eol=lf
+*.xml text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.properties text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.txt text eol=lf
+*.pro text eol=lf
+*.keep text eol=lf
+
+# 脚本：sh 必须 LF（否则 shebang 失效），Windows 批处理必须 CRLF
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源：禁止行尾转换，否则签名文件、字体、图片会被改坏
+*.jks binary
+*.keystore binary
+*.ttf binary
+*.otf binary
+*.png binary
+*.webp binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.jar binary
+*.apk binary
+*.aab binary
+*.so binary
