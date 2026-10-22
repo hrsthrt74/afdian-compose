@@ -69,8 +69,12 @@ android {
         applicationId = "com.hrsthrt74.afdian"
         minSdk = standardMinSdk
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // 版本号：语义化版本 + 可读 versionCode。
+        // versionCode 规则：major * 10000 + minor * 100 + patch，
+        // 便于人工比较大小，也给「检查更新」一个可比的数字依据。
+        // 发布时同步打同名 tag（如 v1.0.0），检查更新按 tag 比对。
+        versionCode = 10000
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
