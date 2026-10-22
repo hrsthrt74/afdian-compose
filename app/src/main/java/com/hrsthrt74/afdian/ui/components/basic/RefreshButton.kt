@@ -60,7 +60,7 @@ private val RefreshButtonStopEasing = CubicBezierEasing(0.2f, 0.25f, 0.75f, 1f)
 /** 「刷新完成」后转圈图标的最短停留时长（毫秒）：即使请求瞬间完成，也至少转满一圈，避免一闪而过 */
 private const val RefreshButtonMinSpinDurationMs = 1000L
 
-/** 可用/禁用两态之间图标着色的渐变过渡时长（毫秒），与 CopyButton 保持一致 */
+/** 可用/禁用/加载各状态之间图标着色的渐变过渡时长（毫秒），与 CopyButton 保持一致 */
 private const val RefreshButtonTintTransitionDurationMs = 200
 
 /** 按字重取「刷新」图标：注意 MiuixIcons.Refresh 本身即 Regular 档 */
@@ -79,8 +79,10 @@ private val MiuixIconWeight.refreshIcon: ImageVector
  * 交互链路（点击 → 震动 → 回调 → 转圈）：
  * 1. 点击立刻触发一次触觉反馈（与 CopyButton 手感一致）；
  * 2. 回调 [onClick] 交给调用方发起刷新，组件不感知业务细节；
- * 3. [refreshing] 变 true 后图标开始转圈；变 false 后「至少转满 [RefreshButtonMinSpinDurationMs]」
- *    才停——请求瞬间完成时图标不会一闪而过；
+ * 3. [refreshing] 变 true 后图标开始转圈，同时着色渐变到「禁用灰」——
+ *    视觉上从前一秒的「可点」自然过渡到「正在忙」（渐变而非硬切，见 [RefreshButtonTintTransitionDurationMs]）；
+ *    变 false 后「至少转满 [RefreshButtonMinSpinDurationMs]」才停——请求瞬间完成时图标不会一闪而过，
+ *    颜色也随转圈一起结束才恢复到常态色；
  * 4. 停止时以与转圈相同的角速度起步、角速度平滑衰减到 0，减速滑行到整圈归位：
  *    视觉上是「利落但柔和地停住」而非急刹，也不会从任意角度硬跳回 0°。
  *
@@ -93,10 +95,11 @@ private val MiuixIconWeight.refreshIcon: ImageVector
  * RefreshButton(refreshing = running, onClick = onRerun, iconWeight = MiuixIconWeight.Demibold)
  * ```
  *
- * @param refreshing 是否正在刷新；true 时图标转圈并吞掉重复点击（不置灰，保持转圈观感）
+ * @param refreshing 是否正在刷新；true 时图标转圈、着色渐变为禁用灰，并吞掉重复点击
  * @param onClick 点击回调，触发刷新动作
  * @param modifier 外部修饰符
- * @param enabled 是否可点击；false 时图标置灰且不可点，与 [refreshing] 互不影响
+ * @param enabled 是否可点击；false 时图标置灰且不可点（与加载态的置灰是同一个颜色 token，
+ *                两者叠加时视觉效果一致，只是原因不同）
  * @param iconWeight 图标字重，默认 [MiuixIconWeight.Regular]（等同不带字重的 MiuixIcons.Refresh）
  * @param contentDescription 无障碍描述（转圈时会自动附加状态后缀）
  */
@@ -162,10 +165,14 @@ fun RefreshButton(
         }
     }
 
-    // 图标着色：可用态用 onSurface（等同 Miuix Icon 默认色），禁用态置灰；
-    // 渐变过渡时长与 CopyButton 一致。转圈中不算禁用，保持正常色
+    // 图标着色三态：可用 = onSurface（等同 Miuix Icon 默认色）；禁用 / 加载中 = 置灰色。
+    // 加载态用 [spinning] 而非 [refreshing]：最短转圈补齐期间图标仍在转，
+    // 若此时提前恢复原色，会出现「还在转却突然变亮」的割裂感，故与转圈动画同生同灭。
+    // 置灰色取 miuix 的 disabledOnSecondaryVariant（miuix 内部禁用色统一用它：
+    // BasicComponentDefaults.titleColor 的 disabledColor、Button 的 disabledContentColor 皆是此值），
+    // 由 animateColorAsState 做渐变过渡，时长与 CopyButton 一致
     val iconTint by animateColorAsState(
-        targetValue = if (enabled) {
+        targetValue = if (enabled && !spinning) {
             MiuixTheme.colorScheme.onSurface
         } else {
             MiuixTheme.colorScheme.disabledOnSecondaryVariant
@@ -176,7 +183,7 @@ fun RefreshButton(
 
     IconButton(
         onClick = {
-            // 刷新进行中吞掉重复点击，避免重入；不置灰，保持转圈观感
+            // 刷新进行中吞掉重复点击，避免重入；置灰已由上方 iconTint 负责，这里只管拦截
             if (refreshing) return@IconButton
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             AppLog.d(RefreshButtonLogTag, "触发刷新")
