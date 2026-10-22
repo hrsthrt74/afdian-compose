@@ -19,7 +19,7 @@ fun HistoryModule(context: HomeModuleContentContext) {
             entries = context.historyEntries,
             onOpenHistory = context.onOpenHistory,
             onOpenEntry = context.onOpenHistoryEntry,
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
         )
     }
 }
