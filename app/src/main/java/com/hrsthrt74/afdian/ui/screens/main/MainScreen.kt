@@ -62,6 +62,7 @@ import com.hrsthrt74.afdian.ui.screens.main.account.BlocklistScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.DeveloperScreen
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.FeatureStatusScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.StorageScreen
@@ -447,7 +448,7 @@ fun MainScreen(
         }
         entry<Route.Affiliates> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 优惠码列表（创作者后台 creator/list-affiliate）；编辑 / 创建页后续再接
+            // 优惠码列表（创作者后台 creator/list-affiliate）；增删改走页内的创建 / 编辑面板
             AffiliateScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
@@ -471,8 +472,13 @@ fun MainScreen(
         }
         entry<Route.OssLicenses> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 开源许可页：设置页「退出登录」上方入口进入
+            // 开源许可页：设置页「关于」分组入口进入
             OssLicensesScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
+        entry<Route.FeatureStatus> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 功能完成度页：设置页「关于」分组入口进入，列出当前尚未完成的功能清单
+            FeatureStatusScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Disclaimer> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
@@ -540,7 +546,7 @@ fun MainScreen(
         }
         entry<Route.Shop> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 售卖商品管理页：入口在「我的」页快捷入口占位
+            // 售卖商品管理页：入口在「我的」页快捷入口的创作者分组
             ShopScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,

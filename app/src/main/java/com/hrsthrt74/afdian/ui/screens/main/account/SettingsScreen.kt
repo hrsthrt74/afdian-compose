@@ -303,7 +303,6 @@ private fun SettingsScreenContent(
     // 属于不可撤销的操作，必须二次确认（误触即掉线的代价太高）
     val logoutDialogState = rememberDialogState()
 
-
     Scaffold(
         topBar = {
             DoubleTapToTop(listState, scrollBehavior) {
@@ -762,10 +761,21 @@ private fun SettingsScreenContent(
                 }
 
                 item { SmallTitle(text = "关于", modifier = Modifier.padding(start = 4.dp)) }
+
                 item {
-                    Card(modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 12.dp)) {
+                    Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
+                        // 功能完成度：常驻的「当前尚未完成的功能」清单入口。
+                        // 应用内唯一展示这份清单的地方，想知道哪些还没做完从这里进。
+                        ArrowPreference(
+                            title = "功能完成度",
+                            summary = "当前尚未完成的功能清单",
+                            onClick = { if (backStack.none { it == Route.FeatureStatus }) backStack.add(Route.FeatureStatus) },
+                        )
+                    }
+                }
+
+                item {
+                    Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
                         ArrowPreference(
                             title = "开源许可",
                             onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
@@ -779,7 +789,22 @@ private fun SettingsScreenContent(
                     }
                 }
 
-                // 构建类型提示：居中小字显示当前打包变体（如 productionStandardDebug），
+                // 版本号：用户报问题时最常被问到的信息，直接显示在设置页底部。
+                // 样式沿用 DESIGN.md「列表内小字」的统一约定
+                item {
+                    Text(
+                        text = "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 8.dp),
+                    )
+                }
+
+                // 构建类型提示：居中小字显示当前打包变体（如 productionStandardRelease），
                 // 便于区分测试包来源；样式沿用 DESIGN.md「列表内小字」的统一约定
                 item {
                     Text(

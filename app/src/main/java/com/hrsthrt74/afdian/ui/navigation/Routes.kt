@@ -30,20 +30,22 @@ sealed interface Route : NavKey {
     @Serializable data object IncomeDetail : Route
     // 每月汇总页（创作者后台 /api/my/income，按年分组的月度账单，可切换抽成前/后金额）
     @Serializable data object MonthlySummary : Route
-    // 独立收到发电订单列表，暂未接入「我的」页入口
+    // 独立收到发电订单列表，入口在「我的」页快捷入口的创作者分组
     @Serializable data object ReceivedSponsors : Route
     // 赞助者管理页（创作者后台 who-sponsored-me），入口在「我的」页创作者分组
     @Serializable data object SponsorManage : Route
     // 赞助者感谢页（创作者后台 get-thank-sponsors）；年月由「每月汇总」页按行带入
     @Serializable data class ThankSponsors(val year: Int, val month: Int) : Route
-    // 优惠码页（创作者后台 creator/list-affiliate），入口后续再接
+    // 优惠码页（创作者后台 creator/list-affiliate），入口在「我的」页快捷入口的创作者分组
     @Serializable data object Affiliates : Route
     // FAQ 设置页（创作者后台 /api/faq/list 及其增删改），入口在消息页三点菜单
     @Serializable data object FaqSetting : Route
     @Serializable data object Settings : Route
     // 免责声明页：首次启动强制确认，设置页可随时查看
     @Serializable data object Disclaimer : Route
-    // 开源许可页：AboutLibraries 收集的第三方依赖与许可证，入口在设置页「退出登录」上方
+    // 功能完成度页：列出当前尚未完成的功能，入口在设置页「关于」分组
+    @Serializable data object FeatureStatus : Route
+    // 开源许可页：AboutLibraries 收集的第三方依赖与许可证，入口在设置页「关于」分组
     @Serializable data object OssLicenses : Route
     // 存储空间管理页：本地缓存/数据占用总览与分类清理，入口在设置页「其他」分组
     @Serializable data object Storage : Route
@@ -55,7 +57,7 @@ sealed interface Route : NavKey {
     @Serializable data object Blocklist : Route
     // 开发者页（官网 /dashboard/dev：user_id、Webhook URL、API Token），入口在「我的」页屏蔽与拒绝名单下方
     @Serializable data object Developer : Route
-    // 售卖商品管理页（创作者后台 all-plans 的 sale_list），入口在「我的」页快捷入口占位
+    // 售卖商品管理页（创作者后台 all-plans 的 sale_list），入口在「我的」页快捷入口的创作者分组
     @Serializable data object Shop : Route
     // 外部商品链接打开商品详情 Sheet，底层复用商品管理页的数据与弹层实现
     @Serializable data class ProductDetail(val productId: String) : Route
