@@ -50,11 +50,18 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.LinkInteractionListener
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.AppLog
 import java.text.DateFormat
@@ -98,13 +105,16 @@ private const val CODE_LENGTH = 4
  * - 服务端要求人机校验时，在验证码下方就地展开图形验证码（点图片可换一张），
  *   不再弹二级弹窗，避免弹窗关闭/重开带来的输入丢失；
  * - 登录失败时输入框 label/边框变红，并在下方给出红字提示；
- * - 若传入 buildExpiresAtMs，则在底部显示「本构建将于 XXX 过期」提示。
+ * - 若传入 buildExpiresAtMs，则在底部显示「本构建将于 XXX 过期」提示；
+ * - 全屏页最底部固定一行「继续登录，代表同意免责声明和爱发电的相关条款」，
+ *   其中「免责声明」是链接，点击由 onOpenDisclaimer 交给调用方处理。
  *
  * @param onLogin 密码登录回调（账号, 密码）
  * @param onCodeLogin 验证码登录回调（账号, 验证码）
  * @param onSendCode 发送验证码回调（账号, 图形验证码）；首次发送图形码传空串
  * @param initialAccount 账号输入框的初始值。登录成功后的首屏过渡层会把刚提交的账号带过来，
  *                       让输入框保持原样，而不是「人已经登录成功、表单却被清空」。
+ * @param onOpenDisclaimer 点击底部「免责声明」链接的回调；为 null 时不显示这行文案
  */
 @Composable
 fun LoginScreen(
@@ -122,6 +132,9 @@ fun LoginScreen(
     // 嵌入弹层（如 WindowDialog）时使用：不套全屏 Scaffold、不叠加系统栏 insets，
     // 高度由内容决定，避免撑满整个对话框
     embedded: Boolean = false,
+    // 底部协议提示里「免责声明」的点击回调。
+    // 传 null 时整行文案都不渲染：添加账号弹层、登录成功过渡层都不该出现一个点不动的链接。
+    onOpenDisclaimer: (() -> Unit)? = null,
 ) {
     // 表单草稿：rememberSaveable 保证进程重建后不丢用户已输入的内容
     var account by rememberSaveable { mutableStateOf(initialAccount) }
@@ -521,16 +534,72 @@ fun LoginScreen(
         )
     } else {
         // 全屏页：外层用 Miuix Scaffold 铺 colorScheme.background，跟随明暗模式
-        // （否则裸 Column 透出的是系统白色窗口底）；内层滚动 + safeDrawing insets
-        // 一次性处理状态栏、导航栏、刘海和 IME 的避让（其中已含 IME，无需再叠 imePadding）
+        // （否则裸 Column 透出的是系统白色窗口底）。
+        // 这里拆成「外层 insets 容器 + 内层滚动表单区」两层，是为了让底部协议提示
+        // 能钉在屏幕最底部：如果把它放进滚动容器，它会跟着表单一起被滚走。
         Scaffold { _ ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    // safeDrawing 一次性处理状态栏、导航栏、刘海和 IME 的避让
+                    // （其中已含 IME，无需再叠 imePadding）
                     .windowInsetsPadding(WindowInsets.safeDrawing),
-                content = formContent,
-            )
+            ) {
+                Column(
+                    // 表单区吃掉剩余高度：内容不足时顶对齐，超出时在这块区域内滚动
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    content = formContent,
+                )
+                // 底部协议提示：固定在屏幕最底部，与表单的滚动解耦。
+                // 没有回调就不渲染——避免出现一个点不动的链接。
+                if (onOpenDisclaimer != null) {
+                    LoginAgreementFooter(
+                        onOpenDisclaimer = onOpenDisclaimer,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 16.dp, start = 24.dp, end = 24.dp),
+                    )
+                }
+            }
         }
     }
+}
+
+/**
+ * 登录页底部协议提示。
+ *
+ * 「免责声明」是主色下划线链接；「爱发电的相关条款」刻意不设链接——
+ * 条款的解释权在爱发电，本应用没有对应页面可跳，宁可不给入口也不把用户引到无关网页。
+ *
+ * 不做 remember 缓存 AnnotatedString：回调每次重组都可能是新实例，缓存反而会握到过期 lambda，
+ * 而这串文本只有几十个字符，每次重组重建的成本可以忽略。
+ */
+@Composable
+private fun LoginAgreementFooter(
+    onOpenDisclaimer: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // 链接色跟随主题主色，与「获取验证码」等可点文本保持同一套观感
+    val linkColor = MiuixTheme.colorScheme.primary
+    Text(
+        text = buildAnnotatedString {
+            append("继续登录，代表同意")
+            // 只有「免责声明」四个字整体作为链接，其余都是普通次要色文字
+            withLink(
+                LinkAnnotation.Clickable(
+                    tag = "disclaimer",
+                    styles = TextLinkStyles(
+                        style = SpanStyle(
+                            color = linkColor,
+                            textDecoration = TextDecoration.Underline,
+                        ),
+                    ),
+                    linkInteractionListener = LinkInteractionListener { onOpenDisclaimer() },
+                )
+            ) { append("免责声明") }
+            append("和爱发电的相关条款")
+        },
+        style = MiuixTheme.textStyles.footnote2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        textAlign = TextAlign.Center,
+        modifier = modifier.fillMaxWidth(),
+    )
 }

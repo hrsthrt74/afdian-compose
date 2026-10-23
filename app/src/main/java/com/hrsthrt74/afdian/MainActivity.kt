@@ -50,6 +50,8 @@ import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.components.update.UpdateDialog
 import com.hrsthrt74.afdian.ui.components.update.openUpdateUrl
+import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
+import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.screens.auth.AddAccountOverlay
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
@@ -68,6 +70,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
+import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
+import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
+import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 
 class MainActivity : ComponentActivity() {
     // 界面是否已可显示：SplashScreen 依据它决定是否继续停留在启动画面上。
@@ -384,6 +390,7 @@ private fun AfdianApp(
                         // 登录页/免责声明本身就是首个界面，组合即放行 SplashScreen
                         SideEffect { appReady.value = true }
                         // 免责声明确认后使用 Compose 默认转场，避免页面从免责声明硬切到登录页。
+                        // 这一步是「首次启动闸门 → 登录」的状态切换，不属于导航，所以不进返回栈。
                         AnimatedContent(
                             targetState = accepted,
                             label = "disclaimerToLogin",
@@ -394,24 +401,59 @@ private fun AfdianApp(
                                     onDisagree = { (context as? Activity)?.finishAndRemoveTask() },
                                 )
                             } else {
-                                val isLoggingIn by session.isLoggingIn.collectAsState()
-                                val error by session.error.collectAsState()
-                                // 验证码登录的配套状态：发码进度、60 秒倒计时、图形验证码图片
-                                val isSendingCode by session.isSendingCode.collectAsState()
-                                val codeCooldown by session.codeCooldown.collectAsState()
-                                val captchaBytes by session.captchaBytes.collectAsState()
-                                LoginScreen(
-                                    onLogin = session::login,
-                                    onCodeLogin = session::loginWithCode,
-                                    onSendCode = session::sendLoginCode,
-                                    isLoggingIn = isLoggingIn,
-                                    isSendingCode = isSendingCode,
-                                    codeCooldownSeconds = codeCooldown,
-                                    captchaBytes = captchaBytes,
-                                    errorMessage = error,
-                                    buildExpiresAtMs = expiresAtMs,
-                                    onClearError = session::clearError,
-                                )
+                                // 未登录流程同样交给 NavDisplay 承载：登录页与免责声明页是两条真正的路由，
+                                // 「推入 / 返回」的转场、系统圆角裁剪、层间遮罩、预测性返回、返回栈里保存的表单状态
+                                // 全部复用与主界面完全相同的一套实现，不再在根组合里手写动画。
+                                val loginBackStack = rememberNavBackStack<Route>(Route.Login)
+                                NavDisplay(
+                                    backStack = loginBackStack,
+                                    // 栈底（登录页）时 onBack 不会被调用：NavDisplay 只在 size > 1 时接管返回
+                                    onBack = { loginBackStack.removeLastOrNull() },
+                                    transition = AppNavTransition,
+                                    effects = NavDisplayEffects(
+                                        cornerClipRadius = rememberNavSystemCornerRadius(),
+                                    ),
+                                ) {
+                                    entry<Route.Login> {
+                                        val isLoggingIn by session.isLoggingIn.collectAsState()
+                                        val error by session.error.collectAsState()
+                                        // 验证码登录的配套状态：发码进度、60 秒倒计时、图形验证码图片
+                                        val isSendingCode by session.isSendingCode.collectAsState()
+                                        val codeCooldown by session.codeCooldown.collectAsState()
+                                        val captchaBytes by session.captchaBytes.collectAsState()
+                                        LoginScreen(
+                                            onLogin = session::login,
+                                            onCodeLogin = session::loginWithCode,
+                                            onSendCode = session::sendLoginCode,
+                                            isLoggingIn = isLoggingIn,
+                                            isSendingCode = isSendingCode,
+                                            codeCooldownSeconds = codeCooldown,
+                                            captchaBytes = captchaBytes,
+                                            errorMessage = error,
+                                            buildExpiresAtMs = expiresAtMs,
+                                            onClearError = session::clearError,
+                                            // 底部协议提示里的免责声明入口：push 一条真正的路由
+                                            onOpenDisclaimer = {
+                                                AppLog.d("Login", "从登录页打开免责声明查看页")
+                                                // 去重：转场期间连点不会重复入栈
+                                                //（miuix-nav 栈内 contentKey 重复会直接抛异常闪退）
+                                                if (loginBackStack.none { it == Route.Disclaimer }) {
+                                                    loginBackStack.add(Route.Disclaimer)
+                                                }
+                                            },
+                                        )
+                                    }
+                                    entry<Route.Disclaimer> {
+                                        // 只读查看形态：顶栏返回箭头与系统返回都走同一个弹栈，
+                                        // backStack 传真实返回栈，返回按钮的长按菜单也就有了「回到上级」的意义
+                                        DisclaimerScreen(
+                                            onAgree = {},
+                                            onDisagree = {},
+                                            onBack = { loginBackStack.removeLastOrNull() },
+                                            backStack = loginBackStack,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

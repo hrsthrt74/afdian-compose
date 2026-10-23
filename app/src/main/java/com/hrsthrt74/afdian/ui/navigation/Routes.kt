@@ -9,6 +9,11 @@ import top.yukonga.miuix.kmp.nav.core.NavKey
 sealed interface Route : NavKey {
     @Serializable data object MainTabs : Route
 
+    // 未登录流程的根路由：登录页本身也是一条路由。
+    // 这样「登录页 → 免责声明」能走与其他页面完全一致的推入/返回（转场、圆角裁剪、预测性返回、
+    // 返回栈保存的表单状态），而不是在根组合里手写一套动画。
+    @Serializable data object Login : Route
+
     @Serializable data object Messages : Route
     @Serializable data object Profile : Route
     @Serializable data object History : Route
@@ -41,7 +46,8 @@ sealed interface Route : NavKey {
     // FAQ 设置页（创作者后台 /api/faq/list 及其增删改），入口在消息页三点菜单
     @Serializable data object FaqSetting : Route
     @Serializable data object Settings : Route
-    // 免责声明页：首次启动强制确认，设置页可随时查看
+    // 免责声明页：首次启动强制确认（不在返回栈里），另有两个只读入口——
+    // 登录页底部链接（未登录流程的返回栈）与设置页「关于」分组（主界面返回栈）
     @Serializable data object Disclaimer : Route
     // 功能完成度页：列出当前尚未完成的功能，入口在设置页「关于」分组
     @Serializable data object FeatureStatus : Route

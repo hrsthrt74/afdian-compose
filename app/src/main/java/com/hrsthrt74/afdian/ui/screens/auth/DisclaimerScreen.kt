@@ -75,10 +75,16 @@ import top.yukonga.miuix.kmp.squircle.squircleClip
 private const val DISCLAIMER_COUNTDOWN_SECONDS = 5
 
 /**
- * 首次启动免责声明。
+ * 免责声明页，两种形态：
+ * - 首次启动强制确认（onBack == null）：认证前的强制页面，必须滚到底并等完倒计时才能继续，
+ *   也可以直接「不同意并退出」；此时它不在返回栈里，没有返回入口；
+ * - 只读查看（onBack != null）：由登录页底部链接、设置页「关于」分组推入的路由，
+ *   顶栏给返回，无倒计时与底栏。
  *
- * 这是认证前的强制页面，不使用 Dialog，避免正文过长时被弹层尺寸截断。
- * 页面不提供返回入口；用户必须明确选择退出或等待倒计时结束后继续。
+ * 两种形态都不使用 Dialog，避免正文过长时被弹层尺寸截断。
+ *
+ * @param onBack 非空即进入只读查看形态；点顶栏返回箭头时调用
+ * @param backStack 只读形态下必填：传给 [BackButton]，长按菜单依赖它弹栈
  */
 @OptIn(ExperimentalScrollBarApi::class)
 @Composable
