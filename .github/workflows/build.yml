@@ -175,13 +175,13 @@ jobs:
         run: |
           set -euo pipefail
           APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
-          # Actions 包不覆盖 versionName，直接取构建脚本里的声明值作为产物名前缀
-          VERSION="$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | head -1 \
-                     | sed -E 's/.*"(.*)"/\1/' | tr -d '\r')"
           mkdir -p dist
           for edition in standard legacy; do
-            cp "app/build/outputs/apk/${edition}/release/Afdian-${VERSION}-${edition}-release.apk" \
-               "dist/Afdian-${VERSION}-b${{ github.run_number }}-${edition}-release.apk"
+            # APK 文件名由 Gradle 统一生成为 Afdian-<version>-<edition>-release.apk；
+            # 这里直接按模式匹配构建产物，避免再去解析 build.gradle.kts（脚本变量/注入值都兼容）。
+            src_apk="$(ls -1 app/build/outputs/apk/${edition}/release/Afdian-*-${edition}-release.apk | head -1)"
+            src_name="$(basename "$src_apk")"
+            cp "$src_apk" "dist/${src_name/-${edition}-release.apk/-b${{ github.run_number }}-${edition}-release.apk}"
           done
           ls -l dist
           "$APKSIGNER" verify --print-certs dist/*.apk
