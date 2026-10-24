@@ -1,10 +1,13 @@
 <div align="center">
 
-# Afdian · 爱发电第三方 Android 客户端
+<!-- 顶部品牌横幅 -->
+![爱发电 Compose 第三方客户端](docs/images/banner.webp)
+
+# Afdian · 爱发电第三方客户端
 
 基于 **Kotlin + Jetpack Compose + [Miuix](https://github.com/YuKongGame/Miuix)** 构建的爱发电（afdian.com）第三方客户端。
 
-> ⚠️ **功能尚未全部完成**，已实现范围与已知限制见 [「已知限制」](#九已知限制) 
+> ⚠️ **功能尚未全部完成**，已实现范围与已知限制见 [「已知限制」](#十已知限制) 
 
 </div>
 
@@ -29,7 +32,27 @@
 
 ---
 
-## 二、功能一览
+## 二、界面预览
+
+<table align="center">
+  <tr>
+    <td align="center" width="25%"><a href="docs/images/home.jpg"><img src="docs/images/home.jpg" width="190" alt="首页：可自定义数据卡与近 30 天收入图表"></a></td>
+    <td align="center" width="25%"><a href="docs/images/discover.jpg"><img src="docs/images/discover.jpg" width="190" alt="发现：全站精选动态流与创作者搜索"></a></td>
+    <td align="center" width="25%"><a href="docs/images/messages.jpg"><img src="docs/images/messages.jpg" width="190" alt="消息：未读与两周边筛选、会话列表"></a></td>
+    <td align="center" width="25%"><a href="docs/images/profile.jpg"><img src="docs/images/profile.jpg" width="190" alt="我的：发电的、收藏、订单、浏览历史与创作者入口"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><b>首页</b><br>可自定义布局</td>
+    <td align="center"><b>发现</b><br>动态、创作者搜索</td>
+    <td align="center"><b>消息</b><br>会话列表、筛选 Chip、高级功能</td>
+    <td align="center"><b>我的</b><br>收藏 / 历史 / 创作者后台</td>
+  </tr>
+</table>
+
+
+---
+
+## 三、功能一览
 
 | 模块    | 能力                                                          |
 |-------|-------------------------------------------------------------|
@@ -49,7 +72,7 @@
 
 ---
 
-## 三、变体
+## 四、变体
 
 只有一个构建维度 `edition`，配合两个构建类型，共 4 个变体：
 
@@ -64,7 +87,7 @@
 
 ---
 
-## 四、从源码构建
+## 五、从源码构建
 
 ### 环境要求
 
@@ -100,7 +123,7 @@
 
 ---
 
-## 五、签名配置
+## 六、签名配置
 
 release 签名信息从仓库根目录的 `key.properties` 读取（**该文件已在 `.gitignore` 中，不会被提交**）：
 
@@ -183,7 +206,7 @@ Windows 生成 base64：
 
 ---
 
-## 六、legacy 低配兼容版
+## 七、legacy 低配兼容版
 
 `legacy` 是给 Android 10-13（API 29-33）旧设备准备的兜底版本：
 
@@ -195,7 +218,7 @@ Windows 生成 base64：
 
 ---
 
-## 七、隐私与数据
+## 八、隐私与数据
 
 - 所有数据（登录凭据、设置、浏览历史、搜索历史、缓存）**只存在本机**，应用内没有账号注册、没有额外的追踪。
 - 登录凭据经 **AndroidKeyStore + AES/GCM** 加密后落盘，与设备绑定；DataStore 已排除在系统云备份与设备迁移之外。
@@ -208,7 +231,7 @@ Windows 生成 base64：
 
 ---
 
-## 八、接口风险提示
+## 九、接口风险提示
 
 本应用使用的是爱发电**网页端内部接口**（`/api/...` 路径），没有官方文档、没有稳定性承诺：
 
@@ -221,7 +244,7 @@ Windows 生成 base64：
 
 ---
 
-## 九、已知限制
+## 十、已知限制
 
 部分功能**尚未完成**，请参阅应用内【设置 → 关于 → 功能完成度】页了解详情。
 
@@ -232,7 +255,7 @@ Windows 生成 base64：
 
 ---
 
-## 十、项目结构与开发文档
+## 十一、项目结构与开发文档
 
 ```
 afdian/
@@ -246,6 +269,7 @@ afdian/
 │       ├── EditionGuard.kt     # legacy 装错包拦截
 │       └── AfdianApplication.kt # 进程级初始化（日志落盘、崩溃兜底）
 ├── gradle/libs.versions.toml   # 依赖与插件版本
+├── docs/images/                # README 用图（横幅与界面截图）
 ├── DESIGN.md                   # UI 规范（卡片、弹层、滚动条、状态管理）
 ├── AGENTS.md                   # AI 协作与代码风格约定
 ├── CONTEXT*.md                 # 开发过程文档：架构 / 功能清单 / 缺口分析 / 路线图
@@ -256,7 +280,7 @@ afdian/
 
 ---
 
-## 十一、致谢
+## 十二、致谢
 
 - [Miuix](https://github.com/YuKongGame/Miuix) —— HyperOS 风格的设计语言与组件库
 - [Coil](https://github.com/coil-kt/coil) —— 图片加载
@@ -269,6 +293,6 @@ afdian/
 
 ---
 
-## 十二、License
+## 十三、License
 
 本项目源码采用 [Apache License 2.0](LICENSE)。
