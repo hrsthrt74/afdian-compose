@@ -3,7 +3,7 @@
 <!-- 顶部品牌横幅 -->
 ![爱发电 Compose 第三方客户端](docs/images/banner.webp)
 
-# Afdian · 爱发电第三方客户端
+# 爱发电第三方客户端
 
 基于 **Kotlin + Jetpack Compose + [Miuix](https://github.com/YuKongGame/Miuix)** 构建的爱发电（afdian.com）第三方客户端。
 
