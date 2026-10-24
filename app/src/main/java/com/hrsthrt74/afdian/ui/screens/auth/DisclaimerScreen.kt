@@ -61,6 +61,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Album
+import top.yukonga.miuix.kmp.icon.extended.Blocklist
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.Folder
@@ -70,6 +71,7 @@ import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.UploadCloud
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.squircle.squircleClip
 
 private const val DISCLAIMER_COUNTDOWN_SECONDS = 5
@@ -236,7 +238,19 @@ fun DisclaimerScreen(
                         DisclaimerSection(
                             icon = MiuixIcons.Demibold.GridView,
                             title = "第三方客户端声明",
-                            text = "本应用与爱发电（Afdian）及其运营主体不存在隶属、代理、授权、赞助或合作关系。爱发电的名称、商标、网站、接口和相关内容归其权利人所有。本应用不代表爱发电，也不保证爱发电会持续支持本应用。",
+                            text = "本应用与爱发电（Afdian）及其运营主体不存在隶属、代理、授权、赞助或合作关系。爱发电的名称、商标、网站、接口和相关内容归其权利人所有。\n" +
+                                    "本应用不代表爱发电，也不保证爱发电会持续支持本应用。",
+                        )
+                    }
+                    // 紧接「第三方客户端声明」之后：上一节说清「跟官方没关系」，本节接着说「所以别去找官方」，
+                    // 两节的因果是连着的，中间插别的会断掉阅读逻辑。
+                    item(key = "no-official-feedback") {
+                        DisclaimerSection(
+                            // 禁止类图标（圆圈斜杠）：一眼看出这是「不要做某事」的提示
+                            icon = MiuixIcons.Demibold.Blocklist,
+                            title = "有问题请勿向官方反馈",
+                            text = "本应用是爱发电的第三方客户端，不是官方产品。爱发电官方客服、社区与反馈渠道只受理官方客户端与网站的问题，无法处理与本应用相关的任何问题。\n" +
+                                    "遇到问题请到本项目的 GitHub 仓库（hrsthrt74/afdian-compose）提 issue 反馈。",
                         )
                     }
                     item(key = "account") {
@@ -250,28 +264,34 @@ fun DisclaimerScreen(
                         DisclaimerSection(
                             icon = MiuixIcons.Demibold.UploadCloud,
                             title = "网络与接口",
-                            text = "本应用通过网络访问爱发电及其相关服务。服务端接口、页面结构、访问限制和可用性可能随时变化，导致部分功能异常、延迟或不可用。本应用不保证数据实时、完整或准确，也不承诺任何功能永久可用。",
+                            text = "本应用通过网络访问爱发电及其相关服务。服务端接口、页面结构、访问限制和可用性可能随时变化，导致部分功能异常、延迟或不可用。\n" +
+                                    "本应用不保证数据实时、完整或准确，也不承诺任何功能永久可用。",
                         )
                     }
                     item(key = "advanced-features") {
                         DisclaimerSection(
                             icon = MiuixIcons.Demibold.Album,
                             title = "高级功能说明",
-                            text = "本应用提供原客户端未提供的高级功能，包括创作者数据图表、收入明细中的问 AI 功能、扩展创作者数据以及创作者提现提醒等。这些功能的数据一部分来自爱发电官方已有接口，另一部分来自未直接提供的接口，经由其他接口返回的数据计算、整理或推导而来。我们已尽量对数据来源和含义进行消歧义，但由于部分数据并非通过对应的直接接口获取，计算结果不可避免可能存在误差，不能视为官方数据或财务依据，请以爱发电官方网页或官方客户端展示的结果为准。",
+                            text = "本应用提供原客户端未提供的高级功能，包括创作者数据图表、收入明细中的问 AI 功能、扩展创作者数据以及创作者提现提醒等。\n" +
+                                    "这些功能的数据一部分来自爱发电官方已有接口，另一部分来自未直接提供的接口，经由其他接口返回的数据计算、整理或推导而来。\n" +
+                                    "我们已尽量对数据来源和含义进行消歧义，但由于部分数据并非通过对应的直接接口获取，计算结果不可避免可能存在误差，不能视为官方数据或财务依据，请以爱发电官方网页或官方客户端展示的结果为准。",
                         )
                     }
                     item(key = "content") {
                         DisclaimerSection(
                             icon = MiuixIcons.Demibold.Notes,
                             title = "内容与平台交易",
-                            text = "创作者发布的文章、评论、私信、商品和其他内容由相应用户或平台提供，不代表本应用立场。本应用内不提供提现、发电（赞助创作者）、购买、退款或其他任何与金钱有关的操作，也不参与、不经手或担保相关交易。需要进行赞助、购买、提现等操作时，本应用会引导你前往爱发电官方网页或官方客户端继续；相关交易和内容权益问题请直接联系创作者或爱发电官方。",
+                            text = "创作者发布的文章、评论、私信、商品和其他内容由相应用户或平台提供，不代表本应用立场。\n" +
+                                    "本应用内不提供提现、发电（赞助创作者）、购买、退款或其他任何与金钱有关的操作，也不参与、不经手或担保相关交易。\n" +
+                                    "需要进行赞助、购买、提现等操作时，本应用会引导你前往爱发电官方网页或官方客户端继续；相关交易和内容权益问题请直接联系创作者或爱发电官方。",
                         )
                     }
                     item(key = "data") {
                         DisclaimerSection(
                             icon = MiuixIcons.Demibold.Folder,
                             title = "数据处理与风险",
-                            text = "除实现功能所必需的数据外，本第三方客户端不会额外进行追踪或收集信息。为改进稳定性，应用可能收集崩溃日志；日志中的账号、令牌、Cookie、私信内容等敏感信息会先脱敏，不会以明文记录。应用还会在设备本地保存实现登录和功能所需的凭据、缓存、历史记录及设置；部分功能会将请求发送至爱发电或图片等内容服务。请在使用前了解设备安全、网络环境和平台隐私政策，并自行承担因设备丢失、系统环境、网络攻击或平台策略变化造成的风险。",
+                            text = "除实现功能所必需的数据外，本第三方客户端不会额外进行追踪或收集信息。为改进稳定性，应用可能收集崩溃日志；日志中的账号、令牌、Cookie、私信内容等敏感信息会先脱敏，不会以明文记录。\n" +
+                                    "应用还会在设备本地保存实现登录和功能所需的凭据、缓存、历史记录及设置；部分功能会将请求发送至爱发电或图片等内容服务。请在使用前了解设备安全、网络环境和平台隐私政策，并自行承担因设备丢失、系统环境、网络攻击或平台策略变化造成的风险。",
                         )
                     }
                     item(key = "responsibility") {
@@ -285,7 +305,8 @@ fun DisclaimerScreen(
                         DisclaimerSection(
                             icon = MiuixIcons.Demibold.Ok,
                             title = "你的选择",
-                            text = "如果你不同意上述说明，请点击“不同意并退出”并停止使用本应用。点击“同意并继续”表示你已阅读并理解本页内容，但不影响你依法享有的消费者、隐私或其他法定权利。",
+                            text = "如果你不同意上述说明，请点击“不同意并退出”并停止使用本应用。\n" +
+                                    "点击“同意并继续”表示你已阅读并理解本页内容，但不影响你依法享有的消费者、隐私或其他法定权利。",
                         )
                     }
             }
@@ -345,6 +366,7 @@ private fun DisclaimerSection(
                 text = text,
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                lineHeight = 22.sp  // 舒适阅读
             )
         }
     }
