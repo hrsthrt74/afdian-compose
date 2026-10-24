@@ -174,17 +174,55 @@ jobs:
       - name: 校验签名并整理产物
         run: |
           set -euo pipefail
+          # 未匹配到文件时数组为空，而不是留下通配符字面量，方便下面判断个数
+          shopt -s nullglob
           APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
           mkdir -p dist
           for edition in standard legacy; do
             # APK 文件名由 Gradle 统一生成为 Afdian-<version>-<edition>-release.apk；
             # 这里直接按模式匹配构建产物，避免再去解析 build.gradle.kts（脚本变量/注入值都兼容）。
-            src_apk="$(ls -1 app/build/outputs/apk/${edition}/release/Afdian-*-${edition}-release.apk | head -1)"
-            src_name="$(basename "$src_apk")"
-            cp "$src_apk" "dist/${src_name/-${edition}-release.apk/-b${{ github.run_number }}-${edition}-release.apk}"
+            matches=(app/build/outputs/apk/${edition}/release/Afdian-*-${edition}-release.apk)
+            # 必须恰好 1 个：0 个说明没出包，多个说明混进了旧产物，都不该继续往下发
+            if [ "${#matches[@]}" -ne 1 ]; then
+              echo "::error::${edition} 构建产物应恰好 1 个，实际 ${#matches[@]} 个：${matches[*]:-（无）}"
+              exit 1
+            fi
+            src_name="$(basename "${matches[0]}")"
+            cp "${matches[0]}" "dist/${src_name/-${edition}-release.apk/-b${{ github.run_number }}-${edition}-release.apk}"
           done
           ls -l dist
-          "$APKSIGNER" verify --print-certs dist/*.apk
+
+          # ⚠️ apksigner verify 一次只接受一个 APK：把第二个文件传进去会被解析成
+          #    「Unexpected parameter(s) after APK」并直接以 1 退出，所以必须逐个校验。
+          # 顺便比对两个包的证书指纹，防止某个变体落到 debug key 上还混进更新通道。
+          expected_digest=""
+          verified=0
+          for apk in dist/*.apk; do
+            echo "── 校验 $(basename "$apk")"
+            report="$("$APKSIGNER" verify --print-certs "$apk")"
+            echo "$report"
+            # 指纹前缀随 build-tools 版本变化（37.0.0 是「V2 Signer: certificate SHA-256 digest:」，
+            # 老版本是「Signer #1 certificate ...」），所以只认中间那段固定文案，取去重后的唯一值。
+            digests="$(printf '%s\n' "$report" | sed -n 's/.*certificate SHA-256 digest: //p' | sort -u)"
+            count="$(printf '%s\n' "$digests" | grep -c . || true)"
+            if [ "$count" -ne 1 ]; then
+              echo "::error::$(basename "$apk") 解析到 $count 个签名证书，包可能未签名或多签名者"
+              exit 1
+            fi
+            echo "   证书 SHA-256：$digests"
+            if [ -z "$expected_digest" ]; then
+              expected_digest="$digests"
+            elif [ "$digests" != "$expected_digest" ]; then
+              echo "::error::两个包的签名证书不一致：$digests ≠ $expected_digest"
+              exit 1
+            fi
+            verified=$((verified + 1))
+          done
+          if [ "$verified" -eq 0 ]; then
+            echo "::error::dist/ 下没有可校验的 APK"
+            exit 1
+          fi
+          echo "签名校验通过（$verified 个包），证书 SHA-256：$expected_digest"
 
       - uses: actions/upload-artifact@v4
         with:
