@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 中文环境下的 debug 专属应用名（values 里的 Afdian Debug 在这里被语言限定符覆盖）。 -->
+<resources>
+    <string name="app_name">爱发电 Debug</string>
+</resources>

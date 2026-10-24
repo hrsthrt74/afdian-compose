@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- debug 变体专用资源：桌面图标名字加 Debug 后缀，和正式版（同一台机器上可并存）区分开。
+     包名已经靠 applicationIdSuffix 分开了，但图标名字默认一样，容易点错。
+     ⚠️ 必须同时覆盖 values-zh-rCN：中文设备上带语言限定符的资源优先级高于默认 values，
+        只改这一份的话，中文系统里仍然显示「爱发电」。 -->
+<resources>
+    <string name="app_name">Afdian Debug</string>
+</resources>
