@@ -65,8 +65,18 @@ jobs:
           fi
           VERSION="${TAG#v}"
 
-          DECLARED="$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | head -1 \
-                      | sed -E 's/.*"(.*)"/\1/' | tr -d '\r')"
+          # 版本号默认值写在 `val resolvedVersionName = propText("versionName") ?: "1.0.0"`，
+          # 而不是字面量 `versionName = "..."`。早先按后者 grep 什么也匹配不到，DECLARED 为空，
+          # 会误报成「tag 与 versionName 不一致」把发版直接卡死。两种形态都认：
+          # 优先取变量兜底值，匹配不到再退回字面量写法。
+          DECLARED="$(sed -nE 's/.*propText\("versionName"\) *\?: *"([^"]+)".*/\1/p' app/build.gradle.kts | tr -d '\r')"
+          if [ -z "$DECLARED" ]; then
+            DECLARED="$(sed -nE 's/^ *versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | tr -d '\r')"
+          fi
+          if [ -z "$DECLARED" ]; then
+            echo "::error::没能从 app/build.gradle.kts 解析到 versionName 默认值（resolvedVersionName 那行改写法了？）"
+            exit 1
+          fi
           if [ "$VERSION" != "$DECLARED" ]; then
             echo "::error::tag $TAG 与 app/build.gradle.kts 的 versionName $DECLARED 不一致"
             exit 1
