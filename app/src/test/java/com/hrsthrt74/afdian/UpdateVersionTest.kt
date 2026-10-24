@@ -122,7 +122,8 @@ class UpdateVersionTest {
     @Test
     fun firstCheckAlwaysRuns() {
         val now = 1_000_000_000L
-        assertTrue(UpdatePolicy.shouldAutoCheck(lastCheckAtMs = 0L, nowMs = now))
+        // 从未成功、从未失败
+        assertTrue(UpdatePolicy.shouldAutoCheck(lastSuccessAtMs = 0L, lastFailureAtMs = 0L, nowMs = now))
     }
 
     @Test
@@ -132,12 +133,33 @@ class UpdateVersionTest {
         val oneDayAgo = now - UpdatePolicy.AUTO_CHECK_INTERVAL_MS
         val twoDaysAgo = now - 2 * UpdatePolicy.AUTO_CHECK_INTERVAL_MS
 
-        // 一小时内查过：不查
-        assertFalse(UpdatePolicy.shouldAutoCheck(oneHourAgo, now))
+        // 一小时内成功查过：不查
+        assertFalse(UpdatePolicy.shouldAutoCheck(oneHourAgo, lastFailureAtMs = 0L, nowMs = now))
         // 刚好满 24 小时：查
-        assertTrue(UpdatePolicy.shouldAutoCheck(oneDayAgo, now))
+        assertTrue(UpdatePolicy.shouldAutoCheck(oneDayAgo, lastFailureAtMs = 0L, nowMs = now))
         // 超过 24 小时：查
-        assertTrue(UpdatePolicy.shouldAutoCheck(twoDaysAgo, now))
+        assertTrue(UpdatePolicy.shouldAutoCheck(twoDaysAgo, lastFailureAtMs = 0L, nowMs = now))
+    }
+
+    @Test
+    fun failureBackoffBlocksShortRetryOnly() {
+        val now = 100L * 24L * 60L * 60L * 1000L
+        val oneDayAgo = now - UpdatePolicy.AUTO_CHECK_INTERVAL_MS - 60L * 60L * 1000L
+        val tenMinutesAgo = now - 10L * 60L * 1000L
+        val twoHoursAgo = now - 2L * 60L * 60L * 1000L
+
+        // 上次成功已是 25 小时前，但 10 分钟前刚失败：退避窗口内，不查
+        assertFalse(UpdatePolicy.shouldAutoCheck(oneDayAgo, tenMinutesAgo, now))
+        // 失败已过去 2 小时（超过 1 小时退避）：允许重试
+        assertTrue(UpdatePolicy.shouldAutoCheck(oneDayAgo, twoHoursAgo, now))
+    }
+
+    @Test
+    fun failureDoesNotCountAsDailyThrottle() {
+        val now = 100L * 24L * 60L * 60L * 1000L
+        val twoHoursAgo = now - 2L * 60L * 60L * 1000L
+        // 只失败过、从未成功：退避过后仍应检查（旧实现会把它算进 24 小时窗口）
+        assertTrue(UpdatePolicy.shouldAutoCheck(lastSuccessAtMs = 0L, lastFailureAtMs = twoHoursAgo, nowMs = now))
     }
 
     /** 构造一个只有名字的附件对象（其余字段用不上）。 */

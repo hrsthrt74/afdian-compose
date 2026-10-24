@@ -9,7 +9,8 @@
 ## 当前 Android 基线
 
 - Kotlin：`2.4.20`
-- AGP：`9.3.3`
+- AGP：`9.4.1`
+- Gradle：`9.7.1`（wrapper）
 - compileSdk：`37`
 - targetSdk：`36`
 - minSdk：`34`
@@ -28,6 +29,8 @@
 | 查开发规则（Miuix/线程/状态） | `CONTEXT-rules.md` |
 | 嵌套滚动/收拢动画/高度动画/滚动驱动 UI | `CONTEXT-best-practices.md` |
 | 规划下一步做什么 | `CONTEXT-roadmap.md` |
+| 改 CI / 发版 / 签名 Secrets | `README.md` 的「CI 与 Secrets」+ `.github/workflows/*.yml` |
+| 改检查更新 / 更新通道 | `CONTEXT-features.md` 的「检查更新」小节 |
 | 对照网页端补功能、确认某功能是否已实现 | `CONTEXT-gap-analysis.md` |
 | Miuix 组件 API 存疑 | miuix-skill |
 

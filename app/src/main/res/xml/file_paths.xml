@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-    FileProvider 路径白名单：仅供「日志导出」分享使用。
+    FileProvider 路径白名单：日志导出与「应用内更新」共用。
 
-    安全红线：只暴露 files/logs/ 子目录。绝不能把 path 写成 "."——
-    那会把 files/datastore/ 下的登录凭证、设置项一并暴露给分享面板里的任意 App。
+    安全红线：只暴露明确列出的子目录。绝不能把 path 写成 "."——
+    那会把 files/datastore/ 下的登录凭证、设置项一并暴露给分享面板 / 安装器。
 -->
 <paths>
     <!-- 日志目录：运行日志 app-*.log、崩溃报告 crash-*.log、导出合并文件 export-*.log -->
     <files-path
         name="logs"
         path="logs/" />
+
+    <!-- 安装包目录：更新检查下载的 APK 在这里交给系统安装器读取。
+         与 UpdateDownloader.UPDATE_DIR 必须保持一致。 -->
+    <files-path
+        name="updates"
+        path="updates/" />
 </paths>

@@ -1,7 +1,4 @@
 import com.android.build.api.variant.BuildConfigField
-// 打包日期用：生成 APK 文件名里的 MMDD 后缀
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 plugins {
     alias(libs.plugins.android.application)
@@ -57,6 +54,23 @@ if (!hasReleaseSigning) {
 // 只在这里维护一份，避免以后调 minSdk 时漏改拦截逻辑导致静默放行。
 val standardMinSdk = 34
 
+// ── 版本号与构建标识（CI 注入） ──
+// CI 用 `-P` 传参覆盖版本号与构建身份；本地直接点 Run 时一个都不传，
+// 行为与改造前完全一致（1.0.0 / 10000 / BUILD_NUMBER=0）。
+// 用 providers.gradleProperty 而不是 project.property：它是配置缓存友好的读法，
+// 读到的值会进入缓存键，换参数时不会命中旧缓存。
+fun propText(name: String): String? =
+    providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
+
+val resolvedVersionName = propText("versionName") ?: "1.0.0"
+val resolvedVersionCode = propText("versionCode")?.toIntOrNull() ?: 10000
+// 0 表示「不是 Actions 构建」：本地包与正式版包都用 0，Actions 包用 GitHub 的 run_number
+val injectedBuildNumber = propText("buildNumber")?.toIntOrNull() ?: 0
+// local / actions / stable：仅用于展示与排查，不参与任何业务判断
+val injectedBuildChannel = propText("buildChannel") ?: "local"
+// 短 commit sha（7 位），Actions / Release 构建才有
+val injectedGitSha = propText("gitSha").orEmpty()
+
 android {
     namespace = "com.hrsthrt74.afdian"
     compileSdk {
@@ -73,8 +87,9 @@ android {
         // versionCode 规则：major * 10000 + minor * 100 + patch，
         // 便于人工比较大小，也给「检查更新」一个可比的数字依据。
         // 发布时同步打同名 tag（如 v1.0.0），检查更新按 tag 比对。
-        versionCode = 10000
-        versionName = "1.0.0"
+        // CI 通过 -PversionName / -PversionCode 注入（tag 推导），本地保持默认值。
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -94,6 +109,12 @@ android {
         // 当前安装包是否为 legacy 低配兼容版 —— 这是「包的身份」，不是能力开关。
         // 刻意不复用 SUPPORT_BLUR：那是 UI 能力，日后任何一侧调整都会让拦截静默失效或误杀。
         buildConfigField("boolean", "LEGACY_EDITION", "false")
+        // 构建身份：默认值 = 本地构建。CI 通过 -P 覆盖，三个字段在所有变体里取值相同，
+        // 因此只在 defaultConfig 声明一次（不需要像 SUPPORT_BLUR 那样每个 flavor 各写一遍）。
+        // Actions 包的 BUILD_NUMBER = GitHub run_number，是「这条构建比那条新」的唯一依据。
+        buildConfigField("int", "BUILD_NUMBER", "$injectedBuildNumber")
+        buildConfigField("String", "BUILD_CHANNEL", "\"$injectedBuildChannel\"")
+        buildConfigField("String", "GIT_SHA", "\"$injectedGitSha\"")
     }
 
     // res/font 下的可变字体（MiSans Condensed）保持不压缩：
@@ -179,13 +200,6 @@ aboutLibraries {
     offlineMode = true
 }
 
-// 打包日期，格式 MMDD（例：8 月 9 日 -> 0809），用于拼装 APK 输出文件名。
-// 与 BUILD_TIMESTAMP_MS 同源同刻：都在配置阶段取值，因此启用配置缓存后同样被冻结在
-// 「配置缓存条目创建时」（见 gradle.properties）。同一天内反复构建文件名不会变；
-// 跨天但配置未改动时，文件名里的日期会停留在旧值——只影响文件名，不影响产物内容。
-val buildDateSuffix: String = LocalDate.now()
-    .format(DateTimeFormatter.ofPattern("MMdd"))
-
 // 每个变体写入自己的完整变体名（如 standardDebug / legacyRelease），
 // 供设置页底部居中小字提示当前打包类型；同时定制 APK 输出文件名
 androidComponents {
@@ -197,13 +211,15 @@ androidComponents {
             BuildConfigField("String", "\"${variant.name}\"", null)
         )
 
-        // 自定义 APK 文件名，默认的 app-standardRelease.apk 不含打包日期。
-        // 目标格式：Afdian-1024-standard-release.apk（日期为打包当天 MMDD）
+        // 自定义 APK 文件名，默认的 app-standardRelease.apk 不含版本号。
+        // 目标格式：Afdian-1.2.0-standard-release.apk
+        // 这正好是 ReleaseVersion.pickApkAsset 认的命名（含 standard/legacy、含 release），
+        // 所以发版流程不再需要手工改名——手工改名漏一次，用户就挑不到包。
         // 只剩 edition 一个 flavor 维度，直接拼接即可，无需重排
         val flavorPart = variant.productFlavors.joinToString("-") { it.second }
         // 构建类型（debug / release）单独取，避免依赖变体名的驼峰切分
         val buildTypePart = variant.buildType ?: "unknown"
-        val fileName = "Afdian-${buildDateSuffix}-$flavorPart-$buildTypePart.apk"
+        val fileName = "Afdian-$resolvedVersionName-$flavorPart-$buildTypePart.apk"
         // outputs 里通常只有一个 APK 产物；对 AAB 等非 APK 产物赋值不生效但也无害
         variant.outputs.forEach { output ->
             output.outputFileName.set(fileName)

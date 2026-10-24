@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +54,7 @@ import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MIN
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_SLIDER_STEPS
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.resolveForSdk
+import com.hrsthrt74.afdian.data.update.UpdateChannel
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
@@ -75,6 +77,7 @@ import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.ThemeColorTransition
 import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
+import com.hrsthrt74.afdian.ui.viewmodel.UpdateDownloadState
 import com.hrsthrt74.afdian.ui.viewmodel.UpdateViewModel
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -140,6 +143,10 @@ private val bottomBarStyleNames = listOf("常规", "悬浮")
 // 链接打开方式选项，索引与底层 preferOfficialClient 布尔值的约定一致：
 // 0 = Custom Tabs（默认）、1 = 优先官方客户端
 private val linkOpenModeNames = listOf("系统浏览器", "官方客户端")
+
+// 更新通道：下标必须与 UpdateChannel 的声明顺序（Stable / Actions）严格一致，
+// 下拉直接拿 enum 的 ordinal 当下标用。
+private val updateChannelNames = listOf("正式版", "Actions 构建")
 
 /**
  * 「跟随系统壁纸」那一项的颜色球用的色轮。
@@ -307,8 +314,8 @@ private fun SettingsScreenContent(
     val logoutDialogState = rememberDialogState()
 
     // 检查更新：手动检查用的 ViewModel 与弹窗状态。
-    // key 刻意与冷启动自动检查的那个实例区分开 —— 手动检查要如实反馈失败，
-    // 自动检查要求全程静默，两者共用一个实例会互相干扰状态。
+    // 状态实际存在进程级 UpdateCenter 里，两个入口（根部自动检查 / 这里的手动检查）
+    // 看到的是同一份结果；key 仍然保留，只是不再用来隔离状态了。
     val updateViewModel: UpdateViewModel = viewModel(
         key = "update-manual",
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
@@ -316,9 +323,29 @@ private fun SettingsScreenContent(
         )
     )
     val updateState by updateViewModel.uiState.collectAsState()
+    val updateDownloadState by updateViewModel.downloadState.collectAsState()
+    // 更新通道：下拉选择后立即落盘，下一次检查（含冷启动自动检查）就按新通道走
+    val updateChannel by viewModel.updateChannel.collectAsState()
     val updateDialogState = rememberDialogState()
-    // 打开下载链接用的 Context
+    // 打开下载链接 / Actions 运行页面用的 Context
     val context = LocalContext.current
+
+    // 版本页脚：Actions 包额外显示构建号与 commit，方便用户报 issue 时直接截图
+    val versionDetail = buildString {
+        if (BuildConfig.BUILD_NUMBER > 0) append(" · 构建 #${BuildConfig.BUILD_NUMBER}")
+        if (BuildConfig.GIT_SHA.isNotBlank()) append(" · ${BuildConfig.GIT_SHA}")
+    }
+
+    // 离开设置页时丢弃「正在下载」的进度：更新弹窗是页面级的，页面没了就没有任何进度入口。
+    // 已下载完 / 待授权的包不能删 —— 系统安装器正通过 FileProvider 读它，
+    // 在「不保留活动」的设备上删掉会让安装莫名失败。
+    DisposableEffect(Unit) {
+        onDispose {
+            if (updateViewModel.downloadState.value is UpdateDownloadState.Downloading) {
+                updateViewModel.cancelDownload()
+            }
+        }
+    }
 
 
     Scaffold(
@@ -794,9 +821,20 @@ private fun SettingsScreenContent(
 
                 item {
                     Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
+                        // 更新通道：正式版走 Release 直链（应用内下载安装）；
+                        // Actions 构建追 master 的 CI 产物（http 页面跳转，artifact 需登录才能下）
+                        OverlayDropdownPreference(
+                            title = "更新通道",
+                            items = updateChannelNames,
+                            selectedIndex = updateChannel.ordinal,
+                            onSelectedIndexChange = { index ->
+                                viewModel.setUpdateChannel(UpdateChannel.entries[index])
+                            },
+                        )
                         // 检查更新：手动查一次，有新版本会给出「忽略此版本 / 稍后 / 去下载」三个出口
                         ArrowPreference(
                             title = "检查更新",
+                            summary = "当前通道：" + updateChannelNames[updateChannel.ordinal],
                             onClick = {
                                 updateViewModel.checkManually()
                                 updateDialogState.show()
@@ -819,7 +857,7 @@ private fun SettingsScreenContent(
                 // 样式沿用 DESIGN.md「列表内小字」的统一约定
                 item {
                     Text(
-                        text = "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        text = "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})$versionDetail",
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         textAlign = TextAlign.Center,
@@ -906,12 +944,17 @@ private fun SettingsScreenContent(
         )
     }
 
-    // 检查更新弹窗：手动检查的四种状态（检查中 / 无更新 / 有更新 / 失败）都在这一个弹窗里呈现
+    // 检查更新弹窗：检查结果与下载进度两条流都在这一个弹窗里呈现
     UpdateDialog(
         state = updateDialogState,
         uiState = updateState,
-        onIgnore = { tag -> updateViewModel.ignoreVersion(tag) },
-        onOpenDownload = { url -> openUpdateUrl(context, url) },
+        downloadState = updateDownloadState,
+        onIgnore = { updateViewModel.ignoreCurrent() },
+        onOpenUrl = { url -> openUpdateUrl(context, url) },
+        onDownload = { info -> updateViewModel.download(info) },
+        onInstall = { updateViewModel.install() },
+        onCancelDownload = { updateViewModel.cancelDownload() },
+        onOpenInstallPermission = { updateViewModel.openInstallPermission() },
         // 关闭后把「有更新」这个状态复位：它是「结果」不是「事件」，
         // 不复位的话旋转屏幕等重组会再次把弹窗拉起来
         onDismissed = { updateViewModel.consumeAvailable() },

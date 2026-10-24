@@ -1,0 +1,209 @@
+name: Build
+
+# 构建流水线：PR / push 出 debug 包，push 到 master 额外出一对签名 release 包，
+# 作为应用内「更新通道 = Actions 构建」的来源。
+#
+# ⚠️ 文件名 build.yml 是 App 侧的常量（GithubReleaseService.WORKFLOW_FILE）：
+#    App 靠它查询「master 上最近一次成功的运行」。改名会让 run_number 从 1 重新计数，
+#    已经装了 Actions 包的用户会认为「没有更新」，改名时务必同步改 Kotlin 常量。
+on:
+  push:
+    branches: [master]
+    tags-ignore: ['**']          # tag 推送交给 release.yml，避免一次发版跑两套流程
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+# 同一分支的旧构建让位给新提交；被取消的运行结论不是 success，不会出现在更新检查里
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 单元测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # compileSdk 是 release(37) { minorApiLevel = 0 }，SDK 平台目录名就是 android-37.0
+      # （不是 android-37），包名已在本地 package.xml 里核实。
+      - name: 安装 Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-37.0 build-tools;37.0.0'
+          accept-android-sdk-licenses: true
+
+      # setup-gradle 同时缓存 ~/.gradle/caches、wrapper 与 build cache。
+      # PR 只读不写：fork 分支不应污染主干缓存。
+      - name: 启用 Gradle 缓存
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      # 仓库索引里 gradlew 是 100644（Windows 的 core.filemode=false 提交的），
+      # 不补执行位会直接 Permission denied。
+      - name: 修正 gradlew 执行位
+        run: chmod +x ./gradlew
+
+      # 变体只有 edition 一段，变体专属任务不能省掉 edition：
+      # 聚合 `test` 任务会把同一批用例跑两遍，这里显式写两个变体任务。
+      # --no-configuration-cache：CI 每次都是冷 checkout，缓存无复用价值，
+      # 而 BUILD_TIMESTAMP_MS 被配置缓存冻结会让崩溃报告里的构建时间失真。
+      - name: 按变体跑单元测试
+        run: >
+          ./gradlew :app:testStandardDebugUnitTest :app:testLegacyDebugUnitTest
+          --no-configuration-cache --stacktrace
+
+      - name: 上传测试报告
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ github.run_number }}
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  debug:
+    name: Debug 包
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-37.0 build-tools;37.0.0'
+          accept-android-sdk-licenses: true
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - run: chmod +x ./gradlew
+
+      - name: 打两个 edition 的 debug 包
+        run: >
+          ./gradlew :app:assembleStandardDebug :app:assembleLegacyDebug
+          --no-configuration-cache --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: afdian-debug-b${{ github.run_number }}
+          path: app/build/outputs/apk/*/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  actions-apk:
+    name: 签名包（Actions 更新通道）
+    needs: test
+    # 只在 master 上产出：PR 拿不到 secrets，也不该出现在更新通道里。
+    # workflow_dispatch 也放行（手动重跑一次构建），否则「成功但没有签名包」的运行
+    # 会被 App 的 Runs 查询当成可用更新，用户点进去却找不到 APK。
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-37.0 build-tools;37.0.0'
+          accept-android-sdk-licenses: true
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x ./gradlew
+
+      # 缺 secret 必须硬失败：Gradle 侧缺 key 只会产出「未签名但构建成功」的包，
+      # 用户装上去报「应用未安装」，比 CI 直接红掉难排查得多。
+      - name: 校验签名 secrets
+        run: |
+          set -euo pipefail
+          missing=()
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -z "${!v:-}" ] && missing+=("$v")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::缺少签名 secrets: ${missing[*]}（配置方法见 README「CI 与发布」）"
+            exit 1
+          fi
+
+      # storeFile 相对仓库根目录解析（app/build.gradle.kts 用 rootProject.file），
+      # 因此密钥库必须落在仓库根，不能放子目录。
+      - name: 还原 keystore 与 key.properties
+        run: |
+          set -euo pipefail
+          echo "$KEYSTORE_BASE64" | tr -d '\n\r \t' | base64 -d > release.jks
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > key.properties
+          test -s release.jks
+
+      - name: 打签名包
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleStandardRelease :app:assembleLegacyRelease \
+            -PbuildNumber="${{ github.run_number }}" \
+            -PbuildChannel=actions \
+            -PgitSha="${GITHUB_SHA::7}" \
+            --no-configuration-cache --stacktrace
+
+      - name: 校验签名并整理产物
+        run: |
+          set -euo pipefail
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          # Actions 包不覆盖 versionName，直接取构建脚本里的声明值作为产物名前缀
+          VERSION="$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | head -1 \
+                     | sed -E 's/.*"(.*)"/\1/' | tr -d '\r')"
+          mkdir -p dist
+          for edition in standard legacy; do
+            cp "app/build/outputs/apk/${edition}/release/Afdian-${VERSION}-${edition}-release.apk" \
+               "dist/Afdian-${VERSION}-b${{ github.run_number }}-${edition}-release.apk"
+          done
+          ls -l dist
+          "$APKSIGNER" verify --print-certs dist/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: afdian-actions-b${{ github.run_number }}-${{ github.sha }}
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # 无论成败都清掉签名材料，避免被后续 step 或缓存带走
+      - name: 清理签名材料
+        if: always()
+        run: rm -f key.properties release.jks
+
+      - name: 写入 Job Summary
+        if: always()
+        run: |
+          {
+            echo "### Actions 构建 #${{ github.run_number }}"
+            echo ""
+            echo "应用内「更新通道 = Actions 构建」会通过 Runs API 找到本次运行，"
+            echo "点「查看构建」跳转到本页下载 artifact。artifact 需要登录 GitHub，App 不能匿名拉取。"
+          } >> "$GITHUB_STEP_SUMMARY"

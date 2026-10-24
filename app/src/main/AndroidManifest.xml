@@ -8,11 +8,18 @@
     <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 应用内更新：把下载好的 APK 交给系统安装器。侧载分发场景，不涉及 Play 政策。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Android 11+ 包可见性：允许 CustomTabsClient 查询默认浏览器的 CCT 服务。 -->
+    <!-- Android 11+ 包可见性：允许 CustomTabsClient 查询默认浏览器的 CCT 服务，
+         以及查询能处理「安装 APK」的系统安装器。 -->
     <queries>
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
         </intent>
     </queries>
 
@@ -37,7 +44,7 @@
             </intent-filter>
         </activity>
 
-        <!-- FileProvider：仅供「日志导出」向分享面板提供日志文件。
+        <!-- FileProvider：日志导出（logs/）与应用内更新（updates/）共用。
              authority 用 ${applicationId} 动态拼接（legacy 变体有 applicationIdSuffix，
              硬编码包名会导致后缀变体上 getUriForFile 直接抛 IllegalArgumentException）。 -->
         <provider

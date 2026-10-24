@@ -1,5 +1,7 @@
 package com.hrsthrt74.afdian.data.update
 
+import java.time.OffsetDateTime
+
 /**
  * 语义化版本号。
  *
@@ -114,18 +116,68 @@ object UpdatePolicy {
     const val AUTO_CHECK_INTERVAL_MS: Long = 24L * 60L * 60L * 1000L
 
     /**
+     * 检查失败后的退避：1 小时。
+     *
+     * 旧实现把「上次尝试」当成节流依据，还在发请求**之前**就写时间戳，
+     * 一次弱网失败就把功能静默关掉 24 小时，用户只会觉得「检查更新坏了」。
+     * 现在成功与失败分开记：成功管 24 小时，失败只挡 1 小时。
+     */
+    const val RETRY_BACKOFF_MS: Long = 60L * 60L * 1000L
+
+    /**
      * 现在是否值得做一次自动检查。
      *
-     * @param lastCheckAtMs 上次检查时间戳（0 表示从未检查过）
+     * @param lastSuccessAtMs 上次**成功**检查的时间戳（0 表示从未成功过）
+     * @param lastFailureAtMs 上次**失败**检查的时间戳（0 表示从未失败过）
      * @param nowMs 当前时间戳
      */
     fun shouldAutoCheck(
-        lastCheckAtMs: Long,
+        lastSuccessAtMs: Long,
+        lastFailureAtMs: Long,
         nowMs: Long,
     ): Boolean {
-        // 从未检查过：值得查一次
-        if (lastCheckAtMs <= 0L) return true
-        // 24 小时内查过：不查
-        return nowMs - lastCheckAtMs >= AUTO_CHECK_INTERVAL_MS
+        // 24 小时内成功查过：不查
+        if (lastSuccessAtMs > 0 && nowMs - lastSuccessAtMs < AUTO_CHECK_INTERVAL_MS) return false
+        // 刚失败过：等退避窗口过去再说
+        if (lastFailureAtMs > 0 && nowMs - lastFailureAtMs < RETRY_BACKOFF_MS) return false
+        return true
     }
+}
+
+/** GitHub 的 ISO-8601 时间（如 `2026-10-24T07:12:33Z`）→ epoch 毫秒；解析失败返回 0。 */
+fun parseIsoInstantMs(raw: String): Long =
+    runCatching { OffsetDateTime.parse(raw.trim()).toInstant().toEpochMilli() }.getOrDefault(0L)
+
+/**
+ * Actions 通道：远端这次运行是否比本地安装的包更新。
+ *
+ * 规则按顺序命中：
+ * 1. 编号无效 → 不提示；
+ * 2. commit 与本地一致 → 就是同一个包，绝不提示（Actions 包的 sha 是精确的）；
+ * 3. 本地也是 Actions 包（buildNumber > 0）→ 严格比编号，**不降级**
+ *    （用户手动换回旧包后不该被再次推到新包，除非真的出了更新的构建）；
+ * 4. 本地是正式版 / 本地构建（buildNumber == 0）→ 退化成时间比较：
+ *    运行时间晚于本包构建时间才算新。用户是主动切到 Actions 通道的，
+ *    这里「更积极地提示」符合预期；不喜欢就把最后一行改成 false。
+ *
+ * 已知取舍：`BUILD_TIMESTAMP_MS` 在配置缓存下可能偏旧，方向只会是「更积极提示」，
+ * 不会漏掉新构建。
+ *
+ * @param createdAtMs 远端运行的创建时间（epoch 毫秒，解析失败为 0）
+ * @param localBuildTimeMs 本地包的构建时间（`BuildConfig.BUILD_TIMESTAMP_MS`）
+ */
+fun isActionsRunNewer(
+    runNumber: Int,
+    headSha: String,
+    createdAtMs: Long,
+    localBuildNumber: Int,
+    localSha: String,
+    localBuildTimeMs: Long,
+): Boolean {
+    if (runNumber <= 0) return false
+    if (localSha.isNotBlank() && headSha.isNotBlank() && headSha.equals(localSha, ignoreCase = true)) {
+        return false
+    }
+    if (localBuildNumber > 0) return runNumber > localBuildNumber
+    return createdAtMs > 0 && createdAtMs > localBuildTimeMs
 }

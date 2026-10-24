@@ -63,7 +63,6 @@ import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
 import com.hrsthrt74.afdian.ui.util.rememberSessionViewModelStoreOwner
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
-import com.hrsthrt74.afdian.ui.viewmodel.UpdateUiState
 import com.hrsthrt74.afdian.ui.viewmodel.UpdateViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
@@ -484,8 +483,8 @@ private fun AfdianApp(
 
             // ── 检查更新（冷启动静默） ──
             // 检查本身对用户完全不可见：只有确认有新版才会弹窗。
-            // key 刻意与设置页手动检查的实例区分开 —— 手动检查要如实反馈失败，
-            // 自动检查要求全程静默，两者共用一个实例会互相干扰状态。
+            // 状态存在进程级 UpdateCenter 里，与设置页的手动检查共享；
+            // 「要不要弹窗」由 autoPrompt 这个一次性信号决定，手动检查不会置位它。
             val updateViewModel: UpdateViewModel = viewModel(
                 key = "update-auto",
                 factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
@@ -493,6 +492,8 @@ private fun AfdianApp(
                 ),
             )
             val updateState by updateViewModel.uiState.collectAsState()
+            val updateDownloadState by updateViewModel.downloadState.collectAsState()
+            val autoPrompt by updateViewModel.autoPrompt.collectAsState()
             val updateDialog = rememberDialogState()
             // 只在已登录后检查：未登录时界面是登录页，任何弹窗都会抢焦点
             LaunchedEffect(authState) {
@@ -500,16 +501,20 @@ private fun AfdianApp(
                     updateViewModel.checkInBackground()
                 }
             }
-            // 有新版本时才弹窗
-            LaunchedEffect(updateState) {
-                if (updateState !is UpdateUiState.Available) return@LaunchedEffect
-                updateDialog.show()
+            // 只有自动检查发现新版本时才弹窗
+            LaunchedEffect(autoPrompt) {
+                if (autoPrompt) updateDialog.show()
             }
             UpdateDialog(
                 state = updateDialog,
                 uiState = updateState,
-                onIgnore = { tag -> updateViewModel.ignoreVersion(tag) },
-                onOpenDownload = { url -> openUpdateUrl(context, url) },
+                downloadState = updateDownloadState,
+                onIgnore = { updateViewModel.ignoreCurrent() },
+                onOpenUrl = { url -> openUpdateUrl(context, url) },
+                onDownload = { info -> updateViewModel.download(info) },
+                onInstall = { updateViewModel.install() },
+                onCancelDownload = { updateViewModel.cancelDownload() },
+                onOpenInstallPermission = { updateViewModel.openInstallPermission() },
                 // 关闭后把「有更新」这个状态复位：它是「结果」不是「事件」，
                 // 不复位的话旋转屏幕等重组会再次把弹窗拉起来
                 onDismissed = { updateViewModel.consumeAvailable() },

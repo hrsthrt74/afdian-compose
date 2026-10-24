@@ -19,6 +19,7 @@ import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
 import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
+import com.hrsthrt74.afdian.data.update.UpdateChannel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -183,10 +184,18 @@ class SettingsStore(private val context: Context) {
         val IMAGE_CACHE_LIMIT = androidx.datastore.preferences.core.stringPreferencesKey("image_cache_limit")
         // 外部爱发电链接是否优先交给官方客户端，默认关闭（优先使用 Custom Tabs）
         val PREFER_OFFICIAL_CLIENT = booleanPreferencesKey("prefer_official_client")
-        // 检查更新：上次自动检查的时间戳（毫秒），用于 24 小时节流，避免每次冷启动都打一次 GitHub API
+        // 检查更新：更新通道（stable = 正式版 Release / actions = master 的 CI 构建）
+        val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
+        // 检查更新：上次**成功**检查的时间戳（毫秒），用于 24 小时节流
         val UPDATE_LAST_CHECK_AT = longPreferencesKey("update_last_check_at")
-        // 检查更新：用户选择「忽略此版本」的版本标识（GitHub Release 的 tag 名），空串表示未忽略
+        // 检查更新：上次**失败**检查的时间戳（毫秒），用于 1 小时退避。
+        // 与上一条分开是因为旧实现把失败也塞进 24 小时窗口，一次弱网就静默一整天
+        val UPDATE_LAST_CHECK_FAILURE_AT = longPreferencesKey("update_last_check_failure_at")
+        // 检查更新：正式版通道被忽略的 tag 名，空串表示未忽略
         val UPDATE_IGNORED_VERSION = stringPreferencesKey("update_ignored_version")
+        // 检查更新：Actions 通道被忽略的构建号（0 = 未忽略）。
+        // 只忽略这一条构建，下一个构建仍然会提示 —— Actions 通道没有「版本号」可以按 tag 记
+        val UPDATE_IGNORED_ACTIONS_RUN = intPreferencesKey("update_ignored_actions_run")
     }
 
     /**
@@ -254,15 +263,31 @@ class SettingsStore(private val context: Context) {
     val disclaimerAccepted: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.DISCLAIMER] ?: false }
 
     /**
-     * 上次自动检查更新的时间戳（毫秒）；0 表示从未检查过。
+     * 更新通道，默认正式版。
+     *
+     * 设备级设置：换账号不改变「我追正式版还是追 Actions 构建」这件事。
+     */
+    val updateChannel: Flow<UpdateChannel> =
+        context.settingsDataStore.data.map { UpdateChannel.fromStorage(it[Keys.UPDATE_CHANNEL]) }
+
+    /**
+     * 上次**成功**检查更新的时间戳（毫秒）；0 表示从未成功检查过。
      * 用于 24 小时节流：冷启动时不至于每次都打一次 GitHub API。
      */
     val updateLastCheckAt: Flow<Long> =
         context.settingsDataStore.data.map { it[Keys.UPDATE_LAST_CHECK_AT] ?: 0L }
 
+    /** 上次检查**失败**的时间戳（毫秒）；0 表示从未失败。用于 1 小时退避。 */
+    val updateLastCheckFailureAt: Flow<Long> =
+        context.settingsDataStore.data.map { it[Keys.UPDATE_LAST_CHECK_FAILURE_AT] ?: 0L }
+
     /** 用户选择「忽略此版本」的版本标识（GitHub Release 的 tag 名）；空串表示未忽略任何版本 */
     val updateIgnoredVersion: Flow<String> =
         context.settingsDataStore.data.map { it[Keys.UPDATE_IGNORED_VERSION] ?: "" }
+
+    /** Actions 通道被忽略的构建号；0 表示未忽略。只忽略这一条构建，不影响后续构建。 */
+    val updateIgnoredActionsRun: Flow<Int> =
+        context.settingsDataStore.data.map { it[Keys.UPDATE_IGNORED_ACTIONS_RUN] ?: 0 }
 
     /** 配色模式：0=跟随系统 1=浅色 2=深色，默认跟随系统 */
     val colorMode: Flow<Int> = context.settingsDataStore.data.map { it[Keys.COLOR_MODE] ?: 0 }
@@ -802,15 +827,32 @@ class SettingsStore(private val context: Context) {
         context.settingsDataStore.edit { it[Keys.DISCLAIMER] = true }
     }
 
-    /** 记录上次自动检查更新的时间（毫秒），用于 24 小时节流。 */
+    /** 记录上次**成功**检查更新的时间（毫秒），用于 24 小时节流。失败时不要调它。 */
     suspend fun setUpdateLastCheckAt(timestampMs: Long) {
         context.settingsDataStore.edit { it[Keys.UPDATE_LAST_CHECK_AT] = timestampMs }
+    }
+
+    /** 记录上次检查**失败**的时间（毫秒），用于 1 小时退避。 */
+    suspend fun setUpdateLastCheckFailureAt(timestampMs: Long) {
+        context.settingsDataStore.edit { it[Keys.UPDATE_LAST_CHECK_FAILURE_AT] = timestampMs }
+    }
+
+    /** 切换更新通道。 */
+    suspend fun setUpdateChannel(channel: UpdateChannel) {
+        AppLog.d("Settings", "切换更新通道：${channel.storageValue}")
+        context.settingsDataStore.edit { it[Keys.UPDATE_CHANNEL] = channel.storageValue }
     }
 
     /** 记录用户选择「忽略此版本」的版本标识（tag 名）；传空串表示取消忽略。 */
     suspend fun setUpdateIgnoredVersion(version: String) {
         AppLog.d("Settings", "忽略更新版本：$version")
         context.settingsDataStore.edit { it[Keys.UPDATE_IGNORED_VERSION] = version }
+    }
+
+    /** 记录用户忽略的 Actions 构建号；传 0 表示取消忽略。 */
+    suspend fun setUpdateIgnoredActionsRun(runNumber: Int) {
+        AppLog.d("Settings", "忽略 Actions 构建：$runNumber")
+        context.settingsDataStore.edit { it[Keys.UPDATE_IGNORED_ACTIONS_RUN] = runNumber }
     }
 }
 

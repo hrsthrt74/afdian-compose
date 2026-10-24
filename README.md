@@ -94,8 +94,8 @@
 两个 edition 都要打包：legacy 的 minSdk 与模糊开关不同，只编 standard 会漏掉低配分支。
 
 构建已开启 Gradle **配置缓存**与**构建缓存**（见 `gradle.properties`），增量构建约 2 秒。
-副作用：配置阶段取的时间戳（崩溃报告里的 `Build Time`、APK 文件名中的 MMDD 日期）会被冻结在
-「配置缓存条目创建时」，改动 `build.gradle.kts` / 依赖版本 / `gradle.properties` 后才会刷新。
+副作用：配置阶段取的时间戳（崩溃报告里的 `Build Time`）会被冻结在「配置缓存条目创建时」，
+改动 `build.gradle.kts` / 依赖版本 / `gradle.properties` 后才会刷新。
 需要绝对准确的构建时间时，临时加 `--no-configuration-cache` 跑一次即可。
 
 ---
@@ -121,32 +121,65 @@ keyPassword=你的密钥密码
 
 - `versionCode` 规则：`major * 10000 + minor * 100 + patch`。
 - `versionName` 使用语义化版本（当前 `1.0.0`）。
-- 修改位置：`app/build.gradle.kts` 的 `defaultConfig`。
-- 发布时同步打同名 tag（如 `v1.0.0`）；应用内「检查更新」按 tag 比对版本。
+- 唯一来源：`app/build.gradle.kts` 的 `defaultConfig`。CI 支持 `-PversionName` / `-PversionCode`
+  覆盖，但 release 工作流会先校验 tag 与脚本里的 `versionName` 一致才继续。
 
-手动发布流程：
+发版只需两步：
 
-1. 改 `app/build.gradle.kts` 的 `versionCode` / `versionName`；
-2. 打包：`./gradlew :app:assembleStandardRelease :app:assembleLegacyRelease`；
-3. 在 GitHub 上创建 Release，tag 填 `v1.0.0`，把两个 APK 作为附件上传上去。
+1. 改 `app/build.gradle.kts` 的 `versionCode` / `versionName`，提交到 master；
+2. 打 tag 并推送：`git tag v1.2.3 && git push origin v1.2.3`。
 
-**附件命名不能随意改** —— 应用内「检查更新」靠文件名里的 `standard` / `legacy` / `release` 关键字挑包。
+`.github/workflows/release.yml` 会自动打两个 edition 的签名包、校验签名，并以 `v1.2.3`
+创建 Release。**不要手工上传 APK**：手工改名漏一次，用户就挑不到包。
 
-构建产出的文件名格式是 `Afdian-<MMDD 日期>-<edition>-<buildType>.apk`：
-
-```
-Afdian-1022-standard-release.apk
-Afdian-1022-legacy-release.apk
-```
-
-上传前请按下面的格式**改成带版本号的名字**（中间那段日期换成版本号）：
+APK 文件名由 Gradle 直接产出成 `Afdian-<版本>-<edition>-<buildType>.apk`
+（如 `Afdian-1.2.3-standard-release.apk`），与应用内 `pickApkAsset` 的挑选规则一致：
 
 ```
-Afdian-<版本>-standard-release.apk
-Afdian-<版本>-legacy-release.apk
+Afdian-1.2.3-standard-release.apk
+Afdian-1.2.3-legacy-release.apk
 ```
 
-命名对不上，用户点「去下载」时会挑不到包（此时会降级为跳转到 Releases 页面）。
+### CI 与 Secrets
+
+| 文件 | 触发 | 产出 |
+|---|---|---|
+| `.github/workflows/build.yml` | push/PR 到 master、手动 | 两个 edition 的 debug 包；**push 到 master** 时额外产出签名 release 包（「Actions 构建」更新通道的数据源） |
+| `.github/workflows/release.yml` | 推 `v*` tag、手动指定 tag | 两个签名 APK + GitHub Release（非 draft、非 prerelease） |
+
+Actions 包要能用正式签名覆盖安装，需要在本仓库配置四个 Secrets：
+
+| Secret | 内容 |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `.jks` 的 base64（不带换行） |
+| `ANDROID_KEYSTORE_PASSWORD` | storePassword |
+| `ANDROID_KEY_ALIAS` | keyAlias |
+| `ANDROID_KEY_PASSWORD` | keyPassword |
+
+Windows 生成 base64：
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\afdian-hrsthrt74.jks")) | Set-Clipboard
+```
+
+两个工作流在缺 Secret 时**直接失败**，而不是产出一个装不上的未签名包。
+
+⚠️ `build.yml` 的文件名是应用侧常量（`GithubReleaseService.WORKFLOW_FILE`）。
+改名会让该 workflow 的 `run_number` 从 1 重新计数，已装 Actions 包的用户会认为「没有更新」。
+
+签名一致性：Actions 包与 Release 包同签名，可互相覆盖、保留登录态；
+本地 Android Studio 的 debug 包是另一套签名，与两者都不能互相覆盖安装。
+
+### 构建参数（CI 用）
+
+| 参数 | 作用 |
+|---|---|
+| `-PversionName` / `-PversionCode` | 覆盖版本号（release 工作流从 tag 推导并校验） |
+| `-PbuildNumber` | GitHub `run_number`；0 表示非 Actions 构建 |
+| `-PbuildChannel` | `local` / `actions` / `stable`，仅用于展示与排查 |
+| `-PgitSha` | 短 commit，展示在设置页页脚 |
+
+本地不传任何参数，行为与改造前一致（`1.0.0 (10000)`、`BUILD_NUMBER=0`）。
 
 ---
 
@@ -168,7 +201,10 @@ Afdian-<版本>-legacy-release.apk
 - 登录凭据经 **AndroidKeyStore + AES/GCM** 加密后落盘，与设备绑定；DataStore 已排除在系统云备份与设备迁移之外。
 - **没有任何埋点、崩溃统计或行为分析 SDK**；崩溃报告只写本地文件，可手动导出。
 - 运行日志与崩溃报告在落盘与导出前都会做**脱敏**（`auth_token`、`Cookie`、`token` 字段被替换为 `***`）。
-- 唯一会离开设备的数据是你主动发起的网络请求 —— 本应用只请求爱发电域名，以及用于检查更新的 GitHub API（`api.github.com`，只读取最新的一个 Release）。
+- 唯一会离开设备的数据是你主动发起的网络请求 —— 本应用只请求爱发电域名，以及用于检查更新的 GitHub API
+  （`api.github.com`：正式版通道读最新 Release，Actions 通道读 `build.yml` 最近一次成功的运行）。
+- 应用内更新只从 GitHub Releases 的正式附件下载安装包，落盘后先校验**包名与 versionCode**
+  再交给系统安装器，不会安装来源不明的 APK。
 
 ---
 

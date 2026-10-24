@@ -85,6 +85,8 @@ fun rememberDialogState(initialShow: Boolean = false): DialogState =
  * @param confirmText 确认按钮文案
  * @param confirmEnabled 确认按钮是否可点击（默认 true）；为 false 时置灰禁用，
  *   常用于需要等待一段时间（如倒计时）后才允许确认的场景
+ * @param dismissOnConfirm 点击确认后是否自动关闭（默认 true，与改造前行为一致）。
+ *   更新弹窗的「下载安装 / 安装」要保持打开以显示进度，传 false。
  * @param destructive 是否为破坏性操作；为 true 时确认按钮使用错误色（红色）
  * @param extraActionText 第三个动作的文案（默认不显示）；渲染在取消/确认按钮**上方**独占一行。
  *   用于「更新提示」这类第三种选择：忽略此版本 / 稍后 / 去下载
@@ -102,6 +104,7 @@ fun AppDialog(
     cancelText: String? = "取消",
     confirmText: String,
     confirmEnabled: Boolean = true,
+    dismissOnConfirm: Boolean = true,
     destructive: Boolean = false,
     extraActionText: String? = null,
     onExtraAction: (() -> Unit)? = null,
@@ -171,7 +174,7 @@ fun AppDialog(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.Reject)
                         onConfirm()
-                        state.dismiss()
+                        if (dismissOnConfirm) state.dismiss()
                     },
                     modifier = Modifier.weight(1f)
                 ) {
@@ -186,7 +189,7 @@ fun AppDialog(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                         onConfirm()
-                        state.dismiss()
+                        if (dismissOnConfirm) state.dismiss()
                     },
                     modifier = Modifier.weight(1f)
                 )

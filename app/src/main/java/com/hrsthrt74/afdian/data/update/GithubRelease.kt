@@ -47,16 +47,27 @@ data class GithubRelease(
 /**
  * 一次「有可用更新」的结果。
  *
- * @param versionName 展示用的新版本号，如 `1.2.0`（已去掉 tag 的 `v` 前缀）
- * @param tagName 版本标签原文（如 `v1.2.0`），「忽略此版本」按它记
- * @param releaseUrl Releases 页面地址（拿不到安装包时降级跳这里）
- * @param downloadUrl 安装包直链；挑不到匹配当前变体的包时为 null
- * @param notes 更新说明正文
+ * 两条通道共用一个模型：正式版填 [downloadUrl]，Actions 构建只填 [releaseUrl]。
+ *
+ * @param channel 这次结果来自哪条通道（决定弹窗按钮是「下载安装」还是「查看构建」）
+ * @param versionName 展示用的版本描述：正式版 `1.2.0`；Actions 通道 `构建 #128`
+ * @param identifier 忽略用的唯一标识：正式版是 tag（`v1.2.0`），Actions 是 `run:128`
+ *   —— 旧实现只有 tag，而 Actions 通道没有 tag，忽略一次就会永久静默
+ * @param releaseUrl Release 页面 / Actions 运行页面（拿不到安装包时降级跳这里）
+ * @param downloadUrl 安装包直链；只有正式版可能非空
+ * @param downloadSize 安装包字节数，0 表示未知（用于进度与完整性校验）
+ * @param notes 更新说明正文 / 构建信息
+ * @param runNumber Actions 构建编号，正式版为 0
+ * @param headSha Actions 构建对应的 commit，正式版可能为空
  */
 data class UpdateInfo(
+    val channel: UpdateChannel,
     val versionName: String,
-    val tagName: String,
+    val identifier: String,
     val releaseUrl: String,
     val downloadUrl: String?,
+    val downloadSize: Long,
     val notes: String,
+    val runNumber: Int = 0,
+    val headSha: String = "",
 )

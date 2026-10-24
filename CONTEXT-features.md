@@ -490,6 +490,36 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 路由 `Route.ThankSponsors(year, month)` 带年月参数，由「每月汇总」页按行传入；
   `ThankSponsorsViewModel` 的 `initialYear`/`initialMonth` 为 null 时才回退到上个月（页内「月份跳转」仍用 `jumpTo`）。
 
+## 检查更新（UpdateCenter）
+
+- 状态集中在进程级单例 `ui/viewmodel/UpdateCenter.kt`：`state`（检查结果）、`downloadState`（下载 / 安装）、
+  `autoPrompt`（一次性信号）。`UpdateViewModel` 只是薄委托，所以 MainActivity 根部（自动检查）
+  与设置页（手动检查）看到的是同一份结果。
+  - **`autoPrompt` 只由冷启动自动检查置位**：状态合并后若还按「Available 就弹窗」，在设置页
+    手动检查也会把根部弹窗拉起来。
+  - 手动检查会取消正在跑的自动检查，保证用户一定看到「正在检查…」并拿到新结果。
+- 两条通道，入口在设置页「关于 → 更新通道」（设备级，键 `update_channel`，默认正式版）：
+  - **正式版**：`GET /repos/hrsthrt74/afdian-compose/releases/latest`，按 `isNewerVersion` 比 tag；
+    附件直链在应用内下载（`UpdateDownloader`）后交给系统安装器。
+  - **Actions 构建**：`GET .../actions/workflows/build.yml/runs?branch=master&status=success&per_page=1`。
+    artifact 下载需要登录 GitHub，App 拿不到，因此只提供「查看构建」跳 `html_url`，
+    不在应用内下载。是否更新由 `isActionsRunNewer` 判定：同 commit 不提示；本地是 Actions 包
+    （`BUILD_NUMBER > 0`）严格比 run_number；本地是正式版则比运行时间与 `BUILD_TIMESTAMP_MS`。
+- 节流（`UpdatePolicy.shouldAutoCheck`）：**成功才写 24 小时窗口**（`update_last_check_at`），
+  失败写 `update_last_check_failure_at` 且只退避 1 小时。旧实现发请求前就写时间戳，
+  一次弱网失败会让功能静默一整天。
+- 忽略：双键分开记 —— 正式版存 tag（`update_ignored_version`），Actions 存构建号
+  （`update_ignored_actions_run`）。共用一个键时切通道会互相覆盖。
+- 下载：`UpdateDownloader` 流式写 `files/updates/`，先 `.part` 再原子改名，失败 / 取消自动清理；
+  每次下载前清掉目录里的旧包。FileProvider 白名单只暴露 `logs/` 与 `updates/` 两个子目录。
+- 安装（`UpdateInstaller`）：先 `getPackageArchiveInfo` 校验包名与 versionCode
+  （防装错 edition、防降级），再查 `canRequestPackageInstalls()`，没权限就带去「安装未知应用」页；
+  最后 `ACTION_VIEW` + `application/vnd.android.package-archive` 拉起系统安装器。
+- 关闭弹窗 = 放弃本次下载（没有通知栏与前台服务），`consume()` 会删掉已下载 / 未完成的文件。
+  下载中与待安装两档 `dismissOnConfirm = false`，弹窗不会因为点按钮而消失。
+- `build.yml` 的文件名是 App 侧常量（`GithubReleaseService.WORKFLOW_FILE`），改名会让
+  `run_number` 归零，必须同步改代码。
+
 ## 设置页（SettingsScreen）
 
 - `SwitchPreference`（爱发电主题色开关、Monet 配色开关）、`OverlayDropdownPreference`（启动默认页、配色模式）、
@@ -527,6 +557,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   仅在已保存账号数 > 1 时渲染 —— 单账号没有可切换对象，露出来只会让人困惑。
 - 退出登录。
 - 「其他」分组：`存储空间管理` 与 `日志` 两个入口（原「清除浏览历史」入口已移除，清理统一收敛到存储页）。
+- 「关于」分组：功能完成度、**更新通道**（正式版 / Actions 构建，见上一节）、检查更新、开源许可、免责声明；
+  页脚显示 `版本 x (code)`，Actions 包额外附带 `· 构建 #N · <sha>`，方便报 issue 时直接截图。
 
 ## 存储空间管理页（StorageScreen）
 

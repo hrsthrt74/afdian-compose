@@ -9,6 +9,7 @@ import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
+import com.hrsthrt74.afdian.data.update.UpdateChannel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -35,6 +36,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /** 高级过渡动画总开关，默认开启 */
     val advancedTransition: StateFlow<Boolean> = store.advancedTransition
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /** 更新通道：正式版 / Actions 构建，默认正式版 */
+    val updateChannel: StateFlow<UpdateChannel> = store.updateChannel
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UpdateChannel.Stable)
 
     /** 页面内边缘滑动返回手势，默认开启 */
     val gestureBack: StateFlow<Boolean> = store.gestureBack
@@ -119,6 +124,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setPreferOfficialClient(enabled: Boolean) {
         viewModelScope.launch { store.setPreferOfficialClient(enabled) }
+    }
+
+    /**
+     * 切换更新通道。
+     *
+     * 写库后立刻清掉上一次检查的残留结果：旧通道的「发现新版本」对话框
+     * 留在新通道上会让人以为这个通道真有更新。
+     */
+    fun setUpdateChannel(channel: UpdateChannel) {
+        viewModelScope.launch {
+            store.setUpdateChannel(channel)
+            UpdateCenter.reset(getApplication())
+        }
     }
 
     /** 重置管理页卡片布局为默认顺序；成功/失败都给 Toast 反馈，失败额外记警告日志。 */
