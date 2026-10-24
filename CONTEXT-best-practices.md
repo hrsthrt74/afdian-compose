@@ -113,7 +113,7 @@
 
 ## 验证
 
-- 纯 Kotlin 改动：`./gradlew.bat :app:compileInternalDebugKotlin` 快速验类型。
-- 提交前按 `CONTEXT.md` 跑 `testInternalDebugUnitTest` + `assembleInternalDebug`。
+- 纯 Kotlin 改动：`./gradlew.bat :app:compileStandardDebugKotlin` 快速验类型。
+- 提交前按 `CONTEXT.md` 跑 `testStandardDebugUnitTest` + `assembleStandardDebug`，legacy 同样跑一遍。
 - 手感问题（倍速/回弹/顺序）没法靠单测抓，推演模型：
   「每帧 consumed 账本 = available 总额守恒 + padding 收缩率」列一遍即可定位。

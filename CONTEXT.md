@@ -33,14 +33,16 @@
 
 ## 每次提交前的验证
 
-flavor 有 distribution（production / internal）与 edition（standard / legacy）两个维度，
-任务名必须写全变体名——缩写成 `:app:testInternalDebugUnitTest` 之类会报 `Ambiguous matches`。
+flavor 只有 edition（standard / legacy）一个维度，变体名即 `standardDebug` / `legacyRelease`。
+聚合任务（`assemble` / `assembleDebug` / `assembleRelease` / `test`）会把两个 edition 一起跑；
+但**变体专属任务不能省掉 edition 那一段**——`:app:testDebugUnitTest` 会直接报
+`Ambiguous matches`（候选：`testStandardDebugUnitTest` / `testLegacyDebugUnitTest`）。
 
 ```text
-./gradlew.bat :app:testInternalStandardDebugUnitTest
-./gradlew.bat :app:testInternalLegacyDebugUnitTest
-./gradlew.bat :app:assembleInternalStandardDebug
-./gradlew.bat :app:assembleInternalLegacyDebug
+./gradlew.bat :app:testStandardDebugUnitTest
+./gradlew.bat :app:testLegacyDebugUnitTest
+./gradlew.bat :app:assembleStandardDebug
+./gradlew.bat :app:assembleLegacyDebug
 ```
 
 两个 edition 都要打包：legacy 的 minSdk 与模糊开关不同，只编 standard 会漏掉低配分支。

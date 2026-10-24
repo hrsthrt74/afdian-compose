@@ -51,17 +51,16 @@
 
 ## 三、变体
 
-本项目有 2 个构建维度，共 4 个变体：
+只有一个构建维度 `edition`，配合两个构建类型，共 4 个变体：
 
-| 变体                   | applicationId                          | minSdk | 用途                           |
-|----------------------|----------------------------------------|--------|------------------------------|
-| `productionStandard` | `com.hrsthrt74.afdian`                 | 34     | **正式完整版**：模糊、预测性返回全开，日常使用选它  |
-| `productionLegacy`   | `com.hrsthrt74.afdian.legacy`          | 29     | 正式低配兼容版：仅供 Android 10~13 旧设备 |
-| `internalStandard`   | `com.hrsthrt74.afdian.internal`        | 34     | 内测完整版：**7 天后过期**             |
-| `internalLegacy`     | `com.hrsthrt74.afdian.internal.legacy` | 29     | 内测低配版：同样 7 天过期               |
+| 变体                | applicationId                 | minSdk | 用途                                |
+|-------------------|-------------------------------|--------|-----------------------------------|
+| `standardDebug`   | `com.hrsthrt74.afdian`        | 34     | 完整版调试包                            |
+| `standardRelease` | `com.hrsthrt74.afdian`        | 34     | **完整版**：模糊、预测性返回全开，日常使用选它         |
+| `legacyDebug`     | `com.hrsthrt74.afdian.legacy` | 29     | 低配兼容版调试包                          |
+| `legacyRelease`   | `com.hrsthrt74.afdian.legacy` | 29     | 低配兼容版：仅供 Android 10~13 旧设备        |
 
-- 不同 distribution（`production` / `internal`）包名带后缀，可与正式版**并存安装**，登录态与缓存天然隔离。
-- `internal` 包带「时间炸弹」：构建时间起 168 小时后启动即被拦在过期页（`TimeBomb`）。正式包不受影响。
+- `legacy` 通过 `applicationIdSuffix = ".legacy"` 与完整版**并存安装**，登录态与缓存天然隔离。
 
 ---
 
@@ -80,16 +79,24 @@
 
 ### 验证命令
 
-变体名必须写全，缩写会报 `Ambiguous matches`：
+变体名只有 edition 一段，任务名直接写 `standardDebug` / `legacyDebug`：
 
 ```bash
-./gradlew :app:testInternalStandardDebugUnitTest
-./gradlew :app:testInternalLegacyDebugUnitTest
-./gradlew :app:assembleInternalStandardDebug
-./gradlew :app:assembleInternalLegacyDebug
+./gradlew :app:testStandardDebugUnitTest
+./gradlew :app:testLegacyDebugUnitTest
+./gradlew :app:assembleStandardDebug
+./gradlew :app:assembleLegacyDebug
 ```
 
+`assembleDebug` / `assembleRelease` / `test` 是**聚合任务**，会把两个 edition 一起跑；
+但变体专属任务不能省掉 edition 那一段——`testDebugUnitTest` 会直接报 `Ambiguous matches`。
+
 两个 edition 都要打包：legacy 的 minSdk 与模糊开关不同，只编 standard 会漏掉低配分支。
+
+构建已开启 Gradle **配置缓存**与**构建缓存**（见 `gradle.properties`），增量构建约 2 秒。
+副作用：配置阶段取的时间戳（崩溃报告里的 `Build Time`、APK 文件名中的 MMDD 日期）会被冻结在
+「配置缓存条目创建时」，改动 `build.gradle.kts` / 依赖版本 / `gradle.properties` 后才会刷新。
+需要绝对准确的构建时间时，临时加 `--no-configuration-cache` 跑一次即可。
 
 ---
 
@@ -120,23 +127,23 @@ keyPassword=你的密钥密码
 手动发布流程：
 
 1. 改 `app/build.gradle.kts` 的 `versionCode` / `versionName`；
-2. 打包：`./gradlew :app:assembleProductionStandardRelease :app:assembleProductionLegacyRelease`；
+2. 打包：`./gradlew :app:assembleStandardRelease :app:assembleLegacyRelease`；
 3. 在 GitHub 上创建 Release，tag 填 `v1.0.0`，把两个 APK 作为附件上传上去。
 
-**附件命名不能随意改** —— 应用内「检查更新」靠文件名里的 `standard` / `legacy` / `production` / `internal` / `release` 关键字挑包。
+**附件命名不能随意改** —— 应用内「检查更新」靠文件名里的 `standard` / `legacy` / `release` 关键字挑包。
 
-构建产出的文件名格式是 `Afdian-<MMDD 日期>-<edition>-<distribution>-<buildType>.apk`：
+构建产出的文件名格式是 `Afdian-<MMDD 日期>-<edition>-<buildType>.apk`：
 
 ```
-Afdian-1022-standard-production-release.apk
-Afdian-1022-legacy-production-release.apk
+Afdian-1022-standard-release.apk
+Afdian-1022-legacy-release.apk
 ```
 
 上传前请按下面的格式**改成带版本号的名字**（中间那段日期换成版本号）：
 
 ```
-Afdian-<版本>-standard-production-release.apk
-Afdian-<版本>-legacy-production-release.apk
+Afdian-<版本>-standard-release.apk
+Afdian-<版本>-legacy-release.apk
 ```
 
 命名对不上，用户点「去下载」时会挑不到包（此时会降级为跳转到 Releases 页面）。
@@ -151,7 +158,7 @@ Afdian-<版本>-legacy-production-release.apk
 - 关闭全部模糊效果与系统预测性返回；
 
 **装错包会被拦截**：legacy 包被装在 API ≥ 34 的设备上时，`EditionGuard` 会在启动阶段直接阻断并提示换装完整版。
-这是预期行为，不是崩溃。正式包 `productionStandard` 在所有 API ≥ 34 的设备上都可用。
+这是预期行为，不是崩溃。完整版 `standardRelease` 在所有 API ≥ 34 的设备上都可用。
 
 ---
 
@@ -201,7 +208,7 @@ afdian/
 │       ├── AppLog.kt           # 全局日志门面（禁止直接用 android.util.Log）
 │       ├── CrashHandler.kt     # 本地崩溃报告
 │       ├── EditionGuard.kt     # legacy 装错包拦截
-│       └── TimeBomb.kt         # 内测包 7 天过期
+│       └── AfdianApplication.kt # 进程级初始化（日志落盘、崩溃兜底）
 ├── gradle/libs.versions.toml   # 依赖与插件版本
 ├── DESIGN.md                   # UI 规范（卡片、弹层、滚动条、状态管理）
 ├── AGENTS.md                   # AI 协作与代码风格约定

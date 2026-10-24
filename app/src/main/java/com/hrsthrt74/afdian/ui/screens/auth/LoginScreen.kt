@@ -67,8 +67,6 @@ import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.auth.SavedAccountSummary
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
-import java.text.DateFormat
-import java.util.Date
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -111,7 +109,6 @@ private const val CODE_LENGTH = 4
  * - 服务端要求人机校验时，在验证码下方就地展开图形验证码（点图片可换一张），
  *   不再弹二级弹窗，避免弹窗关闭/重开带来的输入丢失；
  * - 登录失败时输入框 label/边框变红，并在下方给出红字提示；
- * - 若传入 buildExpiresAtMs，则在底部显示「本构建将于 XXX 过期」提示；
  * - 全屏页最底部固定一行「继续登录，代表同意免责声明和爱发电的相关条款」，
  *   其中「免责声明」是链接，点击由 onOpenDisclaimer 交给调用方处理。
  *
@@ -134,7 +131,6 @@ fun LoginScreen(
     codeCooldownSeconds: Int = 0,
     captchaBytes: ByteArray? = null,
     errorMessage: String? = null,
-    buildExpiresAtMs: Long? = null,
     initialAccount: String = "",
     onClearError: () -> Unit = {},
     // 已保存账号：非空时在登录方式 Tab 与表单之间显示「点一下继续」的卡片。
@@ -526,20 +522,6 @@ fun LoginScreen(
                     }
                     Text(if (isLoggingIn) "登录中…" else "登录")
                 }
-            }
-
-            // 时间炸弹过期提示：仅在内测/调试版本且传入截止时间时显示
-            if (buildExpiresAtMs != null) {
-                val formatter = DateFormat.getDateTimeInstance()
-                Text(
-                    text = "本构建将于 ${formatter.format(Date(buildExpiresAtMs))} 过期",
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 24.dp, start = horizontalPadding, end = horizontalPadding),
-                )
             }
 
             // 底部留白：全屏页用 weight 把内容略往上推；嵌入弹层时不需要

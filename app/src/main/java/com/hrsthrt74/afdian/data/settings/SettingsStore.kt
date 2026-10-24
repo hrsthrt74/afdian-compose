@@ -302,13 +302,13 @@ class SettingsStore(private val context: Context) {
         }
 
     /**
-     * 调试日志开关，默认值按构建类型：internal 内测版默认开启（内测重在收集排查信息），
-     * 正式版默认关闭。关闭 = 普通用户模式（AppLog 只输出警告/错误）；
+     * 调试日志开关，默认值按构建类型：debug 构建默认开启（便于收集排查信息），
+     * release 默认关闭。关闭 = 普通用户模式（AppLog 只输出警告/错误）；
      * 开启 = 排查问题模式（额外输出 D 级详细日志）。
      * 用户手动改过后写入 DataStore，之后始终以存储值为准（默认值只在键缺失时兜底）。
      */
     val debugLogging: Flow<Boolean> =
-        context.settingsDataStore.data.map { it[Keys.DEBUG_LOGGING] ?: BuildConfig.INTERNAL_BUILD }
+        context.settingsDataStore.data.map { it[Keys.DEBUG_LOGGING] ?: BuildConfig.DEBUG }
 
     /**
      * 数字滚轮日志开关，默认关闭：滚轮动画每次数值刷新都会给每个数字位打一条 D 日志，
@@ -320,12 +320,12 @@ class SettingsStore(private val context: Context) {
         context.settingsDataStore.data.map { it[Keys.ODOMETER_LOGGING] ?: false }
 
     /**
-     * 日志落盘开关，默认值同 [debugLogging]：internal 内测版默认开启、正式版默认关闭。
+     * 日志落盘开关，默认值同 [debugLogging]：debug 构建默认开启、release 默认关闭。
      * 关闭时不写任何运行日志文件（崩溃报告始终记录）；开启后 D/W/E 追加写入 `files/logs/`，
      * 按天一个文件、保留 3 天。由 AfdianApplication 订阅后写入 LogStore，进程内即时生效。
      */
     val logToFile: Flow<Boolean> =
-        context.settingsDataStore.data.map { it[Keys.LOG_TO_FILE] ?: BuildConfig.INTERNAL_BUILD }
+        context.settingsDataStore.data.map { it[Keys.LOG_TO_FILE] ?: BuildConfig.DEBUG }
 
     /** 是否记录浏览历史，默认开启；关闭只暂停新增，不删除已有记录。 */
     val historyEnabled: Flow<Boolean> =

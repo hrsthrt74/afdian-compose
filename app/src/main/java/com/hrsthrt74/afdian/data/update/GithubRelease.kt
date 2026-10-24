@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 /**
  * GitHub Release 的一条附件资源（安装包就是以附件形式挂上去的）。
  *
- * @param name 附件文件名（用于判断 edition / distribution，如 `Afdian-1.0.0-standard-production-release.apk`）
+ * @param name 附件文件名（用于判断 edition，如 `Afdian-1.0.0-standard-release.apk`）
  * @param downloadUrl 直接下载地址
  * @param size 文件字节数
  */

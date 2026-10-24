@@ -66,8 +66,8 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val lastCheckAt = settingsStore.updateLastCheckAt.first()
-            if (!UpdatePolicy.shouldAutoCheck(BuildConfig.INTERNAL_BUILD, lastCheckAt, now)) {
-                AppLog.d(TAG, "跳过自动检查更新：内测包或距上次检查不足 24 小时")
+            if (!UpdatePolicy.shouldAutoCheck(lastCheckAt, now)) {
+                AppLog.d(TAG, "跳过自动检查更新：距上次检查不足 24 小时")
                 return@launch
             }
             // 先记账再发请求：失败也计入节流，避免弱网下反复打 GitHub API
@@ -175,7 +175,6 @@ private fun GithubRelease.toUpdateInfo(ignoredVersion: String): UpdateInfo? {
     val asset = pickApkAsset(
         assets = assets,
         legacyEdition = BuildConfig.LEGACY_EDITION,
-        internalBuild = BuildConfig.INTERNAL_BUILD,
     )
     return UpdateInfo(
         // 展示用版本号：把 tag 的 v 前缀去掉；解析不了就原样显示 tag

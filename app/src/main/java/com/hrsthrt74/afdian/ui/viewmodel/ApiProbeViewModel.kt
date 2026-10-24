@@ -5,7 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.BuildConfig
-import com.hrsthrt74.afdian.TimeBomb
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.probe.ApiProbeCatalog
 import com.hrsthrt74.afdian.data.probe.ApiProbeExecutor
@@ -27,18 +26,11 @@ import kotlinx.coroutines.withContext
 /**
  * 页面顶部的环境信息快照。
  *
- * 刻意不做秒级 ticker：调试页没人会盯着倒计时看，秒级重组纯属浪费。
  * 需要刷新时由用户点页面里的「刷新」或重新进入页面触发 [ApiProbeViewModel.refreshEnvironment]。
  */
 data class ProbeEnvironment(
-    /** 打包变体名，如 internalStandardDebug / productionStandardDebug */
+    /** 打包变体名，如 standardDebug / legacyRelease */
     val variantName: String,
-    /** 是否是内测包（受时间炸弹约束） */
-    val internalBuild: Boolean,
-    /** 探针有效期截止时间戳（构建时间 + 7 天） */
-    val expiresAtMs: Long,
-    /** 距离截止还剩多少毫秒；已过期为 0 */
-    val remainingMs: Long,
     /** 本地是否已有 auth_token。注意只暴露布尔值，绝不暴露 token 本身 */
     val loggedIn: Boolean,
 )
@@ -106,12 +98,8 @@ class ApiProbeViewModel(application: Application) : AndroidViewModel(application
     fun refreshEnvironment() {
         viewModelScope.launch {
             val token = withContext(Dispatchers.IO) { tokenStore.token }
-            val expiresAt = TimeBomb.expiresAt(BuildConfig.BUILD_TIMESTAMP_MS)
             _environment.value = ProbeEnvironment(
                 variantName = BuildConfig.APP_VARIANT_NAME,
-                internalBuild = BuildConfig.INTERNAL_BUILD,
-                expiresAtMs = expiresAt,
-                remainingMs = (expiresAt - System.currentTimeMillis()).coerceAtLeast(0L),
                 loggedIn = !token.isNullOrBlank(),
             )
             // 只记录「有没有 token」，绝不打印 token 内容

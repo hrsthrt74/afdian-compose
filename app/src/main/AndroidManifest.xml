@@ -38,7 +38,7 @@
         </activity>
 
         <!-- FileProvider：仅供「日志导出」向分享面板提供日志文件。
-             authority 用 ${applicationId} 动态拼接（internal/legacy 变体有 applicationIdSuffix，
+             authority 用 ${applicationId} 动态拼接（legacy 变体有 applicationIdSuffix，
              硬编码包名会导致后缀变体上 getUriForFile 直接抛 IllegalArgumentException）。 -->
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -28,9 +28,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 触发条件见 `EditionGuard`：legacy 兼容版跑在 API 34 及以上的设备上。
  * 该页只有「退出」一条出路 —— 换装完整版是唯一正确的解法，所以不提供任何继续使用的入口。
  *
- * 视觉与 [ExpiredScreen] 保持一致（title1 标题 + 正文 + footnote2 注脚 + 全宽按钮），
+ * 视觉与其他全屏提示页保持一致（title1 标题 + 正文 + footnote2 注脚 + 全宽按钮），
  * 区别只有两点：
- * 1. 外层用 [Box] 居中、内层 [Column] 可滚动 —— 本页文案比过期页长，
+ * 1. 外层用 [Box] 居中、内层 [Column] 可滚动 —— 本页文案较长，
  *    横屏/小窗下内容超出视口时能滚动，不会把「退出」按钮顶出屏幕；
  * 2. 系统返回键显式对齐「退出」按钮（[BackHandler]）。
  *
@@ -64,7 +64,7 @@ fun WrongEditionScreen(onExit: () -> Unit) {
             )
 
             Text(
-                text = "请前往内测群获取文件名包含「Standard」的包体~",
+                text = "请从 GitHub Releases 下载文件名包含「standard」的安装包~",
                 modifier = Modifier.padding(top = 16.dp),
                 textAlign = TextAlign.Center,
             )
@@ -80,7 +80,7 @@ fun WrongEditionScreen(onExit: () -> Unit) {
             )
 
             // 注脚：当前包名。用 BuildConfig.APPLICATION_ID 拼，不要写死 .legacy ——
-            // internalLegacy 的实际包名是 com.hrsthrt74.afdian.internal.legacy
+            // legacy 变体的实际包名是 com.hrsthrt74.afdian.legacy
             Text(
                 text = "当前安装包：${BuildConfig.APPLICATION_ID}",
                 modifier = Modifier.padding(top = 4.dp),

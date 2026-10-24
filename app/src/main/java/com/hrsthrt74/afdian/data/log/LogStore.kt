@@ -103,12 +103,12 @@ class LogStore private constructor(context: Context) {
     /**
      * 是否把运行日志追加写入文件（「写入日志文件」开关）。
      * 由 AfdianApplication 订阅 DataStore 后写入，进程内即时生效。
-     * 初值按构建类型：internal 内测版默认开启——DataStore 读出用户设置前的启动最初几条
+     * 初值按构建类型：debug 构建默认开启——DataStore 读出用户设置前的启动最初几条
      * 日志（恰恰是崩溃多发段）也能落盘；用户手动关过后会被订阅校正回 false。
      * 注意：只控制 `app-*.log`；崩溃报告始终记录。
      */
     @Volatile
-    var fileLoggingEnabled: Boolean = BuildConfig.INTERNAL_BUILD
+    var fileLoggingEnabled: Boolean = BuildConfig.DEBUG
 
     /** writer 线程：守护线程，进程退出不阻塞；所有文件状态只被它触碰 */
     private val writerThread = Thread({

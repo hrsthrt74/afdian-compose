@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
  *
  * 之所以新增 Application 类而不是把初始化挂在 MainActivity：
  * 崩溃可能发生在 MainActivity 之前的任何阶段（Application / 首个 Activity 创建），
- * 挂在 Activity 上会漏掉最早期的崩溃——而这恰恰是内测用户最需要被记录的。
+ * 挂在 Activity 上会漏掉最早期的崩溃——而这恰恰是线上用户最需要被记录的。
  *
  * 注意：本类越轻越好，严禁在这里做耗时初始化（会影响冷启动）。
  */

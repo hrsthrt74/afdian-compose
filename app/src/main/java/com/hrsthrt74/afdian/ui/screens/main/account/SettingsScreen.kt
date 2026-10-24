@@ -830,7 +830,7 @@ private fun SettingsScreenContent(
                     )
                 }
 
-                // 构建类型提示：居中小字显示当前打包变体（如 productionStandardRelease），
+                // 构建类型提示：居中小字显示当前打包变体（如 standardRelease），
                 // 便于区分测试包来源；样式沿用 DESIGN.md「列表内小字」的统一约定
                 item {
                     Text(

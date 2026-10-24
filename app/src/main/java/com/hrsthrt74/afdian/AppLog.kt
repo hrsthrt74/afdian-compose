@@ -44,13 +44,13 @@ object AppLog {
 
     /**
      * 是否输出调试级（D）日志。
-     * 初值按构建类型：internal 内测版默认开启——用户设置要等 DataStore 读出后才写入本字段，
+     * 初值按构建类型：debug 构建默认开启——用户设置要等 DataStore 读出后才写入本字段，
      * 若初值固定 false，启动最初几百毫秒（恰恰是崩溃多发段）的 D 日志会缺席。
      * DataStore 读出后由 MainActivity 按用户实际设置校正（手动关过则回落 false）。
      * @Volatile 保证 UI 线程写入后，网络/IO 线程能立即读到最新值。
      */
     @Volatile
-    var debugEnabled: Boolean = BuildConfig.INTERNAL_BUILD
+    var debugEnabled: Boolean = BuildConfig.DEBUG
 
     /**
      * 日志落盘回调，由 AfdianApplication 注入 `LogStore::enqueue`。

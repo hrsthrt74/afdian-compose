@@ -37,7 +37,7 @@ fun AfdianTheme(
     // Monet 种子色预设；[KeyColorPreset.System] 表示跟随系统壁纸
     keyColor: KeyColorPreset = KeyColorPreset.Default,
     // 是否等主题 DataStore 首值到达后再组合内容。
-    // 必须无条件展示的阻断页（时间炸弹过期 / 装错 edition）传 false：
+    // 必须无条件展示的阻断页（装错 edition）传 false：
     // 这类页面的存在意义就是「无论如何都要让用户看见」，不能被一个偏好文件的读取挡在启动画面后面。
     // 其余调用点保持默认 true，行为与之前完全一致。
     waitForThemeSettings: Boolean = true,

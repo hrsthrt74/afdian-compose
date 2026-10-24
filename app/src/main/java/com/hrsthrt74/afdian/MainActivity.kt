@@ -54,7 +54,6 @@ import com.hrsthrt74.afdian.ui.navigation.AppNavTransition
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.screens.auth.AddAccountOverlay
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
-import com.hrsthrt74.afdian.ui.screens.auth.ExpiredScreen
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
 import com.hrsthrt74.afdian.ui.screens.auth.WrongEditionScreen
 import com.hrsthrt74.afdian.ui.screens.main.MainScreen
@@ -101,8 +100,7 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition { !appReady.value }
 
         // 「装错版本」拦截：legacy 兼容版跑在 API >= standard 的 minSdk 上时，
-        // 属于装错包，直接阻断。判定早于时间炸弹并立即 return ——
-        // 被拦的包不必再算过期时间，也不会初始化 AfdianApp 里的 DataStore / ImageLoader。
+        // 属于装错包，直接阻断并立即 return —— 被拦的包不会初始化 AfdianApp 里的 DataStore / ImageLoader。
         // 这是全工程唯一的 Activity（Manifest 里没有第二个入口、没有 deep link），拦在此处即无绕过路径。
         if (EditionGuard.isBlocked()) {
             AppLog.w(
@@ -122,29 +120,9 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // 内测版「时间炸弹」逻辑
-        val expired = BuildConfig.DEBUG || BuildConfig.INTERNAL_BUILD
-        val now = System.currentTimeMillis()
-        val expiresAt = TimeBomb.expiresAt(BuildConfig.BUILD_TIMESTAMP_MS)
-        if (expired && TimeBomb.isExpired(BuildConfig.BUILD_TIMESTAMP_MS, now)) {
-            AppLog.w("TimeBomb", "时间炸弹已过期，阻断应用启动 expiresAt=$expiresAt")
-        } else {
-            AppLog.d("TimeBomb", "时间炸弹检查通过 enabled=$expired expiresAt=$expiresAt")
-        }
+        // 拦截通过后进入正常界面：只有一条路径，不再按过期状态二选一
         setContent {
-            if (expired && TimeBomb.isExpired(BuildConfig.BUILD_TIMESTAMP_MS, System.currentTimeMillis())) {
-                appReady.value = true
-                // 时间炸弹触发
-                AfdianTheme {
-                    ExpiredScreen(
-                        buildTimestampMs = BuildConfig.BUILD_TIMESTAMP_MS,
-                        expiresAtMs = expiresAt,
-                        onExit = ::finishAndRemoveTask,
-                    )
-                }
-        } else {
-            AfdianApp(appReady, expiresAtMs = expiresAt)
-        }
+            AfdianApp(appReady)
         }
     }
 }
@@ -152,7 +130,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AfdianApp(
     appReady: MutableState<Boolean>,
-    expiresAtMs: Long? = null,
     session: AuthSession = viewModel(),
 ) {
     val context = LocalContext.current
@@ -199,8 +176,8 @@ private fun AfdianApp(
     // Monet 种子色预设；仅在 monetEnabled 为 true 时参与主题
     val keyColor by settingsStore.keyColor.collectAsState(initial = KeyColorPreset.Default)
     // 调试日志开关：订阅 DataStore 并写入全局 AppLog，切换后即时生效、无需重启。
-    // initial 跟随构建类型默认值，避免 internal 版首帧先按 false 误关一次再被 DataStore 读回 true
-    val debugLogging by settingsStore.debugLogging.collectAsState(initial = BuildConfig.INTERNAL_BUILD)
+    // initial 跟随构建类型默认值，避免 debug 版首帧先按 false 误关一次再被 DataStore 读回 true
+    val debugLogging by settingsStore.debugLogging.collectAsState(initial = BuildConfig.DEBUG)
     // 数字滚轮日志开关：滚轮动画日志量极大（每个数字位都打一条），默认关闭 = 静音该类 D 日志。
     // initial 与 DataStore 默认值（false）一致，避免首帧按 true 误放行一次
     val odometerLogging by settingsStore.odometerLogging.collectAsState(initial = false)
@@ -430,7 +407,6 @@ private fun AfdianApp(
                                             codeCooldownSeconds = codeCooldown,
                                             captchaBytes = captchaBytes,
                                             errorMessage = error,
-                                            buildExpiresAtMs = expiresAtMs,
                                             onClearError = session::clearError,
                                             // 已保存账号：退出当前账号后其他账号仍留在本地，
                                             // 卡片点一下即可免密切回去（预检失败会弹提示）

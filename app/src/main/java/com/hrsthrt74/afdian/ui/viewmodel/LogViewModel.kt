@@ -46,13 +46,13 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsStore = SettingsStore(application)
 
     /** 「写入日志文件」开关：DataStore 流转成 StateFlow，写入后自动回推 UI；
-     *  initial 跟随构建类型默认值（internal 版默认开），避免首帧显示错值 */
+     *  initial 跟随构建类型默认值（debug 版默认开），避免首帧显示错值 */
     val fileLogging: StateFlow<Boolean> = settingsStore.logToFile
-        .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.INTERNAL_BUILD)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.DEBUG)
 
     /** 「调试日志」开关（从设置页「关于」分组迁移至此，与日志工作流归为一处） */
     val debugLogging: StateFlow<Boolean> = settingsStore.debugLogging
-        .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.INTERNAL_BUILD)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.DEBUG)
 
     /** 「数字滚轮日志」开关：滚轮动画日志量极大，默认关闭；仅在「调试日志」开启时有意义 */
     val odometerLogging: StateFlow<Boolean> = settingsStore.odometerLogging

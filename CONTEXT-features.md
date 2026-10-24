@@ -619,19 +619,19 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 日志页（LogScreen）
 
 - 入口在设置页「其他」分组。页面结构：记录（两个开关）→ 状态（占用 / 文件数）→ 导出（分享 / 保存到本地）→ 清空日志 + 说明小字。
-- **职责与动机**：内测用户遇到闪退时只有 Logcat 可看，无法向开发者提供任何线索。日志页补齐三件事：
+- **职责与动机**：用户遇到闪退时只有 Logcat 可看，无法向开发者提供任何线索。日志页补齐三件事：
   运行日志落盘、崩溃捕获、导出。所有文件操作集中在 `data/log/LogStore.kt`，纯函数（命名 / 淘汰 / 行格式化 / 合并）
   在 `data/log/LogFileNaming.kt`（见 `LogFileNamingTest`）。
 - **写入管线**（`LogStore`）：
   - `AppLog` 保持零依赖：只多了一个 `sink` 回调注入点（`AfdianApplication.onCreate` 里接通 `LogStore::enqueue`）；
     sink 为 null（Application 之前）时只走 Logcat，不丢不崩。
-  - D 级日志只在「调试日志」开关开启时落盘（与 Logcat 行为一致）；**W/E 始终落盘**——内测用户没开调试日志也能导出报错。
+  - D 级日志只在「调试日志」开关开启时落盘（与 Logcat 行为一致）；**W/E 始终落盘**——用户没开调试日志也能导出报错。
   - 「写入日志文件」开关（DataStore 键 `log_to_file`）只控制运行日志；**崩溃报告不受它控制，始终记录**——这是本功能存在的意义。
-  - **两个开关（写入日志文件 / 调试日志）的默认值都是 `BuildConfig.INTERNAL_BUILD`**：internal 内测版默认全开、
-    正式版默认关闭；用户手动改过后以存储值为准（默认值只在键缺失时兜底）。
-    `AppLog.debugEnabled` / `LogStore.fileLoggingEnabled` 的**字段初值**也取 `INTERNAL_BUILD`，
+  - **两个开关（写入日志文件 / 调试日志）的默认值都是 `BuildConfig.DEBUG`**：debug 构建默认全开、
+    release 默认关闭；用户手动改过后以存储值为准（默认值只在键缺失时兜底）。
+    `AppLog.debugEnabled` / `LogStore.fileLoggingEnabled` 的**字段初值**也取 `DEBUG`，
     保证 DataStore 读取完成前的启动初期（崩溃多发段）日志不缺席，读出后由订阅方按真实设置校正；
-    `MainActivity` / `LogViewModel` 的 collect 初值同步取 `INTERNAL_BUILD`，避免 internal 版首帧「先误关再读回」的闪烁。
+    `MainActivity` / `LogViewModel` 的 collect 初值同步取 `DEBUG`，避免 debug 版首帧「先误关再读回」的闪烁。
   - 命令队列模型：写 / flush / 清空 / 淘汰统一建模成 `LogCommand`，全部在唯一 writer 线程串行执行（文件句柄免锁）；
     `LinkedBlockingQueue(4096)` 满时丢最旧并记账，flush 时补一条「日志队列已满，丢弃 N 条」标记。
     flush / clear 用 `CountDownLatch` + 超时（1s / 3s）转同步。
@@ -647,7 +647,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   （挂在 MainActivity 会漏掉启动阶段的崩溃）。
 - **导出**：合并为**单个 log 文件**（崩溃报告置顶 + 运行日志按日期升序，末尾半截行裁掉），
   分享（`ACTION_SEND` + FileProvider，mimeType `text/plain`）与保存到本地（`CreateDocument`，对齐 `IncomeDetailScreen` 的 CSV 导出）共用一份合并逻辑。
-  FileProvider 的 authority 用 `${applicationId}.fileprovider` 动态拼接（internal / legacy 有 `applicationIdSuffix`，硬编码包名会崩）；
+  FileProvider 的 authority 用 `${applicationId}.fileprovider` 动态拼接（legacy 有 `applicationIdSuffix`，硬编码包名会崩）；
   `file_paths.xml` 白名单**只暴露 `logs/`**（绝不能 `path="."`，会把 DataStore 登录凭证暴露给接收方）；
   分享 Intent 带 `ClipData` + `FLAG_GRANT_READ_URI_PERMISSION` 双保险（chooser 场景缺 ClipData 会 Permission Denial）。
 - **敏感信息**：`sanitizeSensitive`（`LogFileNaming`）在落盘与导出前把 `auth_token=` / `Cookie:` / `"token":` 替换为 `***`，
@@ -661,8 +661,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 接口调试页（ApiProbeScreen）
 
-- 入口在设置页「其他」分组（与「存储空间管理」「日志管理」同卡），**所有变体常驻**（含 production）。
-  页面结构：环境（构建变体 / 探针有效期 / 登录态）→ 操作（一键全跑 / 清空结果 / 重新读取登录态）→ 说明小字 → 探针卡片列表。
+- 入口在设置页「其他」分组（与「存储空间管理」「日志管理」同卡），**所有变体常驻**。
+  页面结构：环境（构建变体）→ 操作（一键全跑 / 清空结果 / 重新读取登录态）→ 说明小字 → 探针卡片列表。
 - **职责与动机**：排查「数据卡片上的数字对不上」时，需要绕过 Repository 的解析与聚合，直接看接口原文。
   典型诉求是「`/api/my/dashboard` 的 `summary.month_amount` 现在到底是多少」。因此做的是**主动探针**（点一下跑一次），
   而不是在 OkHttp 上挂拦截器自动抓包——探针可控、可复现，想查哪个查哪个。
@@ -748,7 +748,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `CrashHandler.kt`：全局未捕获异常捕获，崩溃报告落盘后交还系统 handler。
 - `AppLog.kt`：全局日志门面（Logcat + 落盘 sink 注入点）。
 - `ui/screens/main/`：所有主页面（Home、Discover、PostDetail、Messages、Profile、CreatorDetail、Favorites、Sponsoring、Order、Management、ThankSponsors、Settings、History、OssLicenses、Storage、Log、ApiProbe）。
-- `ui/screens/auth/`：登录、免责声明、时间炸弹过期页（`ExpiredScreen`）、装错版本阻断页（`WrongEditionScreen`）。
+- `ui/screens/auth/`：登录、免责声明、装错版本阻断页（`WrongEditionScreen`）。
 - `ui/components/`：通用组件；`ui/components/data/`：数据卡片与图表组件（ChartDataCard、DonutChart）；`ui/components/home/`：首页模块组件（`IncomeStatTable.kt` 为收入明细页与首页共用的表格行组件，日期列可按需附带星期）。
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
 - `data/auth/`：认证状态、Token 存储、登录请求和加密载荷。

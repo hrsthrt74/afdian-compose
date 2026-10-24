@@ -72,53 +72,57 @@ class UpdateVersionTest {
     @Test
     fun pickApkMatchesCurrentVariant() {
         val assets = listOf(
-            asset("Afdian-1.0.0-standard-production-release.apk"),
-            asset("Afdian-1.0.0-legacy-production-release.apk"),
-            asset("Afdian-1.0.0-standard-internal-release.apk"),
+            asset("Afdian-1.0.0-standard-release.apk"),
+            asset("Afdian-1.0.0-legacy-release.apk"),
+            asset("Afdian-1.0.0-standard-debug.apk"),
         )
 
-        // 正式完整版：standard + production
-        val standard = pickApkAsset(assets, legacyEdition = false, internalBuild = false)
-        assertEquals("Afdian-1.0.0-standard-production-release.apk", standard?.name)
+        // 完整版：standard
+        val standard = pickApkAsset(assets, legacyEdition = false)
+        assertEquals("Afdian-1.0.0-standard-release.apk", standard?.name)
 
         // 低配兼容版：legacy
-        val legacy = pickApkAsset(assets, legacyEdition = true, internalBuild = false)
-        assertEquals("Afdian-1.0.0-legacy-production-release.apk", legacy?.name)
+        val legacy = pickApkAsset(assets, legacyEdition = true)
+        assertEquals("Afdian-1.0.0-legacy-release.apk", legacy?.name)
+    }
 
-        // 内测完整版：standard + internal
-        val internal = pickApkAsset(assets, legacyEdition = false, internalBuild = true)
-        assertEquals("Afdian-1.0.0-standard-internal-release.apk", internal?.name)
+    @Test
+    fun pickApkIgnoresDeprecatedInternalAsset() {
+        // 历史 Release 里可能还挂着已废弃的 internal 内测包：
+        // 它不能被标准版选中，否则会把用户推去装一个包名不同的旧渠道包
+        val assets = listOf(
+            asset("Afdian-1.0.0-standard-internal-release.apk"),
+            asset("Afdian-1.0.0-standard-release.apk"),
+        )
+        assertEquals(
+            "Afdian-1.0.0-standard-release.apk",
+            pickApkAsset(assets, legacyEdition = false)?.name,
+        )
     }
 
     @Test
     fun pickApkPrefersReleaseOverDebug() {
         val assets = listOf(
-            asset("Afdian-1.0.0-standard-production-debug.apk"),
-            asset("Afdian-1.0.0-standard-production-release.apk"),
+            asset("Afdian-1.0.0-standard-debug.apk"),
+            asset("Afdian-1.0.0-standard-release.apk"),
         )
-        val picked = pickApkAsset(assets, legacyEdition = false, internalBuild = false)
-        assertEquals("Afdian-1.0.0-standard-production-release.apk", picked?.name)
+        val picked = pickApkAsset(assets, legacyEdition = false)
+        assertEquals("Afdian-1.0.0-standard-release.apk", picked?.name)
     }
 
     @Test
     fun pickApkReturnsNullWhenNoApk() {
-        assertNull(pickApkAsset(emptyList(), legacyEdition = false, internalBuild = false))
+        assertNull(pickApkAsset(emptyList(), legacyEdition = false))
         // 只有非 APK 附件时也没有可挑的
-        assertNull(pickApkAsset(listOf(asset("source.zip")), legacyEdition = false, internalBuild = false))
+        assertNull(pickApkAsset(listOf(asset("source.zip")), legacyEdition = false))
     }
 
     // ── 自动检查节流 ──
 
     @Test
-    fun internalBuildNeverAutoChecks() {
-        val now = 1_000_000_000L
-        assertFalse(UpdatePolicy.shouldAutoCheck(internalBuild = true, lastCheckAtMs = 0L, nowMs = now))
-    }
-
-    @Test
     fun firstCheckAlwaysRuns() {
         val now = 1_000_000_000L
-        assertTrue(UpdatePolicy.shouldAutoCheck(internalBuild = false, lastCheckAtMs = 0L, nowMs = now))
+        assertTrue(UpdatePolicy.shouldAutoCheck(lastCheckAtMs = 0L, nowMs = now))
     }
 
     @Test
@@ -129,11 +133,11 @@ class UpdateVersionTest {
         val twoDaysAgo = now - 2 * UpdatePolicy.AUTO_CHECK_INTERVAL_MS
 
         // 一小时内查过：不查
-        assertFalse(UpdatePolicy.shouldAutoCheck(false, oneHourAgo, now))
+        assertFalse(UpdatePolicy.shouldAutoCheck(oneHourAgo, now))
         // 刚好满 24 小时：查
-        assertTrue(UpdatePolicy.shouldAutoCheck(false, oneDayAgo, now))
+        assertTrue(UpdatePolicy.shouldAutoCheck(oneDayAgo, now))
         // 超过 24 小时：查
-        assertTrue(UpdatePolicy.shouldAutoCheck(false, twoDaysAgo, now))
+        assertTrue(UpdatePolicy.shouldAutoCheck(twoDaysAgo, now))
     }
 
     /** 构造一个只有名字的附件对象（其余字段用不上）。 */

@@ -67,25 +67,28 @@ fun isNewerVersion(candidate: String, current: String): Boolean {
 /**
  * 从 Release 的附件里挑出「当前变体该装的那个包」。
  *
- * 命名约定（由发布流程保证，见 README 的「发布流程」一节）：
- * `Afdian-<MMDD>-<edition>-<distribution>-<buildType>.apk`
- * 例如 `Afdian-1022-standard-production-release.apk`。
+ * 命名约定（由发布流程保证，见 README 的「版本号与发布流程」一节）：
+ * `Afdian-<版本>-<edition>-<buildType>.apk`
+ * 例如 `Afdian-1.0.0-standard-release.apk`。
  *
  * 挑选规则：
- * 1. 只看 `.apk` 结尾的附件；
+ * 1. 只看 `.apk` 结尾的附件，并排除历史上残留的 `internal` 内测附件；
  * 2. edition 必须与当前安装包一致（legacy 包只装 legacy，反之亦然）——
  *    装错 edition 会被 `EditionGuard` 在启动时直接拦掉；
- * 3. distribution 优先与当前一致（internal 内测包与正式包不同渠道）；
- * 4. 同名候选里 release 优先于 debug。
+ * 3. 同名候选里 release 优先于 debug。
  *
  * 挑不到时返回 null，调用方降级为「去 Releases 页面自己挑」。
  */
 fun pickApkAsset(
     assets: List<GithubAsset>,
     legacyEdition: Boolean,
-    internalBuild: Boolean,
 ): GithubAsset? {
-    val apks = assets.filter { it.name.endsWith(".apk", ignoreCase = true) }
+    // 排除已废弃的 internal 内测附件：历史 Release 里若还留着，
+    // 会被正版包当成可用更新推给用户
+    val apks = assets.filter { asset ->
+        asset.name.endsWith(".apk", ignoreCase = true) &&
+            !asset.name.contains("internal", ignoreCase = true)
+    }
     if (apks.isEmpty()) return null
 
     // edition 必须匹配：文件名里带 legacy 的只给 legacy 包用
@@ -94,15 +97,9 @@ fun pickApkAsset(
     }
     val pool = editionMatched.ifEmpty { apks }
 
-    // distribution 优先匹配（匹配不到就退回全部，渠道不同总比没有强）
-    val distributionMatched = pool.filter { asset ->
-        asset.name.contains("internal", ignoreCase = true) == internalBuild
-    }
-    val finalPool = distributionMatched.ifEmpty { pool }
-
     // release 优先于 debug
-    return finalPool.firstOrNull { it.name.contains("release", ignoreCase = true) }
-        ?: finalPool.firstOrNull()
+    return pool.firstOrNull { it.name.contains("release", ignoreCase = true) }
+        ?: pool.firstOrNull()
 }
 
 /**
@@ -119,18 +116,13 @@ object UpdatePolicy {
     /**
      * 现在是否值得做一次自动检查。
      *
-     * @param internalBuild 是否是内测包：内测包不查正式版更新
      * @param lastCheckAtMs 上次检查时间戳（0 表示从未检查过）
      * @param nowMs 当前时间戳
      */
     fun shouldAutoCheck(
-        internalBuild: Boolean,
         lastCheckAtMs: Long,
         nowMs: Long,
     ): Boolean {
-        // 内测包永远不查：内测包的版本号与正式版不是一条线，
-        // 拿正式版 release 去比较只会得出莫名其妙的结论
-        if (internalBuild) return false
         // 从未检查过：值得查一次
         if (lastCheckAtMs <= 0L) return true
         // 24 小时内查过：不查

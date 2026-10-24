@@ -78,15 +78,15 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 所有变体都写入构建时间，正式版虽然不启用时间炸弹，但保留字段可避免
-        // 不同变体的 BuildConfig 结构不一致。
+        // 所有变体都写入构建时间：崩溃报告（CrashHandler）的 Build Time 字段用它，
+        // 同时保证不同变体的 BuildConfig 结构一致。
         buildConfigField("long", "BUILD_TIMESTAMP_MS", "${System.currentTimeMillis()}L")
-        buildConfigField("boolean", "INTERNAL_BUILD", "false")
         // 是否支持模糊效果：完整版恒为 true；legacy 低配版在自身 flavor 里覆盖为 false，
-        // ThemeRepository 据此在数据源层关闭全部模糊。三处显式声明保持 BuildConfig 结构一致。
+        // ThemeRepository 据此在数据源层关闭全部模糊。defaultConfig + standard + legacy
+        // 三处各声明一次，保证每个变体的 BuildConfig 字段集合完全一致。
         buildConfigField("boolean", "SUPPORT_BLUR", "true")
         // 是否支持系统预测性返回：legacy 低配版强制关闭（PredictiveBackGuard 拦截系统返回
-        // 事件、降级为普通返回）。同样三处显式声明保持 BuildConfig 结构一致。
+        // 事件、降级为普通返回）。同样三处各声明一次，保持 BuildConfig 结构一致。
         buildConfigField("boolean", "SUPPORT_PREDICTIVE_BACK", "true")
         // 完整版的 minSdk，同时是 legacy 包的运行时拦截阈值。由 Gradle 注入而不是在 Kotlin
         // 里写死，保证「调 minSdk」和「调拦截阈值」永远是同一个动作。
@@ -103,25 +103,12 @@ android {
         noCompress += "ttf"
     }
 
-    // 维度声明顺序决定变体名拼接顺序：distribution 在前，edition 在后。
-    flavorDimensions += "distribution"
-    // edition 维度：standard=完整版，legacy=低配兼容版（minSdk 29、无模糊）
+    // 唯一的 flavor 维度：standard=完整版，legacy=低配兼容版（minSdk 29、无模糊）。
+    // 单维度下变体名即 standardDebug / standardRelease / legacyDebug / legacyRelease。
     flavorDimensions += "edition"
     productFlavors {
-        // 保留正式渠道的无后缀包名；加入 flavor 维度后，正式变体名称为 productionStandardRelease。
-        create("production") {
-            dimension = "distribution"
-            buildConfigField("boolean", "INTERNAL_BUILD", "false")
-            isDefault = true
-        }
-        create("internal") {
-            dimension = "distribution"
-            // 内测版与正式版并存安装，登录态和缓存也自然隔离。
-            applicationIdSuffix = ".internal"
-            buildConfigField("boolean", "INTERNAL_BUILD", "true")
-        }
-        // 完整版：显式创建以固定变体命名（若缺失 standard，distribution 维度会直接与
-        // legacy 拼接，变体名错位）。
+        // 完整版：模糊、预测性返回全开，minSdk 跟随 defaultConfig（34）。
+        // 不设 applicationIdSuffix：沿用 com.hrsthrt74.afdian。
         create("standard") {
             dimension = "edition"
             buildConfigField("boolean", "SUPPORT_BLUR", "true")
@@ -180,7 +167,7 @@ android {
         buildConfig = true
     }
     // JVM 单元测试里 android.util.Log 是「未实现的桩」：一调用就抛 RuntimeException。
-    // 数据层按项目规范要走 AppLog（内部包 debugEnabled 默认开），测试 ChartModel 这类
+    // 数据层按项目规范要走 AppLog（debug 构建 debugEnabled 默认开），测试 ChartModel 这类
     // 带日志的业务函数必然踩到。打开默认值返回后，Log.x 变成空转，测试才能只验业务逻辑。
     testOptions {
         unitTests.isReturnDefaultValues = true
@@ -193,16 +180,13 @@ aboutLibraries {
 }
 
 // 打包日期，格式 MMDD（例：8 月 9 日 -> 0809），用于拼装 APK 输出文件名。
-// 配置阶段每次构建都会重新执行（本项目未启用 configuration cache，见 gradle.properties），
-// 所以取的是打包当天的日期，与 BUILD_TIMESTAMP_MS 的取值时机一致。
+// 与 BUILD_TIMESTAMP_MS 同源同刻：都在配置阶段取值，因此启用配置缓存后同样被冻结在
+// 「配置缓存条目创建时」（见 gradle.properties）。同一天内反复构建文件名不会变；
+// 跨天但配置未改动时，文件名里的日期会停留在旧值——只影响文件名，不影响产物内容。
 val buildDateSuffix: String = LocalDate.now()
     .format(DateTimeFormatter.ofPattern("MMdd"))
 
-// APK 文件名里 flavor 维度的排列顺序：edition（standard/legacy）在前、distribution（production/internal）在后。
-// 注意：只影响文件名，AGP 原生变体名（APP_VARIANT_NAME、输出目录）仍按 flavorDimensions 的声明顺序。
-private val apkFileNameFlavorOrder = listOf("edition", "distribution")
-
-// 每个变体写入自己的完整变体名（如 productionStandardDebug / internalLegacyDebug），
+// 每个变体写入自己的完整变体名（如 standardDebug / legacyRelease），
 // 供设置页底部居中小字提示当前打包类型；同时定制 APK 输出文件名
 androidComponents {
     onVariants { variant ->
@@ -213,12 +197,10 @@ androidComponents {
             BuildConfigField("String", "\"${variant.name}\"", null)
         )
 
-        // 自定义 APK 文件名，默认的 app-productionStandardRelease.apk 不便区分变体。
-        // 目标格式：Afdian-0809-standard-internal-debug.apk（日期为打包当天 MMDD）
-        // flavor 部分按 apkFileNameFlavorOrder 重排：edition 在前、distribution 在后
-        val flavorPart = variant.productFlavors
-            .sortedBy { apkFileNameFlavorOrder.indexOf(it.first) }
-            .joinToString("-") { it.second }
+        // 自定义 APK 文件名，默认的 app-standardRelease.apk 不含打包日期。
+        // 目标格式：Afdian-1024-standard-release.apk（日期为打包当天 MMDD）
+        // 只剩 edition 一个 flavor 维度，直接拼接即可，无需重排
+        val flavorPart = variant.productFlavors.joinToString("-") { it.second }
         // 构建类型（debug / release）单独取，避免依赖变体名的驼峰切分
         val buildTypePart = variant.buildType ?: "unknown"
         val fileName = "Afdian-${buildDateSuffix}-$flavorPart-$buildTypePart.apk"

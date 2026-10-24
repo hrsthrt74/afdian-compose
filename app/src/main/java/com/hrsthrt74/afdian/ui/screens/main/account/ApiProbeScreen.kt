@@ -213,12 +213,6 @@ fun ApiProbeScreen(
                         )
                     }
                 }
-                item(key = "env_title") {
-                    SmallTitle(text = "环境", modifier = Modifier.padding(SectionTitlePaddingPage))
-                }
-                item(key = "env_card") {
-                    EnvironmentCard(environment = environment)
-                }
 
                 when (loggedIn) {
                     // 登录态还没读出来：给个明确的加载态，避免闪一下空态
@@ -304,45 +298,6 @@ fun ApiProbeScreen(
         onDismiss = { detailProbeId = null },
         onRerun = { detailCard?.let { viewModel.runOne(it.spec.id) } },
     )
-}
-
-/**
- * 环境信息卡片：构建变体、探针有效期。
- *
- * 安全约定：登录态只显示「已登录 / 未登录」，**任何情况下都不展示 token 内容**。
- */
-@Composable
-private fun EnvironmentCard(environment: ProbeEnvironment?) {
-    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-        // 构建变体：与设置页底部同一来源，便于区分测试包
-        BasicComponent(
-            title = "构建变体",
-//            summary = if (environment?.internalBuild == true) "内测版" else "正式版",
-            endActions = { EnvValue(environment?.variantName ?: "读取中…") },
-        )
-        // 探针有效期：内测包由时间炸弹限制 7 天；正式版不会锁，这里仅作展示
-        BasicComponent(
-            title = "内测包体有效期剩余",
-//            summary = "构建时间起 7 天",
-            endActions = { EnvValue(environment?.let { formatRemaining(it.remainingMs) } ?: "读取中…") },
-        )
-        /*
-        // 登录态：只暴露布尔值，绝不显示凭据
-        BasicComponent(
-            title = "登录态",
-            summary = "请求会携带本地 auth_token",
-            endActions = {
-                EnvValue(
-                    when (environment?.loggedIn) {
-                        null -> "读取中…"
-                        true -> "已登录"
-                        false -> "未登录"
-                    }
-                )
-            },
-        )
-        */
-    }
 }
 
 /**
@@ -909,16 +864,6 @@ private fun MonospaceJsonBlock(text: String) {
     }
 }
 
-/** 环境信息行右侧的值，样式与设置页 / 日志页的 `BasicComponent` 值保持一致。 */
-@Composable
-private fun EnvValue(text: String) {
-    Text(
-        text = text,
-        style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-    )
-}
-
 /** 取原始 JSON：成功与失败都可能带响应体（例如业务失败时服务端仍会回 em 与 data）。 */
 private fun ApiProbeResult.rawJsonOrNull(): String? = when (this) {
     is ApiProbeResult.Success -> rawJson
@@ -931,18 +876,4 @@ private fun ApiProbeResult.highlightsOrEmpty(): List<Highlight> = when (this) {
     is ApiProbeResult.Success -> highlights
     is ApiProbeResult.Failure -> highlights
     else -> emptyList()
-}
-
-/** 剩余时间的人类可读格式：X 天 Y 小时 / Y 小时 Z 分 / Z 分 / 已过期。 */
-private fun formatRemaining(remainingMs: Long): String {
-    if (remainingMs <= 0L) return "已过期"
-    val totalMinutes = remainingMs / 60_000
-    val days = totalMinutes / (60 * 24)
-    val hours = totalMinutes % (60 * 24) / 60
-    val minutes = totalMinutes % 60
-    return when {
-        days > 0 -> "$days 天 $hours 小时"
-        hours > 0 -> "$hours 小时 $minutes 分"
-        else -> "$minutes 分"
-    }
 }
