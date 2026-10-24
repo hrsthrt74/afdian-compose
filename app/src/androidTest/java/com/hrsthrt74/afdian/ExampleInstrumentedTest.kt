@@ -19,6 +19,8 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.hrsthrt74.afdian", appContext.packageName)
+        // 不能写死 "com.hrsthrt74.afdian"：debug 变体带 .debug 后缀、legacy 变体带 .legacy 后缀，
+        // 各变体的 applicationId 不同。BuildConfig.APPLICATION_ID 是当前变体的真实包名。
+        assertEquals(BuildConfig.APPLICATION_ID, appContext.packageName)
     }
 }

@@ -49,7 +49,8 @@ object UpdateInstaller {
         if (!apk.exists() || apk.length() == 0L) return "安装包不存在，请重新下载"
         val archive = context.packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
             ?: return "安装包解析失败，请重新下载"
-        // 包名必须与当前安装包完全一致：standard / legacy 是两个独立的包，互相装不上
+        // 包名必须与当前安装包完全一致：standard / legacy 是两个独立的包，互相装不上；
+        // debug 变体带 .debug 后缀，同样装不上正式包（会走到下面的「不匹配」文案）。
         if (archive.packageName != context.packageName) {
             return "这个安装包与当前版本不匹配，请到 Release 页面下载对应版本"
         }

@@ -165,6 +165,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            // debug 包名加 .debug 后缀，让 debug 包与正式包能同时装在一台机器上：
+            //   standardDebug → com.hrsthrt74.afdian.debug
+            //   legacyDebug   → com.hrsthrt74.afdian.legacy.debug（叠加 flavor 的 .legacy）
+            // 两者数据目录、FileProvider authority 也随之独立，装 debug 不会顶掉正式版的登录态。
+            // ⚠️ 副作用：debug 包里的「应用内更新」装不上正式包（包名不同，UpdateInstaller 会拦下），
+            //    这是预期行为，验证发版请用正式包。
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
