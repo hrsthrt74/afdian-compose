@@ -104,10 +104,14 @@ jobs:
           } > key.properties
           test -s release.jks
 
+      # -x lintVital*：assembleRelease 默认挂 lintVital（Lint 全项目分析），是 release 独有的
+      # 大头开销（debug 完全不跑）。这里跳过，release 只负责「R8 压缩 + 打包 + 签名」；
+      # Lint 交给本地/IDE，别让每次发版都为一个静态检查多等一两分钟。
       - name: 打两个 edition 的签名包
         run: |
           set -euo pipefail
           ./gradlew :app:assembleStandardRelease :app:assembleLegacyRelease \
+            -x lintVitalStandardRelease -x lintVitalLegacyRelease \
             -PversionName="$VERSION" \
             -PversionCode="$VERSION_CODE" \
             -PbuildNumber=0 \
