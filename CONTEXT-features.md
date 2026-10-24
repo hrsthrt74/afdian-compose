@@ -11,6 +11,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 全页面渐进模糊效果（ProgressiveBlur + BlurredBar）。
 - 系统预测性返回 + 手势返回，由设置开关控制。
 - 版本拦截：legacy 兼容版跑在 API 34（Android 14）及以上的设备上时，启动即被 `EditionGuard` 拦下，只显示 `WrongEditionScreen`（「请安装完整版」+ 退出），无法进入应用。判定不读设置、不区分 buildType、不做持久化，每次 `onCreate` 现算；阈值与 standard 的 minSdk 同源（Gradle 注入的 `BuildConfig.STANDARD_MIN_SDK`）。
+- debug 包视觉区分（只影响 debug 变体，两个 edition 都生效）：应用名带 `Debug` 后缀（`app/src/debug/res/values*/strings.xml`），桌面图标换成黑底版本（`app/src/debug/res/drawable/icon.webp` 覆盖 main 同名资源）。圆形图标（`android:roundIcon`）暂未适配 debug 版，仍指向正式版的紫色自适应图标，以后再做。
 
 ## 认证
 
