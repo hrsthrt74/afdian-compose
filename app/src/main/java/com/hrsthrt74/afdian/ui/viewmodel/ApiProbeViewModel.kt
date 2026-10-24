@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
-import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.probe.ApiProbeCatalog
 import com.hrsthrt74.afdian.data.probe.ApiProbeExecutor
@@ -22,18 +21,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-
-/**
- * 页面顶部的环境信息快照。
- *
- * 需要刷新时由用户点页面里的「刷新」或重新进入页面触发 [ApiProbeViewModel.refreshEnvironment]。
- */
-data class ProbeEnvironment(
-    /** 打包变体名，如 standardDebug / legacyRelease */
-    val variantName: String,
-    /** 本地是否已有 auth_token。注意只暴露布尔值，绝不暴露 token 本身 */
-    val loggedIn: Boolean,
-)
 
 /**
  * 接口调试页的状态编排。
@@ -71,10 +58,13 @@ class ApiProbeViewModel(application: Application) : AndroidViewModel(application
     /** 探针卡片列表，顺序与 [ApiProbeCatalog.all] 一致。 */
     val cards: StateFlow<List<Card>> = _cards.asStateFlow()
 
-    private val _environment = MutableStateFlow<ProbeEnvironment?>(null)
+    private val _loggedIn = MutableStateFlow<Boolean?>(null)
 
-    /** 顶部环境信息；null 表示尚未读取完成（UI 显示占位文案）。 */
-    val environment: StateFlow<ProbeEnvironment?> = _environment.asStateFlow()
+    /**
+     * 本地是否已有 auth_token；null 表示尚未读取完成（UI 先给加载态）。
+     * 注意只暴露布尔值，绝不暴露 token 本身。
+     */
+    val loggedIn: StateFlow<Boolean?> = _loggedIn.asStateFlow()
 
     /** 「一键全跑」的作业句柄：再次点击时先取消旧的再重跑，避免两批请求叠着跑。 */
     private var runAllJob: Job? = null
@@ -90,20 +80,17 @@ class ApiProbeViewModel(application: Application) : AndroidViewModel(application
     private var runEpoch = 0
 
     init {
-        // 进入页面即读一次登录态与构建信息，未登录时 UI 直接给空态
-        refreshEnvironment()
+        // 进入页面即读一次登录态，未登录时 UI 直接给空态
+        refreshLoginState()
     }
 
-    /** 重新读取登录态与构建信息。token 读取会阻塞一次磁盘 IO，必须下 IO 线程。 */
-    fun refreshEnvironment() {
+    /** 重新读取登录态。token 读取会阻塞一次磁盘 IO，必须下 IO 线程。 */
+    fun refreshLoginState() {
         viewModelScope.launch {
             val token = withContext(Dispatchers.IO) { tokenStore.token }
-            _environment.value = ProbeEnvironment(
-                variantName = BuildConfig.APP_VARIANT_NAME,
-                loggedIn = !token.isNullOrBlank(),
-            )
+            _loggedIn.value = !token.isNullOrBlank()
             // 只记录「有没有 token」，绝不打印 token 内容
-            AppLog.d(TAG, "环境信息已刷新：登录态=${if (token.isNullOrBlank()) "未登录" else "已登录"}")
+            AppLog.d(TAG, "登录态已刷新：${if (token.isNullOrBlank()) "未登录" else "已登录"}")
         }
     }
 

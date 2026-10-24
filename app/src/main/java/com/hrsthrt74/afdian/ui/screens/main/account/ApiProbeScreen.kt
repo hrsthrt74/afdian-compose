@@ -63,8 +63,6 @@ import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.ApiProbeViewModel
-import com.hrsthrt74.afdian.ui.viewmodel.ProbeEnvironment
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -143,9 +141,8 @@ fun ApiProbeScreen(
     val haptic = LocalHapticFeedback.current
 
     val cards by viewModel.cards.collectAsState()
-    val environment by viewModel.environment.collectAsState()
     // null = 还没读到登录态，此时不判断空态也不渲染列表
-    val loggedIn: Boolean? = environment?.loggedIn
+    val loggedIn by viewModel.loggedIn.collectAsState()
 
     // 详情 Sheet 正在展示哪个探针（null = 已关闭）
     var detailProbeId by remember { mutableStateOf<String?>(null) }
@@ -232,7 +229,7 @@ fun ApiProbeScreen(
                             action = {
                                 TextButton(
                                     text = "刷新登录态",
-                                    onClick = { viewModel.refreshEnvironment() },
+                                    onClick = { viewModel.refreshLoginState() },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             },
