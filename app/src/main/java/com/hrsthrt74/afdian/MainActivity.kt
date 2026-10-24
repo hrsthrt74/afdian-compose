@@ -432,6 +432,14 @@ private fun AfdianApp(
                                             errorMessage = error,
                                             buildExpiresAtMs = expiresAtMs,
                                             onClearError = session::clearError,
+                                            // 已保存账号：退出当前账号后其他账号仍留在本地，
+                                            // 卡片点一下即可免密切回去（预检失败会弹提示）
+                                            savedAccounts = accounts,
+                                            invalidAccountIds = invalidAccountIds,
+                                            onPickSavedAccount = { userId ->
+                                                AppLog.d("Login", "从登录页用已保存账号继续")
+                                                session.switchAccount(userId)
+                                            },
                                             // 底部协议提示里的免责声明入口：push 一条真正的路由
                                             onOpenDisclaimer = {
                                                 AppLog.d("Login", "从登录页打开免责声明查看页")

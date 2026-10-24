@@ -84,6 +84,35 @@ internal fun resolveCurrentUserId(accounts: List<SavedAccount>, fingerprint: Str
 }
 
 /**
+ * 退出登录时该删除哪条记录。
+ *
+ * 优先按活动 token 的指纹匹配：这是唯一能可靠指出「这条记录就是刚才那个会话」的依据，
+ * 且不依赖任何内存态。指纹匹配不到（老记录没存指纹、或记录已被删）时退回 userId。
+ *
+ * 之所以不能只用 userId：`MainViewModel.onLoggedOut()` 会在 `AuthSession.logout()` 之前
+ * 先清空 `CurrentAccount`，那样一条记录都删不掉，手动退出的账号会留在列表里，
+ * 登录页的「已保存账号」卡片仍能一键切回去。
+ *
+ * @param fingerprint 活动 token 的指纹；未登录时传 null
+ * @param fallbackUserId 内存里的当前账号 id，可能已被上层提前置空
+ * @return 需要删除的记录；null 表示列表里本来就没有这条
+ */
+internal fun pickLoggedOutAccount(
+    accounts: List<SavedAccount>,
+    fingerprint: String?,
+    fallbackUserId: String?,
+): SavedAccount? {
+    val byFingerprint = if (fingerprint.isNullOrBlank()) {
+        null
+    } else {
+        accounts.firstOrNull { it.tokenFingerprint == fingerprint }
+    }
+    if (byFingerprint != null) return byFingerprint
+    if (fallbackUserId.isNullOrBlank()) return null
+    return accounts.firstOrNull { it.userId == fallbackUserId }
+}
+
+/**
  * 删除当前账号时的预检顺序：最近使用的其他账号排前面，逐个尝试直到可用。
  *
  * 注意这里是「有序候选列表」而不是「单个兜底账号」：排在前面的账号凭证可能已失效，

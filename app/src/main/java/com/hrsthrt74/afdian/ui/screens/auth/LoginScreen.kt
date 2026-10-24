@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -64,12 +65,17 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.auth.SavedAccountSummary
+import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
@@ -115,6 +121,8 @@ private const val CODE_LENGTH = 4
  * @param initialAccount 账号输入框的初始值。登录成功后的首屏过渡层会把刚提交的账号带过来，
  *                       让输入框保持原样，而不是「人已经登录成功、表单却被清空」。
  * @param onOpenDisclaimer 点击底部「免责声明」链接的回调；为 null 时不显示这行文案
+ * @param savedAccounts 已保存账号；非空时在 Tab 与表单之间显示「点一下继续」的卡片
+ * @param onPickSavedAccount 点击某个已保存账号时调用，由根层执行免密切换
  */
 @Composable
 fun LoginScreen(
@@ -129,6 +137,13 @@ fun LoginScreen(
     buildExpiresAtMs: Long? = null,
     initialAccount: String = "",
     onClearError: () -> Unit = {},
+    // 已保存账号：非空时在登录方式 Tab 与表单之间显示「点一下继续」的卡片。
+    // 退出当前账号只删掉当前这一条，其他账号的凭证仍在本地，这里给用户一个免密切回的入口；
+    // 添加账号弹层与登录成功过渡层都不传，卡片自然不出现。
+    savedAccounts: List<SavedAccountSummary> = emptyList(),
+    // 预检判定登录已失效的账号 id：这些行仍列出，但标「登录已失效」且不可点
+    invalidAccountIds: Set<String> = emptySet(),
+    onPickSavedAccount: (String) -> Unit = {},
     // 嵌入弹层（如 WindowDialog）时使用：不套全屏 Scaffold、不叠加系统栏 insets，
     // 高度由内容决定，避免撑满整个对话框
     embedded: Boolean = false,
@@ -294,6 +309,18 @@ fun LoginScreen(
 
             // 标题与表单之间拉开一段距离
             Spacer(Modifier.height(20.dp))
+
+            // 已保存账号卡片：退出当前账号后，其他账号的凭证还留在本地，
+            // 这里给一个免密切回的入口（而不是逼用户重新输一遍密码/验证码）。
+            if (savedAccounts.isNotEmpty()) {
+                SavedAccountCard(
+                    accounts = savedAccounts,
+                    invalidAccountIds = invalidAccountIds,
+                    onPickAccount = onPickSavedAccount,
+                    modifier = Modifier.padding(start = horizontalPadding, end = horizontalPadding),
+                )
+                Spacer(Modifier.height(20.dp))
+            }
 
             // 密码 / 验证码两种表单的切换：复用收藏页 Tab 的转场语言
             // （淡入淡出 + 1/8 横向位移，方向由 Tab 顺序决定）。
@@ -602,4 +629,60 @@ private fun LoginAgreementFooter(
         textAlign = TextAlign.Center,
         modifier = modifier.fillMaxWidth(),
     )
+}
+
+/**
+ * 已保存账号卡片。
+ *
+ * 布局对齐设置页「账号」分组：Card + [BasicComponent]（32dp 头像 + 昵称 + 状态说明）。
+ * 区别只在这一处是「选一个账号继续」，所以不带设置页那套删除/退出按钮——
+ * 账号管理仍归设置页，登录页只解决「我不想重新输密码」。
+ *
+ * @param accounts 已保存账号（最近使用倒序，由 AuthSession 提供）
+ * @param invalidAccountIds 预检判定登录已失效的账号 id
+ * @param onPickAccount 点击可用账号时调用
+ */
+@Composable
+private fun SavedAccountCard(
+    accounts: List<SavedAccountSummary>,
+    invalidAccountIds: Set<String>,
+    onPickAccount: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptic = LocalHapticFeedback.current
+    Card(modifier = modifier.fillMaxWidth()) {
+        accounts.forEachIndexed { index, account ->
+            // 失效账号的凭证已被服务端拒绝，点了也只会走一次失败预检，直接不给点
+            val invalid = account.userId in invalidAccountIds
+            BasicComponent(
+                title = account.name.ifBlank { "爱发电用户" },
+                summary = if (invalid) "登录已失效，请重新登录" else "点击继续",
+                // 与设置页账号行同款紧凑内边距
+                insideMargin = PaddingValues(12.dp),
+                startAction = {
+                    Avatar(
+                        model = account.avatar,
+                        size = 32.dp,
+                        contentDescription = "账号头像",
+                        // 16-12：抵消紧凑内边距，让头像和卡片内容区的左边界对齐
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                },
+                // onClick 为 null 时 BasicComponent 不挂 clickable，这一行点不动，
+                // 但保留正常配色（失效信息靠 summary 传达，不靠置灰）
+                onClick = if (invalid) {
+                    null
+                } else {
+                    {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onPickAccount(account.userId)
+                    }
+                },
+            )
+            // 行间分隔线：与设置页账号列表一致，最后一行不加
+            if (index != accounts.lastIndex) {
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+            }
+        }
+    }
 }

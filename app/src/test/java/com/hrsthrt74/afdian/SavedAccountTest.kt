@@ -5,6 +5,7 @@ import com.hrsthrt74.afdian.data.auth.SavedAccount
 import com.hrsthrt74.afdian.data.auth.SavedAccountsFile
 import com.hrsthrt74.afdian.data.auth.authTokenFingerprint
 import com.hrsthrt74.afdian.data.auth.orderSwitchCandidates
+import com.hrsthrt74.afdian.data.auth.pickLoggedOutAccount
 import com.hrsthrt74.afdian.data.auth.resolveCurrentUserId
 import com.hrsthrt74.afdian.data.auth.savedAccountsJson
 import com.hrsthrt74.afdian.data.auth.upsertAccount
@@ -83,6 +84,34 @@ class SavedAccountTest {
         val ordered = orderSwitchCandidates(accounts, excludedUserId = "a")
 
         assertEquals(listOf("b", "c"), ordered.map { it.userId })
+    }
+
+    @Test
+    fun pickLoggedOutAccountPrefersFingerprintWhenUserIdIsGone() {
+        val accounts = listOf(account("a", token = "token-a"), account("b", token = "token-b"))
+
+        // MainViewModel.onLoggedOut() 会先把 CurrentAccount 置空，这时只有指纹能指出该删哪条
+        val picked = pickLoggedOutAccount(accounts, authTokenFingerprint("token-a"), fallbackUserId = null)
+
+        assertEquals("a", picked?.userId)
+    }
+
+    @Test
+    fun pickLoggedOutAccountFallsBackToUserIdWhenFingerprintMisses() {
+        val accounts = listOf(account("a", token = "token-a"))
+
+        // 老记录可能没有指纹（升级前写入），此时退回 userId
+        val picked = pickLoggedOutAccount(accounts, authTokenFingerprint("stale-token"), fallbackUserId = "a")
+
+        assertEquals("a", picked?.userId)
+    }
+
+    @Test
+    fun pickLoggedOutAccountReturnsNullWhenNothingMatches() {
+        val accounts = listOf(account("b", token = "token-b"))
+
+        // 两边都对不上时宁可什么都不删，也不能误删另一个账号的记录
+        assertNull(pickLoggedOutAccount(accounts, authTokenFingerprint("token-a"), fallbackUserId = null))
     }
 
     @Test

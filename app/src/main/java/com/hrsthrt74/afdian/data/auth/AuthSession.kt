@@ -144,9 +144,12 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
         // 期间 UI 保持 Loading，避免登录页闪烁。
         viewModelScope.launch {
             val token = withContext(Dispatchers.IO) { store.token }
-            if (!token.isNullOrBlank()) {
-                savedAccountStore.load().let { records ->
-                    _accounts.value = records.map { it.toSummary() }
+            // 账号列表独立于登录态：未登录时也要读出来，
+            // 登录页才能给出「用已保存账号继续」的入口——退出当前账号只删掉当前那一条，
+            // 其他账号的凭证仍在本地，冷启动后同样应该能一键切回去。
+            savedAccountStore.load().let { records ->
+                _accounts.value = records.map { it.toSummary() }
+                if (!token.isNullOrBlank()) {
                     // 优先用账号列表里的指纹判定当前身份（不需要网络），
                     // 老用户还没有记录时退回资料缓存，保证首帧布局落在正确分区。
                     val listedId = resolveCurrentUserId(records, authTokenFingerprint(token))
@@ -653,9 +656,18 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
     /** 清空登录错误提示（切换登录方式时调用，避免红字残留）。 */
     fun clearError() { _error.value = null }
 
-    /** 退出当前账号：清凭证与缓存，**保留其他已保存账号**（下次登录可一键切回）。 */
+    /**
+     * 退出当前账号：清凭证与缓存，**保留其他已保存账号**（下次登录可一键切回）。
+     *
+     * 「保留其他账号」不包括当前这个：手动退出的账号要从账号列表里删掉，
+     * 之后必须重新输入密码，不能被登录页的「已保存账号」卡片一键切回。
+     */
     fun logout() {
         viewModelScope.launch {
+            // 活动 token 必须在 store.clear() 之前读：退出登录要靠它的指纹定位账号记录。
+            // 也不能拿 CurrentAccount 当依据：MainViewModel.onLoggedOut() 会在调用本方法之前
+            // 先把它置空，那样一条记录都删不掉，手动退出的账号还能被一键切回去。
+            val activeToken = withContext(Dispatchers.IO) { store.token }
             val currentId = CurrentAccount.userId.value
             withContext(Dispatchers.IO) {
                 store.clear()
@@ -663,11 +675,11 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
                 // 否则换账号后冷启动会先回填上一个账号的数据。
                 profileCache.clear()
                 homeCache.clear()
-                // 只移除当前账号：其他账号保留，退出登录不等于清空账号列表
-                currentId?.let { savedAccountStore.remove(it) }
                 // 账号身份一并清空：浏览历史/搜索历史会立刻切回空分区
                 CurrentAccount.update(null)
             }
+            // 账号记录单独删一步：它依赖 clear() 之前读到的 token
+            removeLoggedOutAccount(activeToken, currentId)
             switchJob?.cancel()
             switchTimeoutJob?.cancel()
             _switchPhase.value = AccountSwitchPhase.Idle
@@ -680,6 +692,28 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
             AppLog.d("AuthSession", "已退出当前账号，本地凭证与缓存已清除（其他账号保留）")
             _state.value = AuthState.LoggedOut
         }
+    }
+
+    /**
+     * 删除「刚退出登录的那条」账号记录。
+     *
+     * 以活动 token 的指纹为准：这是唯一能可靠指出「这条记录就是刚才那个会话」的依据，
+     * 且不依赖任何内存态。指纹匹配不到（老记录没存指纹、或记录已被删）时退回 userId，
+     * 两者都找不到就只留一条日志——那说明列表本来就没有这条记录。
+     *
+     * @param activeToken 清理前读到的活动 token
+     * @param fallbackUserId CurrentAccount 里的 userId，可能已被上层提前置空
+     */
+    private suspend fun removeLoggedOutAccount(activeToken: String?, fallbackUserId: String?) {
+        val fingerprint = activeToken?.takeIf { it.isNotBlank() }?.let(::authTokenFingerprint)
+        val records = withContext(Dispatchers.IO) { savedAccountStore.load() }
+        val target = pickLoggedOutAccount(records, fingerprint, fallbackUserId)
+        if (target == null) {
+            AppLog.d("AuthSession", "退出登录后没有匹配到账号记录，账号列表无需删除")
+            return
+        }
+        withContext(Dispatchers.IO) { savedAccountStore.remove(target.userId) }
+        AppLog.d("AuthSession", "已移除退出登录的账号记录，重新登录需要输入密码")
     }
 
     private fun clearLoginTransientState() {
