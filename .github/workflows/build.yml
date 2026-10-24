@@ -50,9 +50,27 @@ jobs:
           ./gradlew :app:assembleStandardDebug :app:assembleLegacyDebug
           --no-configuration-cache --stacktrace
 
+      # 产物名只给人看：App 侧不下 artifact（要登录），只跳运行页面，所以改名不影响更新通道。
+      # 命名格式：Afdian-<版本>-<类型>-b<构建号>-<短 sha>，版本号从 Gradle 产物文件名里取，
+      # 与包内真实版本天然一致，不用再去解析 build.gradle.kts（里面是变量不是字面量）。
+      - name: 生成产物名
+        id: naming
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/standard/debug/Afdian-*-standard-debug.apk)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::standard debug 产物应恰好 1 个，实际 ${#apks[@]} 个"
+            exit 1
+          fi
+          file="${apks[0]##*/}"                     # Afdian-1.0.0-standard-debug.apk
+          version="${file#Afdian-}"                 # 1.0.0-standard-debug.apk
+          version="${version%-standard-debug.apk}"  # 1.0.0
+          echo "name=Afdian-${version}-debug-b${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: afdian-debug-b${{ github.run_number }}
+          name: ${{ steps.naming.outputs.name }}
           path: app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error
           retention-days: 7
@@ -178,9 +196,25 @@ jobs:
           fi
           echo "签名校验通过（$verified 个包），证书 SHA-256：$expected_digest"
 
+      # 同上：名字里写明「已签名 release 包」，与 debug 产物一眼区分。
+      - name: 生成产物名
+        id: naming
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/standard/release/Afdian-*-standard-release.apk)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::standard release 产物应恰好 1 个，实际 ${#apks[@]} 个"
+            exit 1
+          fi
+          file="${apks[0]##*/}"                       # Afdian-1.0.0-standard-release.apk
+          version="${file#Afdian-}"                   # 1.0.0-standard-release.apk
+          version="${version%-standard-release.apk}"  # 1.0.0
+          echo "name=Afdian-${version}-signed-release-b${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: afdian-actions-b${{ github.run_number }}-${{ github.sha }}
+          name: ${{ steps.naming.outputs.name }}
           path: dist/*.apk
           if-no-files-found: error
           retention-days: 30
