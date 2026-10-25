@@ -45,6 +45,8 @@ sealed interface Route : NavKey {
     @Serializable data object Affiliates : Route
     // FAQ 设置页（创作者后台 /api/faq/list 及其增删改），入口在消息页三点菜单
     @Serializable data object FaqSetting : Route
+    // 设置页：两个入口共用这一条路由 —— 已登录「我的」页（MainScreen 栈），
+    // 未登录登录页顶栏（MainActivity 的未登录栈）
     @Serializable data object Settings : Route
     // 免责声明页：首次启动强制确认（不在返回栈里），另有两个只读入口——
     // 登录页底部链接（未登录流程的返回栈）与设置页「关于」分组（主界面返回栈）

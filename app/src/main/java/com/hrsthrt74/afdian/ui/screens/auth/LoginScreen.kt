@@ -78,6 +78,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -85,6 +86,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Hide
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -110,7 +112,9 @@ private const val CODE_LENGTH = 4
  *   不再弹二级弹窗，避免弹窗关闭/重开带来的输入丢失；
  * - 登录失败时输入框 label/边框变红，并在下方给出红字提示；
  * - 全屏页最底部固定一行「继续登录，代表同意免责声明和爱发电的相关条款」，
- *   其中「免责声明」是链接，点击由 onOpenDisclaimer 交给调用方处理。
+ *   其中「免责声明」是链接，点击由 onOpenDisclaimer 交给调用方处理；
+ * - 全屏页顶部固定一条小标题栏，右侧只有一个「设置」入口（配色、更新、免责声明都在设置页，
+ *   未登录时也该能进），点击由 onOpenSettings 交给调用方做路由跳转。
  *
  * @param onLogin 密码登录回调（账号, 密码）
  * @param onCodeLogin 验证码登录回调（账号, 验证码）
@@ -118,6 +122,8 @@ private const val CODE_LENGTH = 4
  * @param initialAccount 账号输入框的初始值。登录成功后的首屏过渡层会把刚提交的账号带过来，
  *                       让输入框保持原样，而不是「人已经登录成功、表单却被清空」。
  * @param onOpenDisclaimer 点击底部「免责声明」链接的回调；为 null 时不显示这行文案
+ * @param onOpenSettings 点击顶栏「设置」按钮的回调；为 null 时整个顶栏都不渲染
+ *                       （弹层形态自带标题、登录成功过渡层也跳不走，都不需要这个入口）
  * @param savedAccounts 已保存账号；非空时在 Tab 与表单之间显示「点一下继续」的卡片
  * @param onPickSavedAccount 点击某个已保存账号时调用，由根层执行免密切换
  */
@@ -146,6 +152,10 @@ fun LoginScreen(
     // 底部协议提示里「免责声明」的点击回调。
     // 传 null 时整行文案都不渲染：添加账号弹层、登录成功过渡层都不该出现一个点不动的链接。
     onOpenDisclaimer: (() -> Unit)? = null,
+    // 顶栏「设置」按钮的点击回调。
+    // 传 null 时整条顶栏不渲染：弹层里已有自己的标题、过渡层也不能跳走，
+    // 只有真正作为「未登录首屏」的登录页才需要这个入口。
+    onOpenSettings: (() -> Unit)? = null,
 ) {
     // 表单草稿：rememberSaveable 保证进程重建后不丢用户已输入的内容
     var account by rememberSaveable { mutableStateOf(initialAccount) }
@@ -554,6 +564,12 @@ fun LoginScreen(
                     // （其中已含 IME，无需再叠 imePadding）
                     .windowInsetsPadding(WindowInsets.safeDrawing),
             ) {
+                // 顶栏：未登录时也要能进设置页（配色、更新通道、免责声明都在那里，
+                // 深色模式刺眼想先改主题再登录也走得通）。
+                // 顶栏是滚动区之外的一层，不跟着表单滚走，位置与设置页等二级页一致。
+                if (onOpenSettings != null) {
+                    LoginTopBar(onOpenSettings = onOpenSettings)
+                }
                 Column(
                     // 表单区吃掉剩余高度：内容不足时顶对齐，超出时在这块区域内滚动
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -570,6 +586,43 @@ fun LoginScreen(
             }
         }
     }
+}
+
+/**
+ * 登录页顶栏：右侧只有一个「设置」入口。
+ *
+ * 用固定小标题栏 [SmallTopAppBar] 而不是可折叠的大标题栏：登录页没有可折叠的大标题，
+ * 滚动内容也只是下方一块区域，固定栏才是这里的正确形态（scrollBehavior 保持 null）。
+ *
+ * 标题刻意留空：真正的品牌标题（「爱发电 / 登录以继续」）就在表单上方，
+ * 这里再写一遍「登录」属于重复表意，只会把第一屏挤得更满。
+ *
+ * defaultWindowInsetsPadding = false：外层 Column 已经用 safeDrawing 让出了状态栏与刘海，
+ * 顶栏内部那份 horizontal 的 displayCutout / navigationBars 补白在这里纯属重复；
+ * 顶部 systemBars 那层不受这个开关控制，靠 Compose 的 insets 消费机制自动归零
+ * （祖先 windowInsetsPadding 用掉的 inset，后代再查就是 0），所以不会出现双倍状态栏高度。
+ *
+ * @param onOpenSettings 点击「设置」按钮的回调
+ */
+@Composable
+private fun LoginTopBar(
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SmallTopAppBar(
+        title = "",
+        // 透明底：页面底色由 Scaffold 的 background 统一铺好，
+        // 顶栏自己再上 surface 色会在页面上凭空多出一条色带
+        color = Color.Transparent,
+        defaultWindowInsetsPadding = false,
+        actions = {
+            // 设置入口：未登录也要能进去改配色 / 更新通道 / 看免责声明
+            IconButton(onClick = onOpenSettings) {
+                Icon(imageVector = MiuixIcons.Settings, contentDescription = "设置")
+            }
+        },
+        modifier = modifier,
+    )
 }
 
 /**
