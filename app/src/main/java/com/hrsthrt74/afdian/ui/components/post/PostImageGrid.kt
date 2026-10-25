@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.memory.MemoryCache
+import com.hrsthrt74.afdian.data.network.AfdianRouteState
 import com.hrsthrt74.afdian.ui.components.image.LocalImageViewer
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -169,15 +170,25 @@ internal fun ViewerThumb(
     )
 }
 
-/** 把动态图片地址归一化成 Coil 能直接加载的 https 绝对地址（HTML 正文与 pics 网格共用） */
-internal fun normalizeImageUrl(raw: String): String {
+/**
+ * 把动态图片地址归一化成 Coil 能直接加载的 https 绝对地址（HTML 正文与 pics 网格共用）
+ *
+ * @param host 站内相对路径（以 `/` 开头）要补的域名。默认取当前优先线路，
+ *   与接口请求走同一条线路；显式传参供单测固定域名。
+ *   注意这是组合期读全局值，不是 Compose 可观察状态：切线路后已渲染过的图片不会重新解析，
+ *   新滚到的内容才用新域名（图片有磁盘缓存，实际影响可忽略）。
+ */
+internal fun normalizeImageUrl(
+    raw: String,
+    host: String = AfdianRouteState.preferred.host,
+): String {
     val src = raw.trim()
     return when {
         src.isBlank() -> ""
         // 协议相对地址（//pic1.afdiancdn.com/...）：编辑器常见写法
         src.startsWith("//") -> "https:$src"
-        // 站内相对路径
-        src.startsWith("/") -> "https://afdian.com$src"
+        // 站内相对路径：域名跟随优先线路
+        src.startsWith("/") -> "https://$host$src"
         // http 明文：Android 默认禁止明文流量，而爱发电 CDN 的 https 实测可用，
         // 统一升级成 https，避免「有的图能载入有的不行」的玄学问题
         src.startsWith("http://") -> "https://" + src.removePrefix("http://")

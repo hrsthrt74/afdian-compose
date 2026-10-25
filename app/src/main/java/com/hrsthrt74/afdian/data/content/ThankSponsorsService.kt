@@ -104,7 +104,7 @@ internal class ThankSponsorsService(
             .header("referer", "$IFDIAN_HOST/")
             .build()
         val start = System.currentTimeMillis()
-        http.execute(request, allowFallback = false).use { response ->
+        http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "edit-thank-word -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("感谢语保存失败 (${response.code})")

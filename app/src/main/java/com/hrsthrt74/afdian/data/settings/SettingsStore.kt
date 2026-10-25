@@ -15,6 +15,7 @@ import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.data.auth.CurrentAccount
 import com.hrsthrt74.afdian.data.content.PinnedDialogCard
+import com.hrsthrt74.afdian.data.network.AfdianRoute
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
 import com.hrsthrt74.afdian.data.stats.IncomeAmountMode
@@ -184,6 +185,8 @@ class SettingsStore(private val context: Context) {
         val IMAGE_CACHE_LIMIT = androidx.datastore.preferences.core.stringPreferencesKey("image_cache_limit")
         // 外部爱发电链接是否优先交给官方客户端，默认关闭（优先使用 Custom Tabs）
         val PREFER_OFFICIAL_CLIENT = booleanPreferencesKey("prefer_official_client")
+        // 网络优先线路：存 AfdianRoute.storageValue（ifdian / afdian / www），默认 ifdian
+        val NETWORK_ROUTE = stringPreferencesKey("network_route")
         // 检查更新：更新通道（stable = 正式版 Release / actions = master 的 CI 构建）
         val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
         // 检查更新：上次**成功**检查的时间戳（毫秒），用于 24 小时节流
@@ -609,6 +612,15 @@ class SettingsStore(private val context: Context) {
     val preferOfficialClient: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.PREFER_OFFICIAL_CLIENT] ?: false }
 
+    /**
+     * 网络优先线路，默认 ifdian.net。
+     *
+     * 设备级设置：换账号不改变「我更信哪个域名」这件事，与主题、手势、缓存上限同类。
+     * 取值只影响请求先打哪个域名，不影响分享链接与站内跳转的文案。
+     */
+    val networkRoute: Flow<AfdianRoute> =
+        context.settingsDataStore.data.map { AfdianRoute.fromStorage(it[Keys.NETWORK_ROUTE]) }
+
     suspend fun setImageCacheLimit(limit: ImageCacheLimit) {
         AppLog.d("Settings", "保存图片缓存上限，limit=${limit.storageValue}（重启后生效）")
         context.settingsDataStore.edit { it[Keys.IMAGE_CACHE_LIMIT] = limit.storageValue }
@@ -617,6 +629,12 @@ class SettingsStore(private val context: Context) {
     suspend fun setPreferOfficialClient(enabled: Boolean) {
         AppLog.d("Settings", "官方客户端链接跳转已${if (enabled) "开启" else "关闭"}")
         context.settingsDataStore.edit { it[Keys.PREFER_OFFICIAL_CLIENT] = enabled }
+    }
+
+    /** 切换优先线路；DataStore 回推后 Application 的订阅立刻更新进程级全局值。 */
+    suspend fun setNetworkRoute(route: AfdianRoute) {
+        AppLog.d("Settings", "切换优先线路：${route.storageValue}")
+        context.settingsDataStore.edit { it[Keys.NETWORK_ROUTE] = route.storageValue }
     }
 
     suspend fun setDebugLogging(enabled: Boolean) {

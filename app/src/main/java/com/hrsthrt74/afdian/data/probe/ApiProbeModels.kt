@@ -248,7 +248,7 @@ sealed interface ApiProbeResult {
         val elapsedMs: Long,
         /** 响应体字节数 */
         val bodyBytes: Long,
-        /** 实际命中的域名，便于确认是否走了 ifdian.net -> afdian.com 回退 */
+        /** 实际命中的域名，便于确认是否按优先线路发生了回退（或 www 重定向到了裸域） */
         val resolvedHost: String,
         /** 展示用请求 URL，auth_token 已脱敏为 *** */
         val requestUrl: String,

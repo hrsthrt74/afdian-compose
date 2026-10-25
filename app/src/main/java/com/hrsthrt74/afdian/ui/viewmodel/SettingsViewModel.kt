@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.network.AfdianRoute
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
 import com.hrsthrt74.afdian.data.settings.KeyColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
@@ -85,6 +86,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val preferOfficialClient: StateFlow<Boolean> = store.preferOfficialClient
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    /**
+     * 网络优先线路，默认 ifdian.net。
+     *
+     * stateIn 的初值必须与 SettingsStore 的缺省值（[AfdianRoute.Default]）同源，
+     * 否则下拉会先渲染默认档、等 DataStore 读回再跳一帧（即「Monet 闪一下」那类问题）。
+     */
+    val networkRoute: StateFlow<AfdianRoute> = store.networkRoute
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AfdianRoute.Default)
+
     fun setHistoryEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setHistoryEnabled(enabled) }
     }
@@ -124,6 +134,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setPreferOfficialClient(enabled: Boolean) {
         viewModelScope.launch { store.setPreferOfficialClient(enabled) }
+    }
+
+    /** 切换优先线路；写入后 Application 的订阅立刻更新全局值，下一次请求就按新链走。 */
+    fun setNetworkRoute(route: AfdianRoute) {
+        viewModelScope.launch { store.setNetworkRoute(route) }
     }
 
     /**

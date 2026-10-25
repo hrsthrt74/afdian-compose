@@ -19,6 +19,7 @@ import top.yukonga.miuix.kmp.icon.extended.Promotions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.math.RoundingMode
 import java.time.LocalDateTime
+import com.hrsthrt74.afdian.data.network.afdianWebUrl
 import com.hrsthrt74.afdian.data.stats.CREATOR_SHARE_RATIO
 import com.hrsthrt74.afdian.data.stats.CardKey
 import com.hrsthrt74.afdian.data.stats.CardMetric
@@ -78,7 +79,8 @@ fun WithdrawalReminderModule(context: HomeModuleContentContext) {
             Modifier
                 .background(MiuixTheme.colorScheme.primaryContainer)
                 .fillMaxWidth()
-                .clickable { appLinkNavigator.open("https://ifdian.net/withdraw") }
+                // 提现页在外站，域名跟随优先线路
+                .clickable { appLinkNavigator.open(afdianWebUrl("/withdraw")) }
                 .padding(start = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

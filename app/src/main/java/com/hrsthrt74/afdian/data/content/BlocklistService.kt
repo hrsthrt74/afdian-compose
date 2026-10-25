@@ -99,7 +99,7 @@ internal class BlocklistService(
             .header("referer", refererOf(type))
             .build()
         val start = System.currentTimeMillis()
-        http.execute(request, allowFallback = false).use { response ->
+        http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "$path $userId type=${type.wire} -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("$fallbackMessage (${response.code})")

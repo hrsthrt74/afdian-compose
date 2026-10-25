@@ -204,7 +204,7 @@ internal class AffiliateService(
     /** POST 类优惠码操作的共同失败处理，保留接口返回的 em 作为上层提示。 */
     private fun executeMutation(request: Request, logPath: String, fallbackMessage: String) {
         val start = System.currentTimeMillis()
-        http.execute(request, allowFallback = false).use { response ->
+        http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "$logPath -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("$fallbackMessage (${response.code})")

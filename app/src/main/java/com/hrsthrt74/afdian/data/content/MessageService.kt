@@ -263,7 +263,7 @@ internal class MessageService(
             .header("Cookie", "auth_token=${tokenStore.token}")
             .build()
         val start = System.currentTimeMillis()
-        return http.execute(request, allowFallback = false).use { response ->
+        return http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "/api/message/send user_id=$userID len=${content.length} -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("消息发送失败 (${response.code})")
@@ -287,7 +287,7 @@ internal class MessageService(
             .header("Cookie", "auth_token=${tokenStore.token}")
             .build()
         val start = System.currentTimeMillis()
-        return http.execute(request, allowFallback = false).use { response ->
+        return http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "/api/faq/ask user_id=$userID faqId=$faqId -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("快捷提问发送失败 (${response.code})")

@@ -291,6 +291,11 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 设置页「其他」提供「优先使用官方客户端」开关，默认关闭即使用 CCT；开启后按官方
   `afd://app/openapp` 协议（`type=1` 网页参数）尝试拉起 `net.afdian.afdian`，
   未安装或拉起失败自动回退 CCT。
+- **App 自己拼的站内网页地址统一走 `data/network/AfdianRoute.kt` 的 `afdianWebUrl(path)`**，
+  不要各自写死域名：它按「优先线路」取 host，保证接口打哪条线路、页面就开哪条线路。
+  目前用于购买页、商品编辑页、提现页、动态分享与优惠码分享；相对图片路径由
+  `normalizeImageUrl(raw, host = 当前线路)` 补全。
+  服务端下发的链接（消息卡片、正文富文本）不经过它，host 由服务端决定。
 
 ## 消息
 
@@ -528,6 +533,14 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 开关项：高级过渡动画、手势返回、系统预测性返回、浏览历史、
   显示收入单位、显示人次单位（后两项在「数据卡片」分区，默认关闭）。
   「调试日志」开关已迁移到「其他 → 日志」页（与日志落盘/导出同属一套排查工作流）。
+- 「网络 → 优先线路」（`OverlayDropdownPreference`，与「链接打开方式」同组）：
+  ifdian.net（默认）/ afdian.com / www.afdian.com 三档，
+  对应三条固定尝试顺序 —— ifdian 档：ifdian → afdian → www；afdian 档：afdian → ifdian → www；
+  www 档：www → ifdian → afdian（即 www 只在它自己当主线路时排第一，其余两档都是最后备选）。
+  副标题提示「所选项不可用时会回退到其他线路」。设备级设置存 `network_route`（存 `storageValue` 而非 ordinal），
+  由 `AfdianApplication` 订阅后写入 `AfdianRouteState`，`AfdianHttpClient` 每次请求现读，切换后下一次请求即生效。
+  生效范围：接口请求、App 自己构造的外跳网页（购买 / 商品编辑 / 提现）、分享链接（动态 / 优惠码）与
+  图片相对路径补全都跟随该线路；**服务端下发**的链接（消息卡片、富文本正文）保持原样，不改写其 host。
 - 配色模式选择：跟随系统 / 浅色 / 深色。
 - Monet 配色（「外观」分区，默认关闭）：打开后色板改由 Miuix 用种子色生成，
   与配色模式正交 —— 跟随系统/浅色/深色分别映射到 `MonetSystem`/`MonetLight`/`MonetDark`。
@@ -792,7 +805,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - `ui/viewmodel/*.kt`：各页面 ViewModel（含 PostInteractionController 全局互动状态）。
 - `data/auth/`：认证状态、Token 存储、登录请求和加密载荷。
 - `data/content/`：领域接口服务（AccountService、MessageService、AffiliateService、FeedService、CreatorService、ReceivedSponsorService、ThankSponsorsService、OrderService、ManagementService），`AfadianContentService` 为兼容门面；消息解析集中在 `MessageParser`，模型见 `ContentModels` / `MessageModels`；缓存 `ProfileCache` / `HomeCache`。
-- `data/network/`：`AfdianHttpClient`（域名优先与回退）、`requireAfdianSuccess`（业务码校验）、`sharedAfdianHttpClient`（全应用共享客户端）。
+- `data/network/`：`AfdianHttpClient`（优先线路与多域名回退，写请求仅连接失败才换线）、`AfdianRoute`（三档线路与有序回退链、`AfdianRouteState` 进程级当前值）、`requireAfdianSuccess`（业务码校验）、`sharedAfdianHttpClient`（全应用共享客户端）。
 - `data/history/`：浏览历史（HistoryStore、HistoryModels）。
 - `data/log/`：本地日志（LogStore 写入管线、LogFileNaming 纯函数：命名 / 淘汰 / 行格式化 / 合并 / 脱敏）。
 - `data/stats/`：数据卡片和图表模型（CardModel、ChartModel、CreatorStatsRepository、WithdrawalSchedule；日期后缀的星期汉字统一由 `WeekdayLabel.kt` 的 `weekdayLabelOf()` 映射）。

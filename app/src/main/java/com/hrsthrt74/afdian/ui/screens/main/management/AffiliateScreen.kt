@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.data.content.Affiliate
+import com.hrsthrt74.afdian.data.network.afdianWebUrl
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.CardActionBar
@@ -226,7 +227,7 @@ fun AffiliateScreen(onBack: () -> Unit, backStack: NavBackStack) {
                         else -> items(affiliates, key = { it.id }) { affiliate ->
                             AffiliateCard(
                                 affiliate = affiliate,
-                                // 生成链接：https://ifdian.net/a/{slug}/plan?affiliate_code={code}
+                                // 生成链接：https://{当前线路}/a/{slug}/plan?affiliate_code={code}
                                 link = affiliateLink(creatorSlug, affiliate.affiliate_code),
                                 pending = affiliate.affiliate_code in pendingAffiliateCodes,
                                 onToggle = { enable ->
@@ -424,10 +425,11 @@ private fun AffiliateInfoRow(label: String, value: String, modifier: Modifier = 
     }
 }
 
-/** 拼接优惠码分享链接：https://ifdian.net/a/{slug}/plan?affiliate_code={code}；任一为空返回 null */
+/** 拼接优惠码分享链接：`https://{当前线路}/a/{slug}/plan?affiliate_code={code}`；任一为空返回 null */
 private fun affiliateLink(slug: String, affiliateCode: String): String? =
     if (slug.isBlank() || affiliateCode.isBlank()) null
-    else "https://ifdian.net/a/$slug/plan?affiliate_code=$affiliateCode"
+    // 分享链接跟随优先线路，与本机实际使用的域名保持一致
+    else afdianWebUrl("/a/$slug/plan?affiliate_code=$affiliateCode")
 
 /** 折扣文案：discount_type=1 折扣（0.5 → 5折），=2 显示直减金额，其余回退原始折扣值 */
 private fun Affiliate.discountLabel(): String = when (discount_type) {

@@ -39,6 +39,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.ShopProduct
+import com.hrsthrt74.afdian.data.network.afdianWebUrl
 import com.hrsthrt74.afdian.ui.components.PlanDetailSheet
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
@@ -285,7 +286,8 @@ fun ShopScreen(
                     onEditStock = viewModel::openStockSheet,
                     // 查看打开 app 内商品详情弹层；编辑走网页端编辑器（App 内暂未实现）
                     onView = { planId -> selectedPlanId = planId },
-                    onEdit = { planId -> onOpenUrl("https://ifdian.net/edit/shop?plan_id=$planId") },
+                    // 编辑页在外站，域名跟随优先线路
+                    onEdit = { planId -> onOpenUrl(afdianWebUrl("/edit/shop?plan_id=$planId")) },
                 )
             }
         }

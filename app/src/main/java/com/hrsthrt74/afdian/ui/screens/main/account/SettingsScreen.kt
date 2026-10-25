@@ -49,6 +49,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.R
+import com.hrsthrt74.afdian.data.network.AfdianRoute
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MAX
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MIN
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_SLIDER_STEPS
@@ -147,6 +148,9 @@ private val linkOpenModeNames = listOf("系统浏览器", "官方客户端")
 // 更新通道：下标必须与 UpdateChannel 的声明顺序（Stable / Actions）严格一致，
 // 下拉直接拿 enum 的 ordinal 当下标用。
 private val updateChannelNames = listOf("正式版", "Actions 构建")
+
+// 优先线路选项：下标与 AfdianRoute 的声明顺序一致，文案直接用域名本身，不给它另起名字
+private val networkRouteNames = AfdianRoute.entries.map { it.host }
 
 /**
  * 「跟随系统壁纸」那一项的颜色球用的色轮。
@@ -263,6 +267,7 @@ private fun SettingsScreenContent(
     val dataCardCustomFontEnabled by viewModel.dataCardCustomFontEnabled.collectAsState()
     val dataCardFontWidth by viewModel.dataCardFontWidth.collectAsState()
     val preferOfficialClient by viewModel.preferOfficialClient.collectAsState()
+    val networkRoute by viewModel.networkRoute.collectAsState()
     val themeSettings = LocalThemeSettings.current
 
     // 字体宽度拖动的本地草稿：只在松手时落盘，避免拖动过程每一帧都写一次 DataStore。
@@ -496,9 +501,7 @@ private fun SettingsScreenContent(
 
                 item { SmallTitle(text = "通用", modifier = Modifier.padding(start = 4.dp)) }
                 item {
-                    Card(modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         // 启动页
                         OverlaySpinnerPreference(
                             title = "打开 App 后默认进入",
@@ -513,6 +516,22 @@ private fun SettingsScreenContent(
                             title = "记录历史",
                             summary = "最近访问、最近搜索等" +
                                     "（仅保存在本地）",
+                        )
+                    }
+                }
+
+                item { SmallTitle(text = "网络", modifier = Modifier.padding(start = 4.dp)) }
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        // 优先网络线路
+                        OverlayDropdownPreference(
+                            title = "优先线路",
+                            summary = "所选项不可用时会回退到其他线路",
+                            items = networkRouteNames,
+                            selectedIndex = networkRoute.ordinal.coerceIn(0, networkRouteNames.lastIndex),
+                            onSelectedIndexChange = { index ->
+                                AfdianRoute.entries.getOrNull(index)?.let(viewModel::setNetworkRoute)
+                            },
                         )
                         // 链接打开方式：0=Custom Tabs、1=优先官方客户端（失败仍回退 Custom Tabs）
                         OverlayDropdownPreference(
@@ -712,13 +731,11 @@ private fun SettingsScreenContent(
                             checked = showIncomeUnit,
                             onCheckedChange = viewModel::setShowIncomeUnit,
                             title = "显示收入单位",
-//                            summary = "收入、可提现等金额卡片在数值后显示「元」",
                         )
                         SwitchPreference(
                             checked = showCountUnit,
                             onCheckedChange = viewModel::setShowCountUnit,
                             title = "显示人次单位",
-//                            summary = "发电人数、发电次数、访问人次等卡片显示「人」「次」",
                         )
                         // 数值窄体字体：默认关闭，关闭时数值完全沿用系统默认字体。
                         // 用自写的 CondensedFontSwitchPreference（而不是 miuix 的 SwitchPreference）：
@@ -730,9 +747,6 @@ private fun SettingsScreenContent(
                             summary = "MiSans Condensed 2T",
                             summaryFontFamily = summaryFontFamily,
                         )
-                        // 宽度滑块只在开关打开时出现，避免留一个拖了没反应的无效选项。
-                        // 用 AnimatedVisibility（而不是裸 if）让它随开关展开/收起，
-                        // 与上面「渐进模糊」「主题色」几处的显隐动画保持一致。
                         // 拖动走本地草稿（预览卡实时变宽），松手才落盘。
                         AnimatedVisibility(visible = dataCardCustomFontEnabled) {
                             SliderPreference(
@@ -750,7 +764,6 @@ private fun SettingsScreenContent(
                                 // 当前档位显示在标题行右侧，拖动时能直接读出数值
                                 valueText = draftFontWidth.roundToInt().toString(),
                                 // 10 个档位全部画点、逐档震动。
-                                //
                                 // **这里刻意不传 keyPoints**：miuix 只要拿到非空 keyPoints，就会把震动用的
                                 // 「关键点集合」（allKeyPointFractions）整个换成 keyPoints。而 keyPoints 一旦
                                 // 覆盖了全部档位，边沿触发（"从非关键点进入关键点才震"）就再也触发不了 ——
@@ -809,18 +822,14 @@ private fun SettingsScreenContent(
 
                 item {
                     Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
-                        // 功能完成度：常驻的「当前尚未完成的功能」清单入口。
-                        // 应用内唯一展示这份清单的地方，想知道哪些还没做完从这里进。
+                        // 检查更新：手动查一次，有新版本会给出「忽略此版本 / 稍后 / 去下载」三个出口
                         ArrowPreference(
-                            title = "功能完成度",
-                            summary = "当前尚未完成的功能清单",
-                            onClick = { if (backStack.none { it == Route.FeatureStatus }) backStack.add(Route.FeatureStatus) },
+                            title = "检查更新",
+                            onClick = {
+                                updateViewModel.checkManually()
+                                updateDialogState.show()
+                            },
                         )
-                    }
-                }
-
-                item {
-                    Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
                         // 更新通道：正式版走 Release 直链（应用内下载安装）；
                         // Actions 构建追 master 的 CI 产物（http 页面跳转，artifact 需登录才能下）
                         OverlayDropdownPreference(
@@ -831,15 +840,11 @@ private fun SettingsScreenContent(
                                 viewModel.setUpdateChannel(UpdateChannel.entries[index])
                             },
                         )
-                        // 检查更新：手动查一次，有新版本会给出「忽略此版本 / 稍后 / 去下载」三个出口
-                        ArrowPreference(
-                            title = "检查更新",
-                            summary = "当前通道：" + updateChannelNames[updateChannel.ordinal],
-                            onClick = {
-                                updateViewModel.checkManually()
-                                updateDialogState.show()
-                            },
-                        )
+                    }
+                }
+
+                item {
+                    Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
                         ArrowPreference(
                             title = "开源许可",
                             onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
@@ -848,8 +853,12 @@ private fun SettingsScreenContent(
                             title = "免责声明",
                             onClick = { if (backStack.none { it == Route.Disclaimer }) backStack.add(Route.Disclaimer) },
                         )
-                        // 「调试日志」开关已迁移至「其他 → 日志」页：它与日志落盘/导出
-                        // 是同一套排查工作流，放一起才有完整的心智模型
+                        // 功能完成度：常驻的「当前尚未完成的功能」清单入口。
+                        ArrowPreference(
+                            title = "功能完成度",
+                            summary = "当前尚未完成的功能清单",
+                            onClick = { if (backStack.none { it == Route.FeatureStatus }) backStack.add(Route.FeatureStatus) },
+                        )
                     }
                 }
 

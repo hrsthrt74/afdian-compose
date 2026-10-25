@@ -45,7 +45,7 @@ app/src/main/java/com/hrsthrt74/afdian/
 数据层约定：
 
 - 新增接口放进对应领域 Service；跨领域聚合新开 Service 组合，不要塞回门面。
-- 所有请求走 `AfdianHttpClient.execute()`：GET 优先 ifdian.net、失败回退 afdian.com；写请求不自动重试。响应统一用 `requireAfdianSuccess` 校验业务 `ec`。
+- 所有请求走 `AfdianHttpClient.execute()`：按设置里的**优先线路**（ifdian.net 默认 / afdian.com / www.afdian.com）给出的三条有序链依次尝试，GET 遇域名不可用状态或网络异常换下一个，写请求只在「连接没建立」的异常时换下一个。响应统一用 `requireAfdianSuccess` 校验业务 `ec`。
 - 不要直接构造 `OkHttpClient`，复用 `data/network/sharedAfdianHttpClient` 或由服务注入。
 - 可单测的解析逻辑优先做成顶层 `internal` 函数（参考 `MessageParser.kt`），模型放 `ContentModels.kt` / `MessageModels.kt`。
 

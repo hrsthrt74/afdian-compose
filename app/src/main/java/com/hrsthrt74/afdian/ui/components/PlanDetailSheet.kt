@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.hrsthrt74.afdian.data.content.CreatorPlanSku
 import com.hrsthrt74.afdian.data.content.CreatorPlanSkus
+import com.hrsthrt74.afdian.data.network.afdianWebUrl
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.EmptyStateView
 import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
@@ -112,8 +113,9 @@ fun PlanDetailSheet(
                         val plan = loadedDetail.plan
                         val path = if (plan?.product_type == 2) "bundle" else "item"
                         // 购买 URL 会被 AppLinkRegistry 命中 item/bundle 规则弹回详情 Sheet，
-                        // 必须绕过站内解析强制外部打开（官方客户端 → Custom Tabs → 系统浏览器）
-                        val url = "https://ifdian.net/$path/${plan?.plan_id.orEmpty()}"
+                        // 必须绕过站内解析强制外部打开（官方客户端 → Custom Tabs → 系统浏览器）；
+                        // 域名跟随「优先线路」，避免切了线路点购买仍打开打不通的域名
+                        val url = afdianWebUrl("/$path/${plan?.plan_id.orEmpty()}")
                         AppLog.d("PlanDetail", "发电确认，强制外部打开: $url")
                         appLinkNavigator.openExternal(url)
                     },

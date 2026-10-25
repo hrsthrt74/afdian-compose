@@ -2,6 +2,7 @@ package com.hrsthrt74.afdian
 
 import android.app.Application
 import com.hrsthrt74.afdian.data.log.LogStore
+import com.hrsthrt74.afdian.data.network.AfdianRouteState
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +16,8 @@ import kotlinx.coroutines.launch
  * 1. `LogStore` 单例创建 + writer 线程启动——后续所有日志先入队，线程没启动也不会丢；
  * 2. `AppLog.sink` 接通——从此 AppLog 的每条日志都会尝试落盘；
  * 3. `CrashHandler.install`——兜住包括启动阶段在内的一切未捕获异常；
- * 4. 订阅「写入日志文件」开关——DataStore 读出后写入 LogStore，进程内即时生效。
+ * 4. 订阅「写入日志文件」开关——DataStore 读出后写入 LogStore，进程内即时生效；
+ * 5. 订阅「优先线路」——DataStore 读出后写入网络层的进程级全局值，下一次请求即生效。
  *
  * 之所以新增 Application 类而不是把初始化挂在 MainActivity：
  * 崩溃可能发生在 MainActivity 之前的任何阶段（Application / 首个 Activity 创建），
@@ -59,6 +61,20 @@ class AfdianApplication : Application() {
                 // 走 AppLog.w 而不是 e：落盘不一定已接通（collect 失败通常意味着 DataStore 损坏），
                 // 至少保证 Logcat 有据可查
                 AppLog.w(TAG, "订阅「写入日志文件」开关失败", error)
+            }
+        }
+
+        // 5) 订阅「优先线路」（DataStore）→ 进程级全局值。
+        //    AfdianHttpClient 每次请求现读它，所以切完对下一次请求立即生效，不需要重启或重建 Service。
+        //    冷启动最初几毫秒（DataStore 还没读出）的请求仍走默认 ifdian.net —— 三条链都能用，
+        //    这点时间差不影响功能，换来的是不在 onCreate 里做阻塞读盘。
+        appScope.launch {
+            runCatching {
+                SettingsStore(this@AfdianApplication).networkRoute.collect { route ->
+                    AfdianRouteState.update(route)
+                }
+            }.onFailure { error ->
+                AppLog.w(TAG, "订阅「优先线路」设置失败", error)
             }
         }
     }

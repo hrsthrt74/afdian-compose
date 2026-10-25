@@ -143,7 +143,8 @@ internal class DeveloperService(
     /**
      * 统一执行并解析：校验 HTTP 状态与业务 ec，再把 data 交给 [extract]。
      *
-     * 写请求传 allowFallback = false，避免服务端已成功但客户端超时后重复提交。
+     * 换线策略由请求方法决定（见 `AfdianHttpClient`）：GET 失败即换下一条线路，
+     * 写请求只在连接没建立时换，避免服务端已成功但客户端超时后重复提交。
      *
      * @param logValue 日志里要打印的结果摘要。Token 属于凭据，调用方传长度而非明文。
      */
@@ -155,9 +156,8 @@ internal class DeveloperService(
         extract: (JsonObject) -> T,
     ): T {
         val start = System.currentTimeMillis()
-        // GET 允许域名回退；写操作不重试
-        val allowFallback = request.method == "GET"
-        http.execute(request, allowFallback).use { response ->
+        // GET 允许失败换线；写操作只在连接没建立时换线，由 AfdianHttpClient 按方法判定
+        http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "$label -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("$fallbackMessage (${response.code})")

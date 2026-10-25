@@ -43,13 +43,13 @@ internal class ApiProbeExecutor(
         isLenient = true
     }
 
-    /** 统一传输入口：GET 会自动做 ifdian.net -> afdian.com 的域名回退。 */
+    /** 统一传输入口：GET 会按设置里的优先线路，在三个域名间依次回退。 */
     private val http = AfdianHttpClient(client)
 
     private companion object {
         const val TAG = "ApiProbe"
 
-        /** 探针默认打 afdian.com；若域名不可用，[AfdianHttpClient] 会在两个域名间挑可用的。 */
+        /** 探针默认打 afdian.com；实际会按优先线路改写，展示的命中域名取最终响应来源。 */
         const val BASE_HOST = "https://afdian.com"
     }
 

@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
+import com.hrsthrt74.afdian.data.network.afdianWebUrl
 import com.hrsthrt74.afdian.ui.components.basic.AppBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.AppProgressiveBlurRadius
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
@@ -735,9 +736,10 @@ private fun CardNavItem(
     }
 }
 
-/** 系统分享面板：分享动态链接 https://afdian.com/p/{post_id} */
+/** 系统分享面板：分享动态链接 `https://{当前线路}/p/{post_id}` */
 private fun sharePost(context: android.content.Context, postId: String, title: String) {
-    val url = "https://afdian.com/p/$postId"
+    // 分享链接跟随优先线路，与本机实际使用的域名保持一致
+    val url = afdianWebUrl("/p/$postId")
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, if (title.isBlank()) url else "$title\n$url")

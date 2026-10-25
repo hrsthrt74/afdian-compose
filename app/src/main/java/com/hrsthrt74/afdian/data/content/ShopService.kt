@@ -185,8 +185,8 @@ class ShopService(
             .header("referer", SETTING_REFERER)
             .build()
         val start = System.currentTimeMillis()
-        // 写请求不自动重试（allowFallback = false），避免服务端已成功后客户端重复提交
-        http.execute(request, allowFallback = false).use { response ->
+        // 写请求只在「连接没建立」时才换线路（见 AfdianHttpClient），不会因超时重复提交
+        http.execute(request).use { response ->
             if (!response.isSuccessful) {
                 AppLog.e(TAG, "$logPath -> HTTP ${response.code}（${System.currentTimeMillis() - start}ms）")
                 error("$fallbackMessage (${response.code})")

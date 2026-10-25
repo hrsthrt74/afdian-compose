@@ -15,7 +15,7 @@
 ## 数据层规则
 
 - 内容接口按领域拆在 `data/content/*Service`；新增接口放进对应领域 Service，不要加回 `AfadianContentService`（它只是兼容门面）。
-- 所有请求走 `AfdianHttpClient`：GET 优先 ifdian.net、失败回退 afdian.com；写请求不自动重试；响应统一用 `requireAfdianSuccess` 校验业务码。
+- 所有请求走 `AfdianHttpClient`：按设置里的**优先线路**（ifdian.net 默认 / afdian.com / www.afdian.com）给出的三条有序链依次尝试；GET 遇域名不可用状态或网络异常换下一个，写请求只在「连接没建立」的异常时换下一个；响应统一用 `requireAfdianSuccess` 校验业务码。
 - 不要直接构造 `OkHttpClient`，复用 `data/network/sharedAfdianHttpClient`。
 - 解析逻辑优先做成顶层 `internal` 函数，便于单元测试（参考 `MessageParser`、`MessageParserTest`）。
 
