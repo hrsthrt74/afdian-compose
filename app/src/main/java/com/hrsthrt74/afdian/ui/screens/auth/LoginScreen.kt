@@ -111,7 +111,9 @@ private const val CODE_LENGTH = 4
  * - 服务端要求人机校验时，在验证码下方就地展开图形验证码（点图片可换一张），
  *   不再弹二级弹窗，避免弹窗关闭/重开带来的输入丢失；
  * - 登录失败时输入框 label/边框变红，并在下方给出红字提示；
- * - 全屏页最底部固定一行「继续登录，代表同意免责声明和爱发电的相关条款」，
+ * - 底部一行「继续登录，代表同意免责声明和爱发电的相关条款」排在表单列表的最末尾：
+ *   它与顶部留白按 1 : 1.3 分摊剩余高度，内容不足一屏时依然贴底、表单保持居中偏上；
+ *   键盘弹起把剩余高度压成 0 时，它跟着表单一起进入滚动区，不会再压住「登录」按钮；
  *   其中「免责声明」是链接，点击由 onOpenDisclaimer 交给调用方处理；
  * - 全屏页顶部固定一条小标题栏，右侧只有一个「设置」入口（配色、更新、免责声明都在设置页，
  *   未登录时也该能进），点击由 onOpenSettings 交给调用方做路由跳转。
@@ -277,7 +279,6 @@ fun LoginScreen(
                     text = "爱发电",
                     style = MiuixTheme.textStyles.title1,
                     textAlign = TextAlign.Center,
-                    color = MiuixTheme.colorScheme.onBackground,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = horizontalPadding)
                 )
                 Text(
@@ -285,9 +286,7 @@ fun LoginScreen(
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp, start = horizontalPadding, end = horizontalPadding),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = horizontalPadding, end = horizontalPadding),
                 )
             }
 
@@ -297,7 +296,6 @@ fun LoginScreen(
                 selectedTabIndex = mode,
                 onTabSelected = { index ->
                     if (index != mode) {
-                        // 先震后切：触觉反馈不等转场动画，和收藏页 Tab 的手感一致
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         // 旧输入框马上会被转场移除，先收键盘清焦点，避免 IME 跟着一起闪
                         focusManager.clearFocus(force = true)
@@ -314,7 +312,7 @@ fun LoginScreen(
             )
 
             // 标题与表单之间拉开一段距离
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
 
             // 已保存账号卡片：退出当前账号后，其他账号的凭证还留在本地，
             // 这里给一个免密切回的入口（而不是逼用户重新输一遍密码/验证码）。
@@ -504,8 +502,8 @@ fun LoginScreen(
                     text = errorMessage.orEmpty(),
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.error,
-                    modifier = Modifier
-                        .padding(top = 12.dp, start = horizontalPadding, end = horizontalPadding),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, start = horizontalPadding, end = horizontalPadding),
                 )
             }
 
@@ -534,11 +532,29 @@ fun LoginScreen(
                 }
             }
 
-            // 底部留白：全屏页用 weight 把内容略往上推；嵌入弹层时不需要
+            // 收尾：嵌入弹层补一点间距就结束；全屏页则用一段 weight 留白 + 底部协议行收尾。
+            // 关键点：滚动列拿到的是「固定高度」的约束（外层 weight(1f)），verticalScroll 只放开
+            // maxHeight、保留 minHeight，而 RowColumn 在 maxHeight 无限时会改用 minHeight 做分配目标，
+            // 所以这里的 weight 是真的能分到空间的——顶部 1f 与底部 1.3f 按比例分摊剩余高度，
+            // 表单就落在略高于视觉中心的位置，和加协议行之前的版式完全一致。
+            // 键盘弹起后剩余高度变 0，weight 自动塌成 0，协议行紧跟登录按钮一起进滚动流，
+            // 不会再有一条固定底栏压住按钮。
             if (embedded) {
                 Spacer(Modifier.height(8.dp))
             } else {
                 Spacer(Modifier.weight(1.3f))
+                // 底部协议提示：列内最后一项。没有回调就不渲染——避免出现一个点不动的链接。
+                if (onOpenDisclaimer != null) {
+                    LoginAgreementFooter(
+                        onOpenDisclaimer = onOpenDisclaimer,
+                        modifier = Modifier.padding(
+                            top = 8.dp,
+                            bottom = 16.dp,
+                            start = horizontalPadding,
+                            end = horizontalPadding,
+                        ),
+                    )
+                }
             }
     }
 
@@ -554,8 +570,9 @@ fun LoginScreen(
     } else {
         // 全屏页：外层用 Miuix Scaffold 铺 colorScheme.background，跟随明暗模式
         // （否则裸 Column 透出的是系统白色窗口底）。
-        // 这里拆成「外层 insets 容器 + 内层滚动表单区」两层，是为了让底部协议提示
-        // 能钉在屏幕最底部：如果把它放进滚动容器，它会跟着表单一起被滚走。
+        // 底部协议行不再当固定底栏挂在滚动区外面，而是并进同一个滚动列的最后一项：
+        // 它和表单共用同一套 weight 留白与滚动，内容不足一屏时依旧贴底（表单仍然居中偏上），
+        // 键盘弹起压缩可视高度时则跟着表单一起滚，不会盖住登录按钮。
         Scaffold { _ ->
             Column(
                 modifier = Modifier
@@ -571,18 +588,11 @@ fun LoginScreen(
                     LoginTopBar(onOpenSettings = onOpenSettings)
                 }
                 Column(
-                    // 表单区吃掉剩余高度：内容不足时顶对齐，超出时在这块区域内滚动
+                    // 表单区（含底部协议行）吃掉剩余高度：内容不足时靠 weight 留白居中偏上，
+                    // 超出时在这块区域内滚动
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                     content = formContent,
                 )
-                // 底部协议提示：固定在屏幕最底部，与表单的滚动解耦。
-                // 没有回调就不渲染——避免出现一个点不动的链接。
-                if (onOpenDisclaimer != null) {
-                    LoginAgreementFooter(
-                        onOpenDisclaimer = onOpenDisclaimer,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 16.dp, start = 24.dp, end = 24.dp),
-                    )
-                }
             }
         }
     }
