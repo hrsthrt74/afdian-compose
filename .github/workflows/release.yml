@@ -183,8 +183,8 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "$TAG" \
-            "dist/Afdian-${VERSION}-standard-release.apk#完整版（Android 14+）" \
-            "dist/Afdian-${VERSION}-legacy-release.apk#低配兼容版（Android 10–13）" \
+            "dist/Afdian-${VERSION}-standard-release.apk#标准版（Android 14+）" \
+            "dist/Afdian-${VERSION}-legacy-release.apk#兼容版（Android 10–13）" \
             --title "$VERSION" \
             --generate-notes \
             --latest \
