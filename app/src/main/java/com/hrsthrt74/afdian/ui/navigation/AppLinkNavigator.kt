@@ -177,114 +177,153 @@ class AppLinkNavigator(
      * 必须绕过 [open] 的统一解析，避免被误拦截回 App 内页面。
      */
     fun openExternal(url: String) {
-        val uri = runCatching { URI(url) }.getOrNull()
-        if (uri == null || uri.scheme !in setOf("http", "https")) {
-            AppLog.w("AppLinkNavigator", "拒绝打开无效链接: $url")
-            return
-        }
-        if (preferOfficialClient && openOfficialClient(uri.toString())) return
-        if (preferOfficialClient) {
-            AppLog.w("AppLinkNavigator", "官方客户端未能处理链接，回退 Custom Tabs: $url")
-        }
-        runCatching {
-            val customTabsPackage = CustomTabsClient.getPackageName(context, null)
-                ?: error("设备没有可用的 Custom Tabs provider")
-            val connection = object : CustomTabsServiceConnection() {
-                override fun onCustomTabsServiceConnected(
-                    name: ComponentName,
-                    client: CustomTabsClient,
-                ) {
-                    runCatching {
-                        val session: CustomTabsSession? = client.newSession(null)
-                        // 工具栏底色对齐 Miuix 的 surface：同一色值同时注册给浅色与深色方案，
-                        // 浏览器按系统深浅色挑参数时拿到的都是 App 当前配色，不会退回浏览器默认色。
-                        // 注意 Custom Tabs 协议不支持改状态栏色，这里只管地址栏底色。
-                        val toolbarScheme = CustomTabColorSchemeParams.Builder()
-                            .setToolbarColor(branding.toolbarColor)
-                            .build()
-                        val builder = CustomTabsIntent.Builder(session)
-                            .setDefaultColorSchemeParams(toolbarScheme)
-                            .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_DARK, toolbarScheme)
-                            // 地址栏显示网页标题而不是长串 URL
-                            .setShowTitle(true)
-                        // 关闭按钮换成 Miuix 的返回箭头，和 App 内的返回按钮保持一致
-                        branding.closeButtonIcon?.let(builder::setCloseButtonIcon)
-                        val customTabsIntent = builder.build().apply {
-                            // 显式锁定 provider，避免被普通 ACTION_VIEW 解析流程接管。
-                            intent.setPackage(customTabsPackage)
-                        }
-
-                        customTabsIntent.launchUrl(context, android.net.Uri.parse(uri.toString()))
-                        AppLog.d(
-                            "AppLinkNavigator",
-                            "通过已绑定的 Custom Tabs 打开: provider=$customTabsPackage url=$url toolbar=${branding.toolbarColor}",
-                        )
-                    }.onFailure { error ->
-                        AppLog.e("AppLinkNavigator", "Custom Tabs session 启动失败: $url", error)
-                        openSystemBrowser(uri)
-                    }.also {
-                        runCatching { context.unbindService(this) }
-                    }
-                }
-
-                override fun onServiceDisconnected(name: ComponentName) {
-                    AppLog.w("AppLinkNavigator", "Custom Tabs 服务断开: $name")
-                }
-            }
-            if (!CustomTabsClient.bindCustomTabsService(context, customTabsPackage, connection)) {
-                error("无法绑定 Custom Tabs provider=$customTabsPackage")
-            }
-        }.onFailure { error ->
-            AppLog.e("AppLinkNavigator", "Custom Tabs 服务不可用，回退系统浏览器: $url", error)
-            openSystemBrowser(uri)
-        }
-    }
-
-    private fun openSystemBrowser(uri: URI) {
-        runCatching {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, android.net.Uri.parse(uri.toString()))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }.onFailure { fallbackError ->
-            AppLog.e("AppLinkNavigator", "系统浏览器回退也失败: $uri", fallbackError)
-        }
-    }
-
-    /** 使用官方客户端约定的 afd scheme；返回 false 表示未安装或无法处理。 */
-    private fun openOfficialClient(url: String): Boolean {
-        val targetKey = "1:$url"
-        val params = JSONObject()
-            .put("url", url)
-            .put("type", "1")
-            .put("target_key", targetKey)
-            .put("dedupe", "1")
-            .toString()
-        val officialUri = android.net.Uri.Builder()
-            .scheme("afd")
-            .authority("app")
-            .path("openapp")
-            .appendQueryParameter("url", url)
-            .appendQueryParameter("type", "1")
-            .appendQueryParameter("target_key", targetKey)
-            .appendQueryParameter("dedupe", "1")
-            .appendQueryParameter("params", params)
-            .build()
-        return runCatching {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, officialUri)
-                    .setPackage(OFFICIAL_CLIENT_PACKAGE)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-            AppLog.d("AppLinkNavigator", "通过官方客户端打开: $url")
-            true
-        }.getOrElse { error ->
-            AppLog.w("AppLinkNavigator", "官方客户端拉起失败: $url", error)
-            false
-        }
-    }
-
-    private companion object {
-        const val OFFICIAL_CLIENT_PACKAGE = "net.afdian.afdian"
+        openExternalLink(
+            context = context,
+            url = url,
+            preferOfficialClient = preferOfficialClient,
+            branding = branding,
+        )
     }
 }
+
+/**
+ * 打开站外网页：官方客户端优先 → Custom Tabs → 系统浏览器。
+ *
+ * **为什么从 [AppLinkNavigator] 里拆出来**：`AppLinkNavigator` 带着站内跳转能力
+ * （`onNavigate` / `onOpenMainTab`），只有 MainScreen 提供了它（`LocalAppLinkNavigator`）；
+ * 而设置页在**未登录栈**里也能进（登录页顶栏的设置入口），那儿取不到这个组合局部。
+ * 于是把「打开外部 URL」这一半独立成函数：站内链接继续走 [AppLinkNavigator.open]，
+ * 纯站外链接（GitHub、爱发电文档）两处共用同一套回退链。
+ *
+ * @param context 上下文
+ * @param url 要打开的地址，必须是 http/https
+ * @param preferOfficialClient 是否优先尝试拉起爱发电官方客户端
+ * @param branding Custom Tabs 的品牌化参数（底色 + 关闭按钮图标）
+ */
+fun openExternalLink(
+    context: Context,
+    url: String,
+    preferOfficialClient: Boolean,
+    branding: CustomTabsBranding,
+) {
+    val uri = runCatching { URI(url) }.getOrNull()
+    if (uri == null || uri.scheme !in setOf("http", "https")) {
+        AppLog.w("AppLinkNavigator", "拒绝打开无效链接: $url")
+        return
+    }
+    if (preferOfficialClient && openOfficialClient(context, uri.toString())) return
+    if (preferOfficialClient) {
+        AppLog.w("AppLinkNavigator", "官方客户端未能处理链接，回退 Custom Tabs: $url")
+    }
+    runCatching {
+        val customTabsPackage = CustomTabsClient.getPackageName(context, null)
+            ?: error("设备没有可用的 Custom Tabs provider")
+        val connection = object : CustomTabsServiceConnection() {
+            override fun onCustomTabsServiceConnected(
+                name: ComponentName,
+                client: CustomTabsClient,
+            ) {
+                runCatching {
+                    val session: CustomTabsSession? = client.newSession(null)
+                    // 工具栏底色对齐 Miuix 的 surface：同一色值同时注册给浅色与深色方案，
+                    // 浏览器按系统深浅色挑参数时拿到的都是 App 当前配色，不会退回浏览器默认色。
+                    // 注意 Custom Tabs 协议不支持改状态栏色，这里只管地址栏底色。
+                    val toolbarScheme = CustomTabColorSchemeParams.Builder()
+                        .setToolbarColor(branding.toolbarColor)
+                        .build()
+                    val builder = CustomTabsIntent.Builder(session)
+                        .setDefaultColorSchemeParams(toolbarScheme)
+                        .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_DARK, toolbarScheme)
+                        // 地址栏显示网页标题而不是长串 URL
+                        .setShowTitle(true)
+                    // 关闭按钮换成 Miuix 的返回箭头，和 App 内的返回按钮保持一致
+                    branding.closeButtonIcon?.let(builder::setCloseButtonIcon)
+                    val customTabsIntent = builder.build().apply {
+                        // 显式锁定 provider，避免被普通 ACTION_VIEW 解析流程接管。
+                        intent.setPackage(customTabsPackage)
+                    }
+
+                    customTabsIntent.launchUrl(context, android.net.Uri.parse(uri.toString()))
+                    AppLog.d(
+                        "AppLinkNavigator",
+                        "通过已绑定的 Custom Tabs 打开: provider=$customTabsPackage url=$url toolbar=${branding.toolbarColor}",
+                    )
+                }.onFailure { error ->
+                    AppLog.e("AppLinkNavigator", "Custom Tabs session 启动失败: $url", error)
+                    openSystemBrowser(context, uri)
+                }.also {
+                    runCatching { context.unbindService(this) }
+                }
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) {
+                AppLog.w("AppLinkNavigator", "Custom Tabs 服务断开: $name")
+            }
+        }
+        if (!CustomTabsClient.bindCustomTabsService(context, customTabsPackage, connection)) {
+            error("无法绑定 Custom Tabs provider=$customTabsPackage")
+        }
+    }.onFailure { error ->
+        AppLog.e("AppLinkNavigator", "Custom Tabs 服务不可用，回退系统浏览器: $url", error)
+        openSystemBrowser(context, uri)
+    }
+}
+
+/**
+ * 用系统浏览器兜底打开网页。
+ *
+ * Custom Tabs 服务不可用（设备没装支持它的浏览器）时唯一的出路，
+ * 所以失败只记日志、不再往上抛 —— 否则会连带崩掉调用方（点击事件所在页面）。
+ */
+private fun openSystemBrowser(context: Context, uri: URI) {
+    runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(uri.toString()))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }.onFailure { fallbackError ->
+        AppLog.e("AppLinkNavigator", "系统浏览器回退也失败: $uri", fallbackError)
+    }
+}
+
+/**
+ * 使用官方客户端约定的 afd scheme；返回 false 表示未安装或无法处理。
+ *
+ * @param context 上下文
+ * @param url 要交给官方客户端打开的地址
+ * @return 拉起成功返回 true；未安装或失败返回 false（调用方应回退 Custom Tabs）
+ */
+private fun openOfficialClient(context: Context, url: String): Boolean {
+    val targetKey = "1:$url"
+    val params = JSONObject()
+        .put("url", url)
+        .put("type", "1")
+        .put("target_key", targetKey)
+        .put("dedupe", "1")
+        .toString()
+    val officialUri = android.net.Uri.Builder()
+        .scheme("afd")
+        .authority("app")
+        .path("openapp")
+        .appendQueryParameter("url", url)
+        .appendQueryParameter("type", "1")
+        .appendQueryParameter("target_key", targetKey)
+        .appendQueryParameter("dedupe", "1")
+        .appendQueryParameter("params", params)
+        .build()
+    return runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, officialUri)
+                .setPackage(OFFICIAL_CLIENT_PACKAGE)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+        AppLog.d("AppLinkNavigator", "通过官方客户端打开: $url")
+        true
+    }.getOrElse { error ->
+        AppLog.w("AppLinkNavigator", "官方客户端拉起失败: $url", error)
+        false
+    }
+}
+
+/** 爱发电官方客户端的包名：拉起失败时回退 Custom Tabs。 */
+private const val OFFICIAL_CLIENT_PACKAGE = "net.afdian.afdian"

@@ -581,12 +581,16 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 「其他」分组：`存储空间管理` 与 `日志` 两个入口（原「清除浏览历史」入口已移除，清理统一收敛到存储页）。
 - 「关于」分组：功能完成度、**更新通道**（正式版 / Actions 构建，见上一节）、检查更新、开源许可、免责声明；
   页脚显示 `版本 x (code)`，Actions 包额外附带 `· 构建 #N · <sha>`，方便报 issue 时直接截图。
-- 「关于」分组还有两个**站外链接**入口（都走 Custom Tabs，不进 App 内路由）：
+- 「关于」分组还有三个**站外链接**入口（都走 Custom Tabs，不进 App 内路由）：
+  - **交流群** → `https://qm.qq.com/q/YVBgTJLi26`。
+    点击一次干两件事：打开入群链接 **+ 把群号 `1108445904` 复制到剪贴板**
+    （群号单独复制是给已经在 QQ 里、懒得再点一次「加入群聊」的用户用的）。
+    复制走设置页内的私有工具函数 `copyTextToClipboard`（写法抄 `MessageBubbleMenu.copyToClipboard`）。
   - **GitHub 仓库** → `https://github.com/hrsthrt74/afdian-compose`（源码、Issue、Release）。
-  - **爱发电文档** → `https://guide.afdian.com`。
+  - **爱发电文档** → `https://guide.afdian.com`（在「其他」分组）。
     ⚠️ 这个地址**刻意不跟「优先线路」走**：另外两个域名（ifdian.net / www.afdian.com）下
     并没有 guide 子域，跟着线路改写 host 会直接 404，所以写死域名、不用 `afdianWebUrl()`。
-- 这两个入口用 `ui/navigation/AppLinkNavigator.kt` 里的**顶层函数 `openExternalLink(...)`**，
+- 这几个入口用 `ui/navigation/AppLinkNavigator.kt` 里的**顶层函数 `openExternalLink(...)`**，
   而不是 `LocalAppLinkNavigator`：后者带站内跳转能力（`onNavigate`），只在 MainScreen 里提供，
   而设置页在未登录栈（登录页顶栏的设置入口）也能进，那儿取不到这个组合局部。
   `AppLinkNavigator.openExternal()` 现在也委托给同一个函数，两处共用「官方客户端 → Custom Tabs → 系统浏览器」的回退链。

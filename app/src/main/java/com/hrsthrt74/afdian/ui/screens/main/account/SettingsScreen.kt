@@ -1,7 +1,11 @@
 package com.hrsthrt74.afdian.ui.screens.main.account
 
 import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Build
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.network.AfdianRoute
@@ -71,7 +76,10 @@ import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.components.update.UpdateDialog
 import com.hrsthrt74.afdian.ui.components.update.openUpdateUrl
+import com.hrsthrt74.afdian.ui.navigation.CustomTabsBranding
 import com.hrsthrt74.afdian.ui.navigation.Route
+import com.hrsthrt74.afdian.ui.navigation.openExternalLink
+import com.hrsthrt74.afdian.ui.navigation.rememberCustomTabsBranding
 import com.hrsthrt74.afdian.ui.theme.DATACARD_VALUE_FONT_FEATURE_SETTINGS
 import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
@@ -149,6 +157,38 @@ private val linkOpenModeNames = listOf("系统浏览器", "官方客户端")
 // 下拉直接拿 enum 的 ordinal 当下标用。
 private val updateChannelNames = listOf("正式版", "Actions 构建")
 
+/**
+ * 项目 GitHub 仓库。
+ *
+ * 源码、Issue 反馈与 Release 安装包都在这里；正式版检查更新读的也是同一个仓库
+ * （见 `data/update/GithubReleaseService.kt`）。
+ */
+private const val GITHUB_REPO_SLUG = "hrsthrt74/afdian-compose"
+
+/** GitHub 仓库网页地址。 */
+private const val GITHUB_REPO_URL = "https://github.com/$GITHUB_REPO_SLUG"
+
+/**
+ * 爱发电官方文档站域名。
+ *
+ * **刻意不跟随「优先线路」**：另外两个线路域名（ifdian.net / www.afdian.com）下
+ * 并没有 guide 子域，把 host 跟着线路改写会直接 404。
+ */
+private const val AFDIAN_GUIDE_HOST = "guide.afdian.com"
+
+/** 爱发电官方文档站地址（写死域名，不走 `afdianWebUrl()`）。 */
+private const val AFDIAN_GUIDE_URL = "https://$AFDIAN_GUIDE_HOST"
+
+/**
+ * 交流群入群链接（QQ 群）。
+ *
+ * 群号在 [QQ_GROUP_NUMBER]，点击入口时一并复制，方便用户直接粘贴到 QQ 里搜索加群。
+ */
+private const val QQ_GROUP_JOIN_URL = "https://qm.qq.com/q/YVBgTJLi26"
+
+/** 交流群群号：点击入口时复制到剪贴板。 */
+private const val QQ_GROUP_NUMBER = "1108445904"
+
 // 优先线路选项：下标与 AfdianRoute 的声明顺序一致，文案直接用域名本身，不给它另起名字
 private val networkRouteNames = AfdianRoute.entries.map { it.host }
 
@@ -219,6 +259,15 @@ fun SettingsScreen(
     )
 ) {
     /**
+     * Custom Tabs 的品牌化参数（工具栏底色 + 关闭按钮图标）。
+     *
+     * 在 [ThemeColorTransition] **之外**构建：品牌参数要读当前主题色，
+     * 而过渡层里的色板是逐帧插值出来的，放在里面会让这张位图每帧重建一次。
+     * 外层读到的是全局主题的「落定色」，只在真正切换配色时变一次。
+     */
+    val customTabsBranding = rememberCustomTabsBranding()
+
+    /**
      * 内容整体包在 [ThemeColorTransition] 里：本页是唯一能改配色的地方，切「配色模式」
      * 或「使用爱发电主题色」时整页颜色渐变过去，而不是瞬间换色。模糊取色也在包裹范围内，
      * 顶栏才能跟着一起渐变。其他页面保持原来的瞬间生效（切设置时它们看不见，没必要每帧重算）。
@@ -229,6 +278,7 @@ fun SettingsScreen(
             backStack = backStack,
             onLogout = onLogout,
             viewModel = viewModel,
+            customTabsBranding = customTabsBranding,
         )
     }
 }
@@ -240,6 +290,8 @@ private fun SettingsScreenContent(
     backStack: NavBackStack,
     onLogout: () -> Unit,
     viewModel: SettingsViewModel,
+    // Custom Tabs 品牌化参数，由外层 [SettingsScreen] 构建后传入（见那里的注释）
+    customTabsBranding: CustomTabsBranding,
 ) {
     // 设置
     val startupPage by viewModel.startupPage.collectAsState()
@@ -777,10 +829,21 @@ private fun SettingsScreenContent(
                 }
 
                 item { SmallTitle(text = "其他", modifier = Modifier.padding(start = 4.dp)) }
+
                 item {
-                    Card(modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 12.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        // 爱发电官方文档：地址写死 guide.afdian.com，**不跟「优先线路」走** ——
+                        // 另外两个域名（ifdian.net / www.afdian.com）下并没有 guide 子域，
+                        // 跟着线路改写 host 会直接 404，所以这里刻意不走 afdianWebUrl()。
+                        ArrowPreference(
+                            title = "爱发电文档",
+                            onClick = { openExternalLink(context, AFDIAN_GUIDE_URL, preferOfficialClient, customTabsBranding) },
+                        )
+                    }
+                }
+
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         ArrowPreference(
                             title = "存储空间管理",
                             onClick = { if (backStack.none { it == Route.Storage }) backStack.add(Route.Storage) },
@@ -799,9 +862,7 @@ private fun SettingsScreenContent(
                 }
 
                 item {
-                    Card(modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 12.dp)){
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
                         ArrowPreference(
                             title = "重置管理页卡片布局",
                             onClick = {
@@ -819,6 +880,42 @@ private fun SettingsScreenContent(
                 }
 
                 item { SmallTitle(text = "关于", modifier = Modifier.padding(start = 4.dp)) }
+
+                item {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        // 交流群：一次点击干两件事 —— 打开入群链接，同时把群号复制到剪贴板。
+                        // 群号单独复制是为了照顾已经在 QQ 里、懒得切到网页再点「加入群聊」的用户。
+                        ArrowPreference(
+                            title = "交流群",
+                            summary = "本第三方客户端的交流群",
+                            onClick = {
+                                AppLog.d("Settings", "打开交流群并复制群号: $QQ_GROUP_JOIN_URL")
+                                copyTextToClipboard(context, QQ_GROUP_NUMBER, "群号", "群号已复制")
+                                openExternalLink(context, QQ_GROUP_JOIN_URL, preferOfficialClient, customTabsBranding)
+                            },
+                        )
+                        // 项目源码仓库
+                        ArrowPreference(
+                            title = "GitHub",
+                            summary = GITHUB_REPO_SLUG,
+                            onClick = { openExternalLink(context, GITHUB_REPO_URL, preferOfficialClient, customTabsBranding) },
+                        )
+                        ArrowPreference(
+                            title = "开源许可",
+                            onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
+                        )
+                        ArrowPreference(
+                            title = "免责声明",
+                            onClick = { if (backStack.none { it == Route.Disclaimer }) backStack.add(Route.Disclaimer) },
+                        )
+                        // 功能完成度：常驻的「当前尚未完成的功能」清单入口。
+                        ArrowPreference(
+                            title = "功能完成度",
+                            summary = "当前尚未完成的功能清单",
+                            onClick = { if (backStack.none { it == Route.FeatureStatus }) backStack.add(Route.FeatureStatus) },
+                        )
+                    }
+                }
 
                 item {
                     Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
@@ -839,25 +936,6 @@ private fun SettingsScreenContent(
                             onSelectedIndexChange = { index ->
                                 viewModel.setUpdateChannel(UpdateChannel.entries[index])
                             },
-                        )
-                    }
-                }
-
-                item {
-                    Card( modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp) ) {
-                        ArrowPreference(
-                            title = "开源许可",
-                            onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
-                        )
-                        ArrowPreference(
-                            title = "免责声明",
-                            onClick = { if (backStack.none { it == Route.Disclaimer }) backStack.add(Route.Disclaimer) },
-                        )
-                        // 功能完成度：常驻的「当前尚未完成的功能」清单入口。
-                        ArrowPreference(
-                            title = "功能完成度",
-                            summary = "当前尚未完成的功能清单",
-                            onClick = { if (backStack.none { it == Route.FeatureStatus }) backStack.add(Route.FeatureStatus) },
                         )
                     }
                 }
@@ -968,6 +1046,35 @@ private fun SettingsScreenContent(
         // 不复位的话旋转屏幕等重组会再次把弹窗拉起来
         onDismissed = { updateViewModel.consumeAvailable() },
     )
+}
+
+/**
+ * 把文本写入系统剪贴板，失败时只记日志、不打断调用方。
+ *
+ * 抄 `MessageBubbleMenu.copyToClipboard` 的写法：`setPrimaryClip` 在部分机型上会抛异常，
+ * 这里兜住避免崩到顶层；复制成功才弹 Toast，失败时给用户一点提示也没有。
+ *
+ * @param context 上下文
+ * @param text 要复制的文本
+ * @param clipLabel 剪贴板 ClipData 的描述标签（系统「剪贴板历史」里显示的来源名）
+ * @param toastText 复制成功的 Toast 文案
+ */
+private fun copyTextToClipboard(
+    context: Context,
+    text: String,
+    clipLabel: String,
+    toastText: String,
+) {
+    val copiedOk = runCatching {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(clipLabel, text))
+    }.onFailure { throwable ->
+        AppLog.w("Settings", "复制到剪贴板失败（$clipLabel）", throwable)
+    }.isSuccess
+    if (copiedOk) {
+        AppLog.d("Settings", "复制成功（$clipLabel 长度=${text.length}）")
+        Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+    }
 }
 
 /**
