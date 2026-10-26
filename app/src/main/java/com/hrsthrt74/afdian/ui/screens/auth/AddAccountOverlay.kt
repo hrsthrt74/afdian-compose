@@ -14,6 +14,9 @@ import top.yukonga.miuix.kmp.window.WindowDialog
  * 高度由内容决定。`largeScreen = true` 强制居中缩放/淡入，避免在窄屏上退化成底部滑入。
  *
  * @param show 显隐由外层 `isAddingAccount` 驱动；关闭时保留组合以播放退出动画
+ * @param onOpenWebLogin 点击「使用网页登录」链接的回调；为 null 时不渲染这个链接
+ * @param onDismissFinished 退场动画播完后的回调。用于「关掉本弹层再开另一个弹层」的场景：
+ *                        等动画结束再开下一个，两层窗口才不会同时存在
  */
 @Composable
 fun AddAccountOverlay(
@@ -29,6 +32,8 @@ fun AddAccountOverlay(
     onSendCode: (String, String) -> Unit,
     onClearError: () -> Unit,
     onCancel: () -> Unit,
+    onOpenWebLogin: (() -> Unit)? = null,
+    onDismissFinished: (() -> Unit)? = null,
 ) {
     WindowDialog(
         show = show,
@@ -37,6 +42,7 @@ fun AddAccountOverlay(
         largeScreen = true,
         // 点遮罩、按返回键都视为取消添加，不会改动当前账号
         onDismissRequest = onCancel,
+        onDismissFinished = onDismissFinished,
     ) {
         // 只在展开时组合表单：关闭后（含退出动画）内容为空，
         // 下次打开是全新的表单，不会残留上次输入的账号密码
@@ -54,6 +60,8 @@ fun AddAccountOverlay(
                 onClearError = onClearError,
                 // 关键：嵌入弹层模式
                 embedded = true,
+                // 网页登录入口：透传给表单，链接由外层负责弹 Sheet
+                onOpenWebLogin = onOpenWebLogin,
             )
         }
     }

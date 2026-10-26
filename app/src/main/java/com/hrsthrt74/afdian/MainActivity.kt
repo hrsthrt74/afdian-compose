@@ -55,6 +55,8 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.screens.auth.AddAccountOverlay
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.auth.LoginScreen
+import com.hrsthrt74.afdian.ui.screens.auth.WebLoginPurpose
+import com.hrsthrt74.afdian.ui.screens.auth.WebLoginSheet
 import com.hrsthrt74.afdian.ui.screens.auth.WrongEditionScreen
 import com.hrsthrt74.afdian.ui.screens.main.MainScreen
 import com.hrsthrt74.afdian.ui.screens.main.OssLicensesScreen
@@ -237,6 +239,13 @@ private fun AfdianApp(
             // 待删除账号：删除确认对话框的标题与文案要用
             var pendingDelete by remember { mutableStateOf<SavedAccountSummary?>(null) }
             val deleteAccountDialog = rememberDialogState()
+            // 网页登录弹层的用途：null 表示没在展示。
+            // 声明在登录态分支之外：未登录时从登录页发起，已登录时从「添加账号」弹层发起，
+            // 两处共用同一个弹层实例，但抓到凭据后的收尾不同。
+            var webLoginPurpose by remember { mutableStateOf<WebLoginPurpose?>(null) }
+            // 待打开的网页登录用途：「添加账号」弹层退场动画播完后才真正开 Sheet，
+            // 避免两个独立窗口（WindowDialog + WindowBottomSheet）同时存在。
+            var pendingWebLogin by remember { mutableStateOf<WebLoginPurpose?>(null) }
             // 账号切换弹层的数据与动作：注入组合局部，由「我的」页头像旁的菜单消费。
             // 用 remember 绑定数据快照，避免每次重组都生成新对象导致菜单整棵重组。
             val accountSwitcher = remember(accounts, currentAccountId, invalidAccountIds) {
@@ -439,6 +448,12 @@ private fun AfdianApp(
                                                     loginBackStack.add(Route.Settings)
                                                 }
                                             },
+                                            // 网页登录入口：打开内嵌 WebView 的登录页弹层，
+                                            // 登录成功后从 cookie 里取凭据走正常登录流程
+                                            onOpenWebLogin = {
+                                                AppLog.d("Login", "从登录页打开网页登录")
+                                                webLoginPurpose = WebLoginPurpose.Login
+                                            },
                                         )
                                     }
                                     entry<Route.Disclaimer> {
@@ -522,6 +537,40 @@ private fun AfdianApp(
                 onSendCode = session::sendLoginCode,
                 onClearError = session::clearError,
                 onCancel = session::cancelAddAccount,
+                // 网页登录入口：先关掉本弹层，退场动画播完再开网页登录弹层。
+                // 「添加账号」是 WindowDialog（独立窗口），网页登录是 WindowBottomSheet
+                // （又一个独立窗口），两层窗口同时存在会有 z-order 与焦点问题，
+                // 所以这里用 onDismissFinished 把两者严格错开。
+                onOpenWebLogin = {
+                    AppLog.d("Login", "从添加账号弹层打开网页登录")
+                    pendingWebLogin = WebLoginPurpose.AddAccount
+                    session.cancelAddAccount()
+                },
+                onDismissFinished = {
+                    // 退场动画结束、窗口已经销毁，此时再开网页登录 Sheet
+                    val pending = pendingWebLogin
+                    if (pending != null) {
+                        pendingWebLogin = null
+                        webLoginPurpose = pending
+                    }
+                },
+            )
+
+            // 网页登录弹层：内嵌 WebView 打开爱发电网页版登录页，
+            // 登录成功后从 WebView 的 cookie 里取 auth_token 交给 session。
+            // 放在登录态分支之外：未登录（登录页入口）与已登录（添加账号入口）两处共用。
+            WebLoginSheet(
+                show = webLoginPurpose != null,
+                onDismiss = { webLoginPurpose = null },
+                onToken = { token ->
+                    val purpose = webLoginPurpose
+                    webLoginPurpose = null
+                    when (purpose) {
+                        WebLoginPurpose.Login -> session.loginWithToken(token)
+                        WebLoginPurpose.AddAccount -> session.loginNewAccountWithToken(token)
+                        null -> Unit
+                    }
+                },
             )
 
             // 切换遮罩：不可取消，直到新账号首屏就绪或超时兜底

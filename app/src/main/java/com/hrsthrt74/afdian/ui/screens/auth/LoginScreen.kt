@@ -128,6 +128,8 @@ private const val CODE_LENGTH = 4
  *                       （弹层形态自带标题、登录成功过渡层也跳不走，都不需要这个入口）
  * @param savedAccounts 已保存账号；非空时在 Tab 与表单之间显示「点一下继续」的卡片
  * @param onPickSavedAccount 点击某个已保存账号时调用，由根层执行免密切换
+ * @param onOpenWebLogin 点击登录按钮下方「使用网页登录」链接的回调；
+ *                       为 null 时不渲染这个链接（调用方不打算支持网页登录时）
  */
 @Composable
 fun LoginScreen(
@@ -158,6 +160,10 @@ fun LoginScreen(
     // 传 null 时整条顶栏不渲染：弹层里已有自己的标题、过渡层也不能跳走，
     // 只有真正作为「未登录首屏」的登录页才需要这个入口。
     onOpenSettings: (() -> Unit)? = null,
+    // 登录按钮下方「使用网页登录」链接的点击回调。
+    // 传 null 时这个链接不渲染：网页登录是一个可选的备选路径，
+    // 调用方不支持时不留一个点不动的链接。
+    onOpenWebLogin: (() -> Unit)? = null,
 ) {
     // 表单草稿：rememberSaveable 保证进程重建后不丢用户已输入的内容
     var account by rememberSaveable { mutableStateOf(initialAccount) }
@@ -530,6 +536,35 @@ fun LoginScreen(
                     }
                     Text(if (isLoggingIn) "登录中…" else "登录")
                 }
+            }
+
+            // 网页登录入口：登录按钮下方的文字链接。
+            // 样式与底部「免责声明」链接一致（主题色 + 下划线），
+            // 走 AnnotatedString 的链接注解，miuix 的 Text 会自动注入链接样式。
+            // 位置在主按钮之下、错误提示之上：它是备选路径，不该抢主按钮的注意力，
+            // 但要挨着按钮，用户的视线扫过按钮时会自然看到。
+            if (onOpenWebLogin != null) {
+                Text(
+                    text = buildAnnotatedString {
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                tag = "webLogin",
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(
+                                        color = MiuixTheme.colorScheme.primary,
+                                        textDecoration = TextDecoration.Underline,
+                                    ),
+                                ),
+                                linkInteractionListener = LinkInteractionListener { onOpenWebLogin() },
+                            )
+                        ) { append("使用网页登录") }
+                    },
+                    style = MiuixTheme.textStyles.footnote1,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, start = horizontalPadding, end = horizontalPadding),
+                )
             }
 
             // 收尾：嵌入弹层补一点间距就结束；全屏页则用一段 weight 留白 + 底部协议行收尾。

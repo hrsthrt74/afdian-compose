@@ -17,6 +17,13 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 - 密码登录（AES/CBC/PKCS5Padding 加密账号和密码，RSA/PKCS1 加密 AES 密钥）。
 - 验证码登录（手机号 / 邮箱）：登录页用「密码登录 / 验证码登录」双 Tab 切换；发码接口 `/api/passport/send-ql-code` 在服务端要求人机校验时返回 `ec=201` + `captcha_img`，界面在验证码框下方就地展开图形验证码（点图片可换一张），填对后重新发码；发送成功后进入 60 秒重发倒计时。验证码登录走 `/api/passport/quick-login`。
+- 网页登录：登录按钮下方的「使用网页登录」文字链接，打开 `WindowBottomSheet` 内嵌 `AndroidView(WebView)` 加载爱发电网页版登录页，登录成功后从 WebView 的 Cookie 里取 `auth_token` 交给 `AuthSession.loginWithToken` / `loginNewAccountWithToken`，后续落盘与切号复用既有流程。
+  - **域名跟随优先线路**：地址由 `afdianWebUrl("/login")` 拼出，与网络层读同一个 `AfdianRouteState.preferred`。
+  - **必须用 WebView 不能用 Custom Tabs**：浏览器在别的进程，Cookie 与本 App 的 `CookieManager` 隔离，拿不到凭据。
+  - **凭据两条路径互为兜底**：Cookie 的 `auth_token`（js-cookie 写入，有效期 360 天）+ URL 的 `atn` 参数（网页端跨站跳转时用它携带凭据，落地页再写回 cookie，两者之间有时间差）；解析逻辑在 `WebLoginCookie.kt`，是纯函数，有单测覆盖。
+  - **每次打开都清 WebView cookie**：否则残留的 `auth_token` 会让网页端判为「已登录」并跳过登录表单，用户没输密码就被登录成上次的账号。
+  - `enableNestedScroll = false`：WebView 不上报 nested scroll，开着会让 Sheet 的下拉关闭手势行为不可预期。
+  - 未登录登录页与「添加账号」弹层都提供该入口；后者先用 `onDismissFinished` 等弹层退场动画播完再开 Sheet，避免两层独立窗口同时存在。
 - Token 使用 Android Keystore 的 AES-GCM 加密后保存。
 - 登录失败显示错误文本，登录中禁用按钮。
 - 免责声明弹窗：首次同意后保存本地状态，不同意则关闭任务。

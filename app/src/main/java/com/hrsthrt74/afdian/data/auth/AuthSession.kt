@@ -197,6 +197,31 @@ class AuthSession(application: Application) : AndroidViewModel(application) {
         startLogin("验证码登录", account, LoginPurpose.Normal) { AuthService().codeLogin(account, code) }
     }
 
+    /**
+     * 网页登录：凭据已经在 WebView 里拿到了，直接提交。
+     *
+     * 与 [login] / [loginWithCode] 的区别只在于「token 从哪来」——那两种是本 App
+     * 调接口换的，这一种是网页端登录成功后由 `CookieManager` 读出来的。
+     * 拿到手之后的后半程（落盘 → 切登录态 → 预取身份 → 存账号列表）完全一致，
+     * 所以直接复用 [startLogin]，不多写一套提交逻辑。
+     *
+     * 账号参数传空串：网页登录时用户没在本 App 的输入框里填过账号，
+     * 首屏过渡层的账号回填保持为空是正确的。
+     */
+    fun loginWithToken(token: String) {
+        startLogin("网页登录", "", LoginPurpose.Normal) { token }
+    }
+
+    /**
+     * 「添加账号」浮层里的网页登录：成功后保存账号并切换过去。
+     *
+     * 与 [loginNewAccount] 的关系同 [loginWithToken] 与 [login] 的关系：
+     * 只是 token 的来源不同，后续流程复用。
+     */
+    fun loginNewAccountWithToken(token: String) {
+        startLogin("添加账号", "", LoginPurpose.AddAccount) { token }
+    }
+
     /** 「添加账号」浮层里的密码登录：成功后保存账号并切换过去。 */
     fun loginNewAccount(account: String, password: String) {
         startLogin("添加账号", account, LoginPurpose.AddAccount) { AuthService().passwordLogin(account, password) }
