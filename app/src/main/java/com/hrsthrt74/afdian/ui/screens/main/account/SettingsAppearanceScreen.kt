@@ -59,6 +59,7 @@ import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.theme.DATACARD_VALUE_FONT_FEATURE_SETTINGS
+import com.hrsthrt74.afdian.ui.theme.LocalBottomBarStyle
 import com.hrsthrt74.afdian.ui.theme.LocalCustomThemeColor
 import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.LocalThemeColor
@@ -101,9 +102,6 @@ private val colorModeNames = listOf("跟随系统", "浅色", "深色")
 
 // 主题选项，索引 0=MIUIX 1=Monet（对应 SettingsStore 的 monetEnabled）
 private val themeStyleNames = listOf("MIUIX", "Monet")
-
-// 底栏样式选项，索引与 SettingsStore 的 bottomBarStyle（0/1）约定一致
-private val bottomBarStyleNames = listOf("常规", "悬浮")
 
 /**
  * 「跟随壁纸」那一项的颜色球用的色轮。
@@ -435,7 +433,9 @@ private fun SettingsAppearanceContent(
     val advancedTransition by viewModel.advancedTransition.collectAsState()
     val gestureBack by viewModel.gestureBack.collectAsState()
     val predictiveBack by viewModel.predictiveBack.collectAsState()
-    val bottomBarStyle by viewModel.bottomBarStyle.collectAsState()
+    // 底栏样式：读根组合下发的组合局部，而不是 VM 的流 —— VM 初值恒为默认档（常规），
+    // 选了悬浮再进本页会先闪一下常规。理由与上面主题那一段完全一样。
+    val bottomBarStyle = LocalBottomBarStyle.current
     val showIncomeUnit by viewModel.showIncomeUnit.collectAsState()
     val showCountUnit by viewModel.showCountUnit.collectAsState()
     val rollingNumberEnabled by viewModel.rollingNumberEnabled.collectAsState()
@@ -484,16 +484,15 @@ private fun SettingsAppearanceContent(
         onBack = onBack,
         backStack = backStack,
     ) {
+        item { SmallTitle(text = "底栏样式", modifier = Modifier.padding(start = 4.dp)) }
         item {
-            Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                // 底栏样式：常规（贴底整条）/ 悬浮（胶囊），MainScreen 订阅后立即生效
-                OverlayDropdownPreference(
-                    title = "底栏样式",
-                    items = bottomBarStyleNames,
-                    selectedIndex = bottomBarStyle.coerceIn(0, bottomBarStyleNames.lastIndex),
-                    onSelectedIndexChange = viewModel::setBottomBarStyle
-                )
-            }
+            // 底栏样式：两张实时预览卡，卡片里画的是真 navbar（等比缩小、不可交互），
+            // 切换后由根组合回推 LocalBottomBarStyle，主界面底栏立即换样式
+            BottomBarStyleSelector(
+                style = bottomBarStyle,
+                onSelect = viewModel::setBottomBarStyle,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
         }
 
         item { SmallTitle(text = "配色", modifier = Modifier.padding(start = 4.dp)) }

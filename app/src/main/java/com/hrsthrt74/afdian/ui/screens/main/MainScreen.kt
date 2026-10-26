@@ -22,17 +22,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.AppLog
-import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.content.AfadianContentService
 import com.hrsthrt74.afdian.data.content.AfadianUser
@@ -73,6 +70,7 @@ import com.hrsthrt74.afdian.ui.screens.main.management.IncomeDetailScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.ManagementScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.ShopScreen
 import com.hrsthrt74.afdian.ui.screens.main.tabs.ProfileScreen
+import com.hrsthrt74.afdian.ui.theme.LocalBottomBarStyle
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.isDarkColorScheme
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
@@ -98,10 +96,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Community
-import top.yukonga.miuix.kmp.icon.extended.Contacts
-import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
@@ -109,21 +103,6 @@ import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 import top.yukonga.miuix.kmp.nav.gesture.PredictiveBackHandler
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-/**
- * 底部导航 Tab 定义：标题 + 图标。
- * 图标用 @Composable lambda 惰性提供，支持需要 Composable 上下文的
- * [ImageVector.vectorResource]（如自定义 drawable 图标）。
- */
-private data class MainTab(val title: String, val icon: @Composable () -> ImageVector)
-
-private val mainTabs = listOf(
-    // 首页：自定义描边小房子（drawable/home_outlined，抄自 exTile 项目）
-    MainTab("首页") { ImageVector.vectorResource(R.drawable.home_outlined) },
-    MainTab("发现") { MiuixIcons.Search },
-    MainTab("消息") { MiuixIcons.Community },
-    MainTab("我的") { MiuixIcons.Contacts },
-)
 
 /**
  * 去重 push：miuix-nav 要求 back stack 内 contentKey 互不相等，
@@ -692,8 +671,8 @@ private fun MainTabsContent(
     val hasUnreadMessages by messagesViewModel.hasUnreadMessages.collectAsState()
     val unreadCount by messagesViewModel.unreadCount.collectAsState()
     val themeSettings = LocalThemeSettings.current
-    // 底栏样式档位（0=常规 1=悬浮）：订阅 DataStore，设置页切换后立即重组生效
-    val bottomBarStyle by settingsStore.bottomBarStyle.collectAsState(initial = 0)
+    // 底栏样式档位（0=常规 1=悬浮）：读根组合下发的组合局部，设置页切换后立即重组生效
+    val bottomBarStyle = LocalBottomBarStyle.current
     val backdrop = rememberBlurBackdrop(themeSettings.enableBlur)
     var layoutReady by remember { mutableStateOf(false) }
     // 发现页搜索面板是否激活（展开中/展开/收起中）：激活期间禁用 pager 横滑，

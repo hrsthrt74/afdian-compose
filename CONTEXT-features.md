@@ -581,6 +581,20 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ### 外观（`Route.SettingsAppearance`）
 
 - 分组「外观」：底栏样式、配色模式、主题、主题色、模糊效果、渐进模糊。
+- 底栏样式（`ui/screens/main/account/BottomBarStyleSelector.kt`）：常规 / 悬浮两档，
+  不再是下拉，而是**两张并排的实时预览卡**——卡片里画的是真 navbar（`NavigationBar` /
+  `FloatingNavigationBar`，与主界面同一份 `mainTabs`）。缩小靠**缩 `LocalDensity`**：
+  内容以为自己在 360dp 宽的屏幕上排版，物理上只占卡片宽度，于是 `fillMaxWidth` 仍铺满、
+  胶囊仍居中（别用 `graphicsLayer` 缩画布：排版宽度会宽出卡片一截，要靠裁剪收边，
+  对齐一错整条底栏就偏到卡片左边）。卡片上盖一层透明命中层接住点击，所以预览本身不可交互。
+  背景是固定渐变（上 `#4170FF` → 下 `#5ABAFE`，不跟主题色走）；圆角与描边都用 miuix 的
+  squircle（`squircleClip` / `squircleBorder`，不用 `RoundedCornerShape`），选中档外面套一圈
+  主题色描边，与卡片之间留 6dp 空隙。
+  - 悬浮档的底部留白被裁到恒定 26dp：miuix 内部写死了「26dp + 系统手势条高度」，
+    放开高度量出来后用 `clipToBounds` 裁掉多余部分，避免预览随设备跳动。
+  - 档位本身由 `LocalBottomBarStyle`（`ui/theme/BottomBarStyle.kt`，MainActivity 根组合收集）下发，
+    主界面底栏与预览卡共用。**不要**改读 `SettingsViewModel.bottomBarStyle`：VM 进页面才创建，
+    初值恒为默认档，会先闪一下「常规」。
 - 配色模式选择：跟随系统 / 浅色 / 深色，只决定明暗，与「主题」正交。
 - 主题选择：**MIUIX（默认）/ Monet**，对应 `monetEnabled`（DataStore 键沿用 `monet_enabled`）。
   - MIUIX：Miuix 静态色板，主色由主题色决定；跟随系统/浅色/深色分别映射到

@@ -44,10 +44,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val predictiveBack: StateFlow<Boolean> = store.predictiveBack
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
-    /** 底部导航栏样式：0=常规（默认） 1=悬浮胶囊 */
-    val bottomBarStyle: StateFlow<Int> = store.bottomBarStyle
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
-
     /** 浏览历史记录开关，默认开启。 */
     val historyEnabled: StateFlow<Boolean> = store.historyEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)

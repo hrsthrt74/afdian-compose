@@ -69,6 +69,7 @@ import com.hrsthrt74.afdian.ui.screens.main.account.SettingsGeneralScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.StorageScreen
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
+import com.hrsthrt74.afdian.ui.theme.LocalBottomBarStyle
 import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
 import com.hrsthrt74.afdian.ui.util.rememberSessionViewModelStoreOwner
@@ -195,6 +196,9 @@ private fun AfdianApp(
     // 数据卡数字滚动动画总开关：initial 与 DataStore 里的默认值（true）保持一致，
     // 否则冷启动首帧会先按 false 渲染一次普通文本，再跳回滚轮。
     val rollingNumberEnabled by settingsStore.rollingNumberEnabled.collectAsState(initial = true)
+    // 底栏样式：0=常规 1=悬浮。在根组合就订阅，设置页进页面时读到的已是真值
+    //（若让设置页自己的 VM 去读，VM 初值恒为默认档，会先闪一下「常规」）
+    val bottomBarStyle by settingsStore.bottomBarStyle.collectAsState(initial = 0)
     // 数据卡数值窄体字体：开关 + wdth 宽度。
     // initial 与 DataStore 默认值保持一致，避免冷启动首帧先按系统字体渲染一次再换字体。
     val dataCardCustomFontEnabled by settingsStore.dataCardCustomFontEnabled.collectAsState(initial = false)
@@ -312,6 +316,8 @@ private fun AfdianApp(
                             // 账号切换菜单的数据：由「我的」页头像旁的弹层消费
                             LocalAccountSwitcher provides accountSwitcher,
                             LocalRollingNumberEnabled provides rollingNumberEnabled,
+                            // 底栏样式：主界面底栏与设置页预览卡共用这一份，避免进设置页先闪默认档
+                            LocalBottomBarStyle provides bottomBarStyle,
                             // 数值窄体字体同样以组合局部下发：卡片读到它就订阅，开关/宽度一变必然重组
                             LocalDataCardFontFamily provides providedDataCardFontFamily,
                         ) {
