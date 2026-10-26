@@ -179,6 +179,35 @@ jobs:
             echo "::error::Release $TAG 已存在，请换版本号或先删除旧 Release"; exit 1
           fi
 
+      # Release 正文不再用 --generate-notes（它只认 PR，我们直接提交 master 会生成空 note）。
+      # 改为从仓库的 CHANGELOG.md 提取对应版本的段落：匹配 `## <版本号>` 到下一个 `## ` 之间。
+      # CHANGELOG 缺该版本段落时直接失败，避免发出去一个空 Release。
+      - name: 从 CHANGELOG.md 提取更新说明
+        run: |
+          set -euo pipefail
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::error::仓库根目录没有 CHANGELOG.md，发版前请先补充"; exit 1
+          fi
+          # awk：遇到 `## VERSION` 开始收集，遇到下一个 `## `（含文件末尾）结束
+          NOTES="$(awk -v ver="$VERSION" '
+            $0 ~ ("^## " ver "($| )") { on = 1; next }
+            on && /^## /              { exit }
+            on                        { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;};/\n$/ba')"
+          if [ -z "$NOTES" ]; then
+            echo "::error::CHANGELOG.md 里没有找到「## $VERSION」段落，发版前请先补充"; exit 1
+          fi
+          # 追加与上一个 tag 的对比链接，保持原来 generate-notes 的这一点便利
+          LAST_TAG="$(git describe --abbrev=0 --tags "$TAG^" 2>/dev/null || true)"
+          {
+            echo "$NOTES"
+            if [ -n "$LAST_TAG" ]; then
+              echo
+              echo "**Full Changelog**: https://github.com/hrsthrt74/afdian-compose/compare/${LAST_TAG}...${TAG}"
+            fi
+          } > release_notes.md
+          echo "── 更新说明 ──"; cat release_notes.md
+
       - name: 创建 Release
         run: |
           set -euo pipefail
@@ -186,7 +215,7 @@ jobs:
             "dist/Afdian-${VERSION}-standard-release.apk#标准版（Android 14+）" \
             "dist/Afdian-${VERSION}-legacy-release.apk#兼容版（Android 10–13）" \
             --title "$VERSION" \
-            --generate-notes \
+            --notes-file release_notes.md \
             --latest \
             --verify-tag
 
