@@ -155,10 +155,9 @@ class AuthService(private val client: OkHttpClient = sharedAfdianHttpClient) {
         const val TAG = "AuthService"
         const val HOST = "https://afdian.com"
         val JSON_MEDIA_TYPE = "application/json".toMediaType()
-        val AES_IV = "7brVHncu7wIDAQAB".toByteArray()
-        val PUBLIC_KEY = """
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4Top/Mt2ofZeAIMh9AHw4d6Q+iyBxXbou+1mbhclLsB3YSMbFD+X6QnlAY1vMHO7fteKevn25iVIELBXsmcQS5/oA2hO3VHi9uTG3XmYVcrw94cK5ppODeBOV0hV0dFS/NOT66pqPAuLW6HgRrntgznl4ju6ttOddDNJ7e97RH9qrZEpzjl9GqVZQ2sFdmmw4dNET9fP9HWq8VlfW+BF G7TuxzEjZNcxAgrG/f41Z0+G3RxAccF8LOxu4Ztk1ZDdv5xukdx2ukoEhgdmKUkDv/W5r3HPj1uX+buzDi/UsumMblWXb0Bys7ENhZ/n4+naZ3b3rJ32DnTF7brVHncu7wIDAQAB
-""".replace(" ", "").replace("\n", "")
+        val AES_IV = AFDIAN_AES_IV
+        // 公钥与 IV 的说明见 [AFDIAN_RSA_PUBLIC_KEY] 的文档注释
+        val PUBLIC_KEY = AFDIAN_RSA_PUBLIC_KEY
     }
 }
 

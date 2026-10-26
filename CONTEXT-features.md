@@ -16,6 +16,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 ## 认证
 
 - 密码登录（AES/CBC/PKCS5Padding 加密账号和密码，RSA/PKCS1 加密 AES 密钥）。
+- **登录加密公钥会被服务端轮换**：`ar_ept` 是「用网页端 RSA 公钥加密的 AES 密钥」，服务端用对应私钥解密才能拿到账号密码。公钥一旦对不上，服务端解不出 AES 密钥，就不报「密码错误」，而是把请求当可疑流量返回 `ec=400 操作频繁，请稍后再试` —— 这个错报把「钥匙过期」伪装成「你操作太频繁」，极易误判。实测确认：用过期公钥发一个非法 JSON 的 body 也返回「操作频繁」；换成正确公钥则立刻变回正常业务响应（如 `ec=404 账号不正确`）。当前公钥与 IV 放在 `data/auth/AuthServicePublicKey.kt`（`AFDIAN_RSA_PUBLIC_KEY` / `AFDIAN_AES_IV`），**公钥指纹由 `AuthServicePublicKeyTest` 锁定**：服务端轮换后该测试立刻失败并提示如何更新，避免线上登录静默失效。更新方式：抓 `https://static.afdiancdn.com/js/app.<hash>.js` 搜 `BEGIN PUBLIC KEY`。
 - 验证码登录（手机号 / 邮箱）：登录页用「密码登录 / 验证码登录」双 Tab 切换；发码接口 `/api/passport/send-ql-code` 在服务端要求人机校验时返回 `ec=201` + `captcha_img`，界面在验证码框下方就地展开图形验证码（点图片可换一张），填对后重新发码；发送成功后进入 60 秒重发倒计时。验证码登录走 `/api/passport/quick-login`。
 - 网页登录：登录按钮下方的「使用网页登录」文字链接，打开 `WindowBottomSheet` 内嵌 `AndroidView(WebView)` 加载爱发电网页版登录页，登录成功后从 WebView 的 Cookie 里取 `auth_token` 交给 `AuthSession.loginWithToken` / `loginNewAccountWithToken`，后续落盘与切号复用既有流程。
   - **域名跟随优先线路**：地址由 `afdianWebUrl("/login")` 拼出，与网络层读同一个 `AfdianRouteState.preferred`。
@@ -580,6 +581,17 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 「其他」分组：`存储空间管理` 与 `日志` 两个入口（原「清除浏览历史」入口已移除，清理统一收敛到存储页）。
 - 「关于」分组：功能完成度、**更新通道**（正式版 / Actions 构建，见上一节）、检查更新、开源许可、免责声明；
   页脚显示 `版本 x (code)`，Actions 包额外附带 `· 构建 #N · <sha>`，方便报 issue 时直接截图。
+- 「关于」分组还有两个**站外链接**入口（都走 Custom Tabs，不进 App 内路由）：
+  - **GitHub 仓库** → `https://github.com/hrsthrt74/afdian-compose`（源码、Issue、Release）。
+  - **爱发电文档** → `https://guide.afdian.com`。
+    ⚠️ 这个地址**刻意不跟「优先线路」走**：另外两个域名（ifdian.net / www.afdian.com）下
+    并没有 guide 子域，跟着线路改写 host 会直接 404，所以写死域名、不用 `afdianWebUrl()`。
+- 这两个入口用 `ui/navigation/AppLinkNavigator.kt` 里的**顶层函数 `openExternalLink(...)`**，
+  而不是 `LocalAppLinkNavigator`：后者带站内跳转能力（`onNavigate`），只在 MainScreen 里提供，
+  而设置页在未登录栈（登录页顶栏的设置入口）也能进，那儿取不到这个组合局部。
+  `AppLinkNavigator.openExternal()` 现在也委托给同一个函数，两处共用「官方客户端 → Custom Tabs → 系统浏览器」的回退链。
+  品牌参数 `CustomTabsBranding` 在 `SettingsScreen` 的**外层**（`ThemeColorTransition` 之外）构建：
+  它要读主题色，而过渡层里的色板逐帧插值，放进去会让这张位图每帧重建。
 - 两个入口：已登录走「我的」页快捷入口（`MainScreen` 的 `entry<Route.Settings>`）；
   未登录走登录页顶栏右侧的「设置」按钮（`MainActivity` 未登录栈里的同名 entry）。
   两处都在各自的 `NavDisplay` 里注册了**设置页内部会 push 的全部子页**
