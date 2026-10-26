@@ -64,6 +64,9 @@ import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FeatureStatusScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAboutScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAppearanceScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsGeneralScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.StorageScreen
 import com.hrsthrt74.afdian.ui.screens.main.management.IncomeDetailScreen
@@ -464,20 +467,44 @@ fun MainScreen(
         }
         entry<Route.Settings> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 设置总览：账号 + 通用 / 外观 / 关于三个分类入口
             SettingsScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
                 onLogout = handleLogout
             )
         }
+        // 设置分类页：总览页点击分类行后 push 到这里。
+        // 与 Settings 同属外层栈，统一套 PredictiveBackGuard 消费系统预测性返回。
+        entry<Route.SettingsGeneral> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            SettingsGeneralScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+            )
+        }
+        entry<Route.SettingsAppearance> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            SettingsAppearanceScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+            )
+        }
+        entry<Route.SettingsAbout> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            SettingsAboutScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+            )
+        }
         entry<Route.OssLicenses> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 开源许可页：设置页「关于」分组入口进入
+            // 开源许可页：设置 → 关于 入口进入
             OssLicensesScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.FeatureStatus> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 功能完成度页：设置页「关于」分组入口进入，列出当前尚未完成的功能清单
+            // 功能完成度页：设置 → 关于 入口进入，列出当前尚未完成的功能清单
             FeatureStatusScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Disclaimer> {
@@ -492,17 +519,17 @@ fun MainScreen(
         }
         entry<Route.Storage> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 存储空间管理页：设置页「存储」分组入口进入
+            // 存储空间管理页：设置 → 通用 入口进入
             StorageScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Log> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 日志页：设置页「其他」分组入口进入，管理运行日志与崩溃报告的记录 / 导出 / 清空
+            // 日志页：设置 → 通用 入口进入，管理运行日志与崩溃报告的记录 / 导出 / 清空
             LogScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.ApiProbe> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
-            // 接口调试页：设置页「其他」分组入口进入，逐个运行核心无参接口并查看原始返回
+            // 接口调试页：设置 → 通用 入口进入，逐个运行核心无参接口并查看原始返回
             ApiProbeScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Blocklist> {
@@ -688,7 +715,7 @@ private fun MainTabsContent(
     Scaffold(
         modifier = Modifier.alpha(if (layoutReady) 1f else 0f),
         bottomBar = {
-            // 底栏样式：0=常规（贴底整条，默认） 1=悬浮胶囊；设置页「外观→底栏样式」切换，实时生效
+            // 底栏样式：0=常规（贴底整条，默认） 1=悬浮胶囊；设置 → 外观 →「底栏样式」切换，实时生效
             // 消息 tab 的未读红点：两种样式共用
             val navBadge: (Int) -> (@Composable () -> Unit)? = { index ->
                 if (index == 2 && hasUnreadMessages) {

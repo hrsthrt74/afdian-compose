@@ -45,21 +45,27 @@ sealed interface Route : NavKey {
     @Serializable data object Affiliates : Route
     // FAQ 设置页（创作者后台 /api/faq/list 及其增删改），入口在消息页三点菜单
     @Serializable data object FaqSetting : Route
-    // 设置页：两个入口共用这一条路由 —— 已登录「我的」页（MainScreen 栈），
-    // 未登录登录页顶栏（MainActivity 的未登录栈）
+    // 设置总览页：账号列表 + 三个分类入口。两个入口共用这一条路由 ——
+    // 已登录「我的」页（MainScreen 栈），未登录登录页顶栏（MainActivity 的未登录栈）
     @Serializable data object Settings : Route
+    // 设置 → 通用：启动页、历史记录、网络线路、文档入口与本地管理/调试入口
+    @Serializable data object SettingsGeneral : Route
+    // 设置 → 外观：配色、模糊、过渡动画与数据卡片
+    @Serializable data object SettingsAppearance : Route
+    // 设置 → 关于：站外链接、开源许可、免责声明、功能完成度、更新与版本页脚
+    @Serializable data object SettingsAbout : Route
     // 免责声明页：首次启动强制确认（不在返回栈里），另有两个只读入口——
-    // 登录页底部链接（未登录流程的返回栈）与设置页「关于」分组（主界面返回栈）
+    // 登录页底部链接（未登录流程的返回栈）与设置 → 关于（主界面返回栈）
     @Serializable data object Disclaimer : Route
-    // 功能完成度页：列出当前尚未完成的功能，入口在设置页「关于」分组
+    // 功能完成度页：列出当前尚未完成的功能，入口在设置 → 关于
     @Serializable data object FeatureStatus : Route
-    // 开源许可页：AboutLibraries 收集的第三方依赖与许可证，入口在设置页「关于」分组
+    // 开源许可页：AboutLibraries 收集的第三方依赖与许可证，入口在设置 → 关于
     @Serializable data object OssLicenses : Route
-    // 存储空间管理页：本地缓存/数据占用总览与分类清理，入口在设置页「其他」分组
+    // 存储空间管理页：本地缓存/数据占用总览与分类清理，入口在设置 → 通用
     @Serializable data object Storage : Route
-    // 日志页：运行日志与崩溃报告的记录开关、占用查看、导出与清空，入口在设置页「其他」分组
+    // 日志页：运行日志与崩溃报告的记录开关、占用查看、导出与清空，入口在设置 → 通用
     @Serializable data object Log : Route
-    // 接口调试页：主动探针逐个运行核心无参接口并查看原始返回，入口在设置页「其他」分组
+    // 接口调试页：主动探针逐个运行核心无参接口并查看原始返回，入口在设置 → 通用
     @Serializable data object ApiProbe : Route
     // 屏蔽 / 拒绝名单页（/api/my/blacked，TabRow 切换两个名单），入口在「我的」页设置上方
     @Serializable data object Blocklist : Route

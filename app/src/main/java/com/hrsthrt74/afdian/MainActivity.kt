@@ -63,6 +63,9 @@ import com.hrsthrt74.afdian.ui.screens.main.OssLicensesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FeatureStatusScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAboutScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAppearanceScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsGeneralScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.StorageScreen
 import com.hrsthrt74.afdian.ui.theme.AfdianBrandColor
@@ -467,9 +470,10 @@ private fun AfdianApp(
                                         )
                                     }
                                     // ── 设置页及其二级页 ──
-                                    // 设置页内部还会 push 下面这几条路由（存储 / 日志 / 接口调试 / 功能完成度 / 开源许可）。
+                                    // 设置页内部会 push 下面这些路由（三个分类页 / 存储 / 日志 / 接口调试 /
+                                    // 功能完成度 / 开源许可 / 免责声明）。
                                     // miuix-nav 对「push 了未注册的路由」是直接 error() 崩溃，不是点了没反应，
-                                    // 所以注册 Route.Settings 的栈必须把这几个子页一起注册 ——
+                                    // 所以注册 Route.Settings 的栈必须把这些子页一起注册 ——
                                     // 以后给设置页加新入口时，这里和 MainScreen 的对应 entry 都要同步补。
                                     entry<Route.Settings> {
                                         SettingsScreen(
@@ -478,6 +482,26 @@ private fun AfdianApp(
                                             // 未登录时设置页不渲染账号分组，「退出登录」入口不可达；
                                             // 传空实现只是为了让签名成立，不会真的触发登出
                                             onLogout = {},
+                                        )
+                                    }
+                                    // 三个设置分类页：总览页点击分类行后 push。
+                                    // 未登录栈里同样要注册，否则从登录页进设置再点分类会直接崩。
+                                    entry<Route.SettingsGeneral> {
+                                        SettingsGeneralScreen(
+                                            onBack = { loginBackStack.removeLastOrNull() },
+                                            backStack = loginBackStack,
+                                        )
+                                    }
+                                    entry<Route.SettingsAppearance> {
+                                        SettingsAppearanceScreen(
+                                            onBack = { loginBackStack.removeLastOrNull() },
+                                            backStack = loginBackStack,
+                                        )
+                                    }
+                                    entry<Route.SettingsAbout> {
+                                        SettingsAboutScreen(
+                                            onBack = { loginBackStack.removeLastOrNull() },
+                                            backStack = loginBackStack,
                                         )
                                     }
                                     entry<Route.Storage> {

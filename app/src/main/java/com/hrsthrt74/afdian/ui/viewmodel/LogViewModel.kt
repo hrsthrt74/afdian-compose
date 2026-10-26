@@ -50,7 +50,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     val fileLogging: StateFlow<Boolean> = settingsStore.logToFile
         .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.DEBUG)
 
-    /** 「调试日志」开关（从设置页「关于」分组迁移至此，与日志工作流归为一处） */
+    /** 「调试日志」开关（从设置 → 关于 迁移至此，与日志工作流归为一处） */
     val debugLogging: StateFlow<Boolean> = settingsStore.debugLogging
         .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.DEBUG)
 

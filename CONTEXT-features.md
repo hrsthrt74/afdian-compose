@@ -296,7 +296,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   换成应用内的 `ClickableSpan`，点击统一走 `AppLinkNavigator`。Linkify 按 IRI 规则会把紧贴
   链接的中文一起算进 URL（如「文档：example.com」），因此匹配后还要用 `trimCjkEdges`
   收一次首尾边界。
-- 设置页「其他」提供「优先使用官方客户端」开关，默认关闭即使用 CCT；开启后按官方
+- 设置 → 通用 → 「链接打开方式」提供「优先使用官方客户端」开关，默认关闭即使用 CCT；开启后按官方
   `afd://app/openapp` 协议（`type=1` 网页参数）尝试拉起 `net.afdian.afdian`，
   未安装或拉起失败自动回退 CCT。
 - **App 自己拼的站内网页地址统一走 `data/network/AfdianRoute.kt` 的 `afdianWebUrl(path)`**，
@@ -512,7 +512,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   - **`autoPrompt` 只由冷启动自动检查置位**：状态合并后若还按「Available 就弹窗」，在设置页
     手动检查也会把根部弹窗拉起来。
   - 手动检查会取消正在跑的自动检查，保证用户一定看到「正在检查…」并拿到新结果。
-- 两条通道，入口在设置页「关于 → 更新通道」（设备级，键 `update_channel`，默认正式版）：
+- 两条通道，入口在「设置 → 关于」的更新通道（设备级，键 `update_channel`，默认正式版）：
   - **正式版**：`GET /repos/hrsthrt74/afdian-compose/releases/latest`，按 `isNewerVersion` 比 tag；
     附件直链在应用内下载（`UpdateDownloader`）后交给系统安装器。
   - **Actions 构建**：`GET .../actions/workflows/build.yml/runs?branch=master&status=success&per_page=1`。
@@ -536,21 +536,52 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 设置页（SettingsScreen）
 
-- `SwitchPreference`（爱发电主题色开关、Monet 配色开关）、`OverlayDropdownPreference`（启动默认页、配色模式）、
-  `OverlaySpinnerPreference`（Key Color）等。
-- 开关项：高级过渡动画、手势返回、系统预测性返回、浏览历史、
-  显示收入单位、显示人次单位（后两项在「数据卡片」分区，默认关闭）。
-  「调试日志」开关已迁移到「其他 → 日志」页（与日志落盘/导出同属一套排查工作流）。
-- 「网络 → 优先线路」（`OverlayDropdownPreference`，与「链接打开方式」同组）：
-  ifdian.net（默认）/ afdian.com / www.afdian.com 三档，
-  对应三条固定尝试顺序 —— ifdian 档：ifdian → afdian → www；afdian 档：afdian → ifdian → www；
-  www 档：www → ifdian → afdian（即 www 只在它自己当主线路时排第一，其余两档都是最后备选）。
-  副标题提示「所选项不可用时会回退到其他线路」。设备级设置存 `network_route`（存 `storageValue` 而非 ordinal），
-  由 `AfdianApplication` 订阅后写入 `AfdianRouteState`，`AfdianHttpClient` 每次请求现读，切换后下一次请求即生效。
-  生效范围：接口请求、App 自己构造的外跳网页（购买 / 商品编辑 / 提现）、分享链接（动态 / 优惠码）与
-  图片相对路径补全都跟随该线路；**服务端下发**的链接（消息卡片、富文本正文）保持原样，不改写其 host。
+设置采用「总览页 + 三个分类页」结构：总览页只保留账号与分类入口，具体偏好项按分类拆到独立二级页。
+原「更多」分类已并入「通用」，不再有独立路由。
+所有页面共用 `SettingsPageScaffold`（大标题顶栏、模糊、双击回顶、右侧滚动条、边界触觉）。
+
+### 总览页
+
+- 路由 `Route.Settings`，两个入口共用：已登录「我的」页快捷入口（`MainScreen`），
+  未登录登录页顶栏右侧的「设置」按钮（`MainActivity` 未登录栈）。
+- 「账号」分区整块保持改造前的实现：账号列表卡片（点非当前账号行即切号，当前账号行尾是退出登录、
+  其他账号行尾是删除）+「添加账号」行；下方**独立卡片**是「首页账号切换器」开关（设备级、默认关闭），
+  仅在已保存账号数 > 1 时渲染 —— 单账号没有可切换对象，露出来只会让人困惑。
+  未登录栈里 `LocalAccountSwitcher` 为 null，整块不渲染。
+- 分类卡：一张 `Card` 内放三个 `ArrowPreference`，左侧是 32dp 圆角方块 + 24dp 单色图标
+  （`Tune` 蓝 / `Theme` 紫 / `Info` 灰），图标与文字之间 4dp，行高 56dp 量级。
+  图标块用 `squircleClip` 裁剪。
+  点击 push 对应分类页，入栈前做 `none { it == route }` 去重。
+- 分类图标颜色跟随配色：
+  - **Monet 配色关闭**时，用上面的固定自定义色，图标为白色；
+  - **Monet 配色开启**时，三个方块统一取 `MiuixTheme.colorScheme.primary`，图标改用 `onPrimary`，
+    避免固定彩色和动态色板打架。是否 Monet 统一读 `MiuixTheme.isDynamicColor`。
+- 版本号与构建类型页脚已移到「关于」页底部。
+
+### 通用（`Route.SettingsGeneral`）
+
+- 分组「通用」：打开 App 后默认进入（启动页）、记录历史。
+- 分组「网络」：「优先线路」与「链接打开方式」同组。
+  - ifdian.net（默认）/ afdian.com / www.afdian.com 三档，
+    对应三条固定尝试顺序 —— ifdian 档：ifdian → afdian → www；afdian 档：afdian → ifdian → www；
+    www 档：www → ifdian → afdian（即 www 只在它自己当主线路时排第一，其余两档都是最后备选）。
+  - 副标题提示「所选项不可用时会回退到其他线路」。设备级设置存 `network_route`（存 `storageValue` 而非 ordinal），
+    由 `AfdianApplication` 订阅后写入 `AfdianRouteState`，`AfdianHttpClient` 每次请求现读，切换后下一次请求即生效。
+    生效范围：接口请求、App 自己构造的外跳网页（购买 / 商品编辑 / 提现）、分享链接（动态 / 优惠码）与
+    图片相对路径补全都跟随该线路；**服务端下发**的链接（消息卡片、富文本正文）保持原样，不改写其 host。
+- 链接打开方式：系统浏览器（Custom Tabs，默认）/ 优先官方客户端（失败仍回退 Custom Tabs）。
+- 分组「其他」：「爱发电文档」→ `https://guide.afdian.com`。
+  ⚠️ 这个地址**刻意不跟「优先线路」走**：另外两个域名（ifdian.net / www.afdian.com）下
+  并没有 guide 子域，跟着线路改写 host 会直接 404，所以写死域名、不用 `afdianWebUrl()`。
+- 分组「管理」：本地数据与排查工具 `存储空间管理`、`日志管理`、`接口调试`
+  （原「清除浏览历史」入口已移除，清理统一收敛到存储页）。
+- 分组「重置」：两个布局重置入口（管理页卡片、首页创作者数据卡片），破坏性确认弹窗沿用 `AppDialog`。
+
+### 外观（`Route.SettingsAppearance`）
+
+- 分组「外观」：底栏样式、配色模式、使用爱发电主题色、Monet 配色、主题色、模糊效果、渐进模糊。
 - 配色模式选择：跟随系统 / 浅色 / 深色。
-- Monet 配色（「外观」分区，默认关闭）：打开后色板改由 Miuix 用种子色生成，
+- Monet 配色（默认关闭）：打开后色板改由 Miuix 用种子色生成，
   与配色模式正交 —— 跟随系统/浅色/深色分别映射到 `MonetSystem`/`MonetLight`/`MonetDark`。
   开启时隐藏「使用爱发电主题色」（其持久化值不清除，关闭后自动恢复），并显示 `Key Color`。
 - `Key Color` 用 `OverlaySpinnerPreference` 而非普通 Dropdown，因为只有 Spinner 的
@@ -563,49 +594,53 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   （`KeyColorPreset.resolveForSdk`），保证下拉显示色与主题实际用色一致。
   模式映射集中在 `AfdianTheme`（`ui/theme/Theme.kt`），是「明暗」与「是否 Monet」两个维度的唯一权威出处。
 - Monet 相关 UI 的显隐/勾选态读 `MiuixTheme.isDynamicColor`（全局主题真实生效的模式），**不要**读
-  `SettingsViewModel` 的流：设置页的 VM 是进入页面时才创建的，初值固定为「Monet 关闭」，
+  `SettingsViewModel` 的流：外观页的 VM 是进入页面时才创建的，初值固定为「Monet 关闭」，
   会让「使用爱发电主题色」先渲染出来再被隐藏（闪一下）。这也是 `ThemeColorTransition` 里
   「抄全局主题的结果最稳」的同一套思路。
 - 切配色时的平滑过渡：整页包在 `ThemeColorTransition`（`ui/theme/ThemeColorTransition.kt`）里，
-  改动配色模式或主题色时逐帧插值到新色板（时长见文件内 `ColorTransitionDurationMillis`），不再瞬间换色。只设置页有，其他页面不参与。
+  改动配色模式或主题色时逐帧插值到新色板（时长见文件内 `ColorTransitionDurationMillis`），不再瞬间换色。
+  只有外观页有，总览页与其他页面不参与。
 - 过渡只作用于中性色；主色家族（primary 及派生色：禁用态、强调容器、下拉选中项、Slider 刻度点）
   直接取目标值一步到位，不跟着渐变。
 - 系统栏图标颜色跟随 App 深浅：`AfdianTheme` 内调 `ApplySystemBarAppearance`
   （`ui/theme/SystemBarAppearance.kt`），按生效色板的底色亮度决定图标深浅。
   开 edge-to-edge 后系统只按「系统深浅色」给图标，App 手动切深色时必须自己覆盖，
   否则黑图标压在深色背景上看不见。状态栏与导航栏一起处理，且是瞬间切换、不参与渐变。
-- 「账号」分区：账号列表卡片（点非当前账号行即切号，当前账号行尾是退出登录、其他账号行尾是删除）+
-  「添加账号」行；下方**独立卡片**是「首页账号切换器」开关（设备级、默认关闭），
-  仅在已保存账号数 > 1 时渲染 —— 单账号没有可切换对象，露出来只会让人困惑。
-- 退出登录。
-- 「其他」分组：`存储空间管理` 与 `日志` 两个入口（原「清除浏览历史」入口已移除，清理统一收敛到存储页）。
-- 「关于」分组：功能完成度、**更新通道**（正式版 / Actions 构建，见上一节）、检查更新、开源许可、免责声明；
-  页脚显示 `版本 x (code)`，Actions 包额外附带 `· 构建 #N · <sha>`，方便报 issue 时直接截图。
-- 「关于」分组还有三个**站外链接**入口（都走 Custom Tabs，不进 App 内路由）：
+- 分组「动画」：高级过渡动画、手势返回、系统预测性返回。
+- 分组「数据卡片」：两张预览卡、数字滚动动画、显示收入单位、显示人次单位、数值窄字体、字体宽度。
+  各项默认值、开关联动与拖动草稿逻辑沿用改造前的实现，没有改 DataStore 键。
+
+### 关于（`Route.SettingsAbout`）
+
+- 单组页面，不再显示与页名同义的「关于」小标题。
+- 功能完成度、**更新通道**（正式版 / Actions 构建，见「检查更新」一节）、检查更新、开源许可、免责声明。
+- 页脚显示 `版本 x (code)`，Actions 包额外附带 `· 构建 #N · <sha>`，方便报 issue 时直接截图。
+  README 里「反馈请附设置页底部版本号」的说法已同步改为「设置 → 关于」。
+- 站外链接入口（都走 Custom Tabs，不进 App 内路由）：
   - **交流群** → `https://qm.qq.com/q/YVBgTJLi26`。
     点击一次干两件事：打开入群链接 **+ 把群号 `1108445904` 复制到剪贴板**
     （群号单独复制是给已经在 QQ 里、懒得再点一次「加入群聊」的用户用的）。
-    复制走设置页内的私有工具函数 `copyTextToClipboard`（写法抄 `MessageBubbleMenu.copyToClipboard`）。
+    复制走 `SettingsAboutScreen` 内的私有工具函数 `copyTextToClipboard`（写法抄 `MessageBubbleMenu.copyToClipboard`）。
   - **GitHub 仓库** → `https://github.com/hrsthrt74/afdian-compose`（源码、Issue、Release）。
-  - **爱发电文档** → `https://guide.afdian.com`（在「其他」分组）。
-    ⚠️ 这个地址**刻意不跟「优先线路」走**：另外两个域名（ifdian.net / www.afdian.com）下
-    并没有 guide 子域，跟着线路改写 host 会直接 404，所以写死域名、不用 `afdianWebUrl()`。
+  - **爱发电文档**归「通用」页。
 - 这几个入口用 `ui/navigation/AppLinkNavigator.kt` 里的**顶层函数 `openExternalLink(...)`**，
   而不是 `LocalAppLinkNavigator`：后者带站内跳转能力（`onNavigate`），只在 MainScreen 里提供，
   而设置页在未登录栈（登录页顶栏的设置入口）也能进，那儿取不到这个组合局部。
   `AppLinkNavigator.openExternal()` 现在也委托给同一个函数，两处共用「官方客户端 → Custom Tabs → 系统浏览器」的回退链。
-  品牌参数 `CustomTabsBranding` 在 `SettingsScreen` 的**外层**（`ThemeColorTransition` 之外）构建：
-  它要读主题色，而过渡层里的色板逐帧插值，放进去会让这张位图每帧重建。
-- 两个入口：已登录走「我的」页快捷入口（`MainScreen` 的 `entry<Route.Settings>`）；
-  未登录走登录页顶栏右侧的「设置」按钮（`MainActivity` 未登录栈里的同名 entry）。
-  两处都在各自的 `NavDisplay` 里注册了**设置页内部会 push 的全部子页**
-  （存储 / 日志 / 接口调试 / 功能完成度 / 开源许可）—— miuix-nav 遇到未注册的路由是直接 `error()` 崩溃，
-  给设置页加新入口时两处都要补。未登录栈里 `LocalAccountSwitcher` 为 null，
-  「账号」分区整块不渲染，`onLogout` 传空实现即可。
+  品牌参数 `CustomTabsBranding` 在「通用」「关于」页顶层构建：两页都不在 `ThemeColorTransition` 内，
+  不会因为色板逐帧插值而每帧重建位图。
+
+### 导航注册
+
+- `Route.Settings` 是总览页；三个分类页是独立的无参路由
+  （`SettingsGeneral` / `SettingsAppearance` / `SettingsAbout`）。
+- 两处栈都必须注册总览页与三个分类页：已登录 `MainScreen` 的 `NavDisplay` 一套，
+  未登录 `MainActivity` 登录页栈一套。miuix-nav 遇到未注册的路由是直接 `error()` 崩溃，
+  给设置页加新入口时两处都要补。
 
 ## 存储空间管理页（StorageScreen）
 
-- 入口在设置页「其他」分组；浏览历史的清理**只在这里**提供（设置页原「清除浏览历史」入口已移除）。
+- 入口在「设置 → 通用」；浏览历史的清理**只在这里**提供（设置页原「清除浏览历史」入口已移除）。
 - 扫描器 `data/storage/StorageScanner`：以 `context.dataDir` 为根遍历一次，只累加文件字节数，按相对路径前缀归入 `StorageCategory`。
   - 遍历时跳过 `code_cache/`（编译产物）与软链接（`dataDir/lib` 指向 `/data/app/.../lib`，跟进会把 APK 原生库算进来）。
   - `Other` 分类用 `total - 其它分类之和` 兜底覆写，从构造上保证「应用总占用 == 各分类之和」。
@@ -693,7 +728,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 日志页（LogScreen）
 
-- 入口在设置页「其他」分组。页面结构：记录（两个开关）→ 状态（占用 / 文件数）→ 导出（分享 / 保存到本地）→ 清空日志 + 说明小字。
+- 入口在「设置 → 通用」。页面结构：记录（两个开关）→ 状态（占用 / 文件数）→ 导出（分享 / 保存到本地）→ 清空日志 + 说明小字。
 - **职责与动机**：用户遇到闪退时只有 Logcat 可看，无法向开发者提供任何线索。日志页补齐三件事：
   运行日志落盘、崩溃捕获、导出。所有文件操作集中在 `data/log/LogStore.kt`，纯函数（命名 / 淘汰 / 行格式化 / 合并）
   在 `data/log/LogFileNaming.kt`（见 `LogFileNamingTest`）。
@@ -736,7 +771,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 接口调试页（ApiProbeScreen）
 
-- 入口在设置页「其他」分组（与「存储空间管理」「日志管理」同卡），**所有变体常驻**。
+- 入口在「设置 → 通用」（与「存储空间管理」「日志管理」同卡），**所有变体常驻**。
   页面结构：环境（构建变体）→ 操作（一键全跑 / 清空结果 / 重新读取登录态）→ 说明小字 → 探针卡片列表。
 - **职责与动机**：排查「数据卡片上的数字对不上」时，需要绕过 Repository 的解析与聚合，直接看接口原文。
   典型诉求是「`/api/my/dashboard` 的 `summary.month_amount` 现在到底是多少」。因此做的是**主动探针**（点一下跑一次），

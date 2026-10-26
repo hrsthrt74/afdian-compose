@@ -508,7 +508,7 @@ class SettingsStore(private val context: Context) {
                 ?: defaultManagementLayout
             // 旧版本布局中的卡片键已不再认识时直接过滤掉，不做旧键转换。
             // 不再要求布局必须含数据卡：编辑态已保证至少保留一张卡片，
-            // 且设置页有「重置布局」兜底。
+            // 且「设置 → 通用」有「重置布局」兜底。
             stored.filter { it.isKnownLayoutEntry() }
         }
     }

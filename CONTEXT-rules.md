@@ -5,8 +5,8 @@
 ## Miuix 规则
 
 - 根部只创建一个 `MiuixTheme`。
-  - 唯一例外：设置页的 `ThemeColorTransition` 会在本页范围内再套一层 `MiuixTheme(colors = ...)`
-    提供过渡色板。这是为了让切配色时只重算可见的设置页（被它盖住的四个 Tab 页
+  - 唯一例外：「设置 → 外观」页的 `ThemeColorTransition` 会在本页范围内再套一层 `MiuixTheme(colors = ...)`
+    提供过渡色板。这是为了让切配色时只重算可见的外观页（被它盖住的四个 Tab 页
     仍在组合中，全局动画会连它们一起每帧重组），不要照抄到其他页面。
 - `NavigationBar` 是导航外观；页面路由仍由 `miuix-nav` 管理，两者不要混为一个机制。
 - Overlay 组件需要位于 Miuix `Scaffold` 宿主下。

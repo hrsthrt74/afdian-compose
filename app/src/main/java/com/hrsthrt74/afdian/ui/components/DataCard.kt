@@ -74,7 +74,7 @@ fun DataCard(
     subtitle: String? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    // 数据卡数值字体：由 MainActivity 经组合局部下发（设置页「数据卡片 → 数值窄体字体」）。
+    // 数据卡数值字体：由 MainActivity 经组合局部下发（设置 → 外观 → 数据卡片 → 数值窄体字体）。
     // null 表示用系统默认字体，此时下面完全保持改动前行为。
     // 只注入给数值：标题 / 单位 / 副标题仍走各自原有的样式。
     val valueFontFamily = LocalDataCardFontFamily.current

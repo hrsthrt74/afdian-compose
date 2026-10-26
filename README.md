@@ -23,7 +23,7 @@
 > [!WARNING]
 > **本应用为爱发电的第三方客户端，有问题请勿向爱发电官方反馈。**
 >
-> 爱发电官方客服与反馈渠道只受理官方客户端与网站的问题。本应用的 bug、功能建议、账号异常请提到本项目的 [GitHub Issues](https://github.com/hrsthrt74/afdian-compose/issues)，反馈时附上设置页底部的版本号与构建类型。
+> 爱发电官方客服与反馈渠道只受理官方客户端与网站的问题。本应用的 bug、功能建议、账号异常请提到本项目的 [GitHub Issues](https://github.com/hrsthrt74/afdian-compose/issues)，反馈时附上「设置 → 关于」页底部的版本号与构建类型。
 
 - 「爱发电」「afdian」「Afdian」等名称与标识归其各自权利人所有，本项目不主张任何商标权。
 - 本应用调用的是爱发电**网页端使用的接口**，并非官方开放 API。接口随时可能变更或失效，届时本应用的相关功能会不可用。
@@ -200,7 +200,7 @@ Windows 生成 base64：
 | `-PversionName` / `-PversionCode` | 覆盖版本号（release 工作流从 tag 推导并校验） |
 | `-PbuildNumber` | GitHub `run_number`；0 表示非 Actions 构建 |
 | `-PbuildChannel` | `local` / `actions` / `stable`，仅用于展示与排查 |
-| `-PgitSha` | 短 commit，展示在设置页页脚 |
+| `-PgitSha` | 短 commit，展示在「设置 → 关于」页脚 |
 
 本地不传任何参数，行为与改造前一致（`1.0.0 (10000)`、`BUILD_NUMBER=0`）。
 
