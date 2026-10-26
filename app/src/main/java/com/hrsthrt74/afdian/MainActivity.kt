@@ -38,7 +38,7 @@ import com.hrsthrt74.afdian.data.auth.AuthState
 import com.hrsthrt74.afdian.data.auth.CurrentAccount
 import com.hrsthrt74.afdian.data.auth.SavedAccountSummary
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
-import com.hrsthrt74.afdian.data.settings.KeyColorPreset
+import com.hrsthrt74.afdian.data.settings.ThemeColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
 import com.hrsthrt74.afdian.data.storage.buildImageDiskCache
@@ -68,7 +68,6 @@ import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAppearanceScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsGeneralScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.StorageScreen
-import com.hrsthrt74.afdian.ui.theme.AfdianBrandColor
 import com.hrsthrt74.afdian.ui.theme.AfdianTheme
 import com.hrsthrt74.afdian.ui.theme.LocalDataCardFontFamily
 import com.hrsthrt74.afdian.ui.theme.rememberMiSansCondensedFontFamily
@@ -177,14 +176,16 @@ private fun AfdianApp(
             .build()
     }
 
-    // 主题色开关：订阅 DataStore，设置页改动后立即生效（替代旧 SP 监听器）
-    val useAfdianColor by settingsStore.useAfdianColor.collectAsState(initial = true)
+    // 主题色：订阅 DataStore，设置页改动后立即生效（替代旧 SP 监听器）
     // 配色模式：0=跟随系统 1=浅色 2=深色
     val colorMode by settingsStore.colorMode.collectAsState(initial = 0)
-    // Monet 配色总开关；开启后 colorMode 的三档改用 Monet 色板
+    // 主题样式：MIUIX（默认，Miuix 静态色板） / Monet（按壁纸或主题色生成色板）
     val monetEnabled by settingsStore.monetEnabled.collectAsState(initial = false)
-    // Monet 种子色预设；仅在 monetEnabled 为 true 时参与主题
-    val keyColor by settingsStore.keyColor.collectAsState(initial = KeyColorPreset.Default)
+    // 主题色；两种主题共用同一个值（MIUIX 当主色，Monet 当种子色）
+    val themeColor by settingsStore.themeColor.collectAsState(initial = ThemeColorPreset.Default)
+    // 自定义主题色的具体色值：只在主题色选「自定义」时参与主题，也是那颗色球的填色
+    val customThemeColor by settingsStore.customThemeColor
+        .collectAsState(initial = ThemeColorPreset.DefaultCustomColor)
     // 调试日志开关：订阅 DataStore 并写入全局 AppLog，切换后即时生效、无需重启。
     // initial 跟随构建类型默认值，避免 debug 版首帧先按 false 误关一次再被 DataStore 读回 true
     val debugLogging by settingsStore.debugLogging.collectAsState(initial = BuildConfig.DEBUG)
@@ -220,10 +221,10 @@ private fun AfdianApp(
     }
 
     AfdianTheme(
-        primaryColor = if (useAfdianColor) AfdianBrandColor else null,
         colorMode = colorMode,
         monetEnabled = monetEnabled,
-        keyColor = keyColor,
+        themeColor = themeColor,
+        customColor = customThemeColor,
     ) {
         // 登录态：Loading 期间不渲染任何界面，读完 token 才放行，避免登录页闪烁
         val authState by session.state.collectAsState()

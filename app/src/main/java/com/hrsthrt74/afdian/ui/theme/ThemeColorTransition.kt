@@ -44,7 +44,7 @@ fun ThemeColorTransition(content: @Composable () -> Unit) {
 /**
  * 取外层全局主题当前色板的一份快照，作为过渡的终点。
  *
- * 终点不直接用页面里拿到的 colorMode / useAfdianColor：这两个流在 DataStore 首帧
+ * 终点不直接用页面里拿到的 colorMode / 主题色设置：这些流在 DataStore 首帧
  * 到达前还是初始值（例如 0=浅色），刚打开外观页时会先「假切换」一次，若跟着过渡
  * 就会在页面刚打开时看到一次多余的明暗渐变。全局主题已经在 AfdianTheme 里按真值
  * 建好，直接抄它的结果最稳，也能顺带覆盖「跟随系统」时系统深浅色翻转的情况。

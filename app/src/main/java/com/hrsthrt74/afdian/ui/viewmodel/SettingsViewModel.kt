@@ -7,7 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.network.AfdianRoute
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
-import com.hrsthrt74.afdian.data.settings.KeyColorPreset
+import androidx.compose.ui.graphics.Color
+import com.hrsthrt74.afdian.data.settings.ThemeColorPreset
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
 import com.hrsthrt74.afdian.data.update.UpdateChannel
@@ -23,16 +24,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val startupPage: StateFlow<Int> = store.startupPage
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    val useAfdianColor: StateFlow<Boolean> = store.useAfdianColor
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
-
     /** 配色模式：0=跟随系统 1=浅色 2=深色 */
     val colorMode: StateFlow<Int> = store.colorMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
-
-    /** Monet 种子色预设，默认跟随系统壁纸 */
-    val keyColor: StateFlow<KeyColorPreset> = store.keyColor
-        .stateIn(viewModelScope, SharingStarted.Eagerly, KeyColorPreset.Default)
 
     /** 高级过渡动画总开关，默认开启 */
     val advancedTransition: StateFlow<Boolean> = store.advancedTransition
@@ -196,26 +190,34 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * 写入 Monet 配色开关。
+     * 写入「主题」选择（false=MIUIX true=Monet）。
      *
-     * 这里刻意只提供写入方、不提供读取的 StateFlow：开关的勾选态由全局主题的
+     * 这里刻意只提供写入方、不提供读取的 StateFlow：当前选中的主题由全局主题的
      * `MiuixTheme.isDynamicColor` 驱动。因为本 VM 是进入设置页时才创建的，
-     * 读 StateFlow 的初值会先按「关闭」渲染一帧，导致「使用爱发电主题色」闪一下。
+     * 读 StateFlow 的初值会先按「MIUIX」渲染一帧，导致下拉闪一下。
      */
     fun setMonetEnabled(enabled: Boolean) {
         viewModelScope.launch { store.setMonetEnabled(enabled) }
     }
 
-    fun setKeyColor(preset: KeyColorPreset) {
-        viewModelScope.launch { store.setKeyColor(preset) }
+    /**
+     * 写入主题色。
+     *
+     * 同样只有写入方：外观页高亮的色球直接读全局主题下发的
+     * [com.hrsthrt74.afdian.ui.theme.LocalThemeColor]，那是「真正生效」的那一档，
+     * 不受本 VM 初值影响。
+     */
+    fun setThemeColor(preset: ThemeColorPreset) {
+        viewModelScope.launch { store.setThemeColor(preset) }
+    }
+
+    /** 保存自定义主题色的具体色值（调色盘确认后调用） */
+    fun setCustomThemeColor(color: Color) {
+        viewModelScope.launch { store.setCustomThemeColor(color) }
     }
 
     fun setStartupPage(index: Int) {
         viewModelScope.launch { store.setStartupPage(index) }
-    }
-
-    fun setUseAfdianColor(enabled: Boolean) {
-        viewModelScope.launch { store.setUseAfdianColor(enabled) }
     }
 
     fun setEnableBlur(enabled: Boolean) {

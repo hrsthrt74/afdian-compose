@@ -1,6 +1,8 @@
 package com.hrsthrt74.afdian.data.settings
 
 import android.content.Context
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.MutablePreferences
@@ -141,13 +143,19 @@ class SettingsStore(private val context: Context) {
     private object Keys {
         // 与旧 SP 中的键名保持一致，方便日后人工对照排查
         val STARTUP_PAGE = intPreferencesKey("startup_page")
+        // 旧版「使用爱发电主题色」开关：只读，作为主题色的迁移依据（见 themeColor），不再写入
         val USE_AFDIAN_COLOR = booleanPreferencesKey("use_afdian_color")
         val DISCLAIMER = booleanPreferencesKey("disclaimer")
         // 配色模式：0=跟随系统 1=浅色 2=深色
         val COLOR_MODE = intPreferencesKey("color_mode")
-        // Monet 配色总开关：开启后改用系统壁纸 / 指定种子色生成整套色板
+        // 主题样式：false=MIUIX（Miuix 静态色板） true=Monet（按壁纸 / 主题色生成色板）。
+        // 键名沿用旧版的 monet_enabled，语义一致（「Monet 即开启 Monet 配色」），不用迁移数据
         val MONET_ENABLED = booleanPreferencesKey("monet_enabled")
-        // Monet 种子色预设，存 KeyColorPreset.storageValue（不存下标，避免档位增删后错位）
+        // 主题色预设，存 ThemeColorPreset.storageValue（不存下标，避免档位增删后错位）
+        val THEME_COLOR = androidx.datastore.preferences.core.stringPreferencesKey("theme_color")
+        // 自定义主题色：存 ARGB Int（ThemeColorPreset.Custom 用的具体色值）
+        val CUSTOM_THEME_COLOR = intPreferencesKey("custom_theme_color")
+        // 旧版的 Monet 种子色键：只读，用于把老用户的选择迁移到 THEME_COLOR，不再写入
         val KEY_COLOR = androidx.datastore.preferences.core.stringPreferencesKey("key_color")
         // 高级过渡动画总开关（卡片展开等）
         val ADVANCED_TRANSITION = booleanPreferencesKey("advanced_transition")
@@ -259,9 +267,6 @@ class SettingsStore(private val context: Context) {
     /** 启动页索引，未设置时默认第 0 页 */
     val startupPage: Flow<Int> = context.settingsDataStore.data.map { it[Keys.STARTUP_PAGE] ?: 0 }
 
-    /** 是否使用爱发电品牌紫作为主题色 */
-    val useAfdianColor: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.USE_AFDIAN_COLOR] ?: true }
-
     /** 免责声明是否已同意 */
     val disclaimerAccepted: Flow<Boolean> = context.settingsDataStore.data.map { it[Keys.DISCLAIMER] ?: false }
 
@@ -296,16 +301,37 @@ class SettingsStore(private val context: Context) {
     val colorMode: Flow<Int> = context.settingsDataStore.data.map { it[Keys.COLOR_MODE] ?: 0 }
 
     /**
-     * Monet 配色总开关，默认关闭。
-     * 关闭时外观与改动前完全一致；开启后 [colorMode] 的三档语义不变，
-     * 只是背后换成 Monet 色板（详见 AfdianTheme 里的模式映射）。
+     * 主题样式：false=MIUIX（默认，Miuix 静态色板） true=Monet（按壁纸 / 主题色生成整套色板）。
+     *
+     * 两种主题共用 [colorMode] 的三档明暗选择：MIUIX 映射到 Light/Dark/System，
+     * Monet 映射到 MonetLight/MonetDark/MonetSystem（详见 AfdianTheme 里的模式映射）。
      */
     val monetEnabled: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.MONET_ENABLED] ?: false }
 
-    /** Monet 种子色预设，默认「跟随系统壁纸」；未开启 Monet 时该值不参与主题。 */
-    val keyColor: Flow<KeyColorPreset> =
-        context.settingsDataStore.data.map { KeyColorPreset.fromStorage(it[Keys.KEY_COLOR]) }
+    /**
+     * 主题色预设，默认 MIUIX 蓝。
+     *
+     * 同一个值在两种主题下都生效：MIUIX 主题把它当主色染 Miuix 色板（MIUIX 蓝直接用官方默认色板），
+     * Monet 主题把它当种子色。新键优先，没有新键时按旧版设置迁移一次：
+     * 1) 旧「种子色」key_color 有值 → 直接沿用（旧的 blue 会并到 MIUIX 蓝）；
+     * 2) 否则看旧的「使用爱发电主题色」开关：显式设为 true 的保留爱发电紫，
+     *    其余（含从未设置过）走新的默认值 MIUIX 蓝。
+     */
+    val themeColor: Flow<ThemeColorPreset> = context.settingsDataStore.data.map { prefs ->
+        prefs[Keys.THEME_COLOR]?.let(ThemeColorPreset::fromStorage)
+            ?: prefs[Keys.KEY_COLOR]?.let(ThemeColorPreset::fromStorage)
+            ?: if (prefs[Keys.USE_AFDIAN_COLOR] == true) ThemeColorPreset.Afdian else ThemeColorPreset.Default
+    }
+
+    /**
+     * 自定义主题色的具体色值（ARGB Int），只在 [themeColor] 选中 [ThemeColorPreset.Custom] 时参与主题。
+     *
+     * 默认 50% 灰：第一次点「自定义」还没挑色时，主题不会跳成某个预设色。
+     */
+    val customThemeColor: Flow<Color> = context.settingsDataStore.data.map { prefs ->
+        prefs[Keys.CUSTOM_THEME_COLOR]?.let { Color(it) } ?: ThemeColorPreset.DefaultCustomColor
+    }
 
     /** 高级过渡动画总开关（卡片展开等），默认开启 */
     val advancedTransition: Flow<Boolean> =
@@ -712,21 +738,24 @@ class SettingsStore(private val context: Context) {
     }
 
     suspend fun setMonetEnabled(enabled: Boolean) {
-        AppLog.d("Settings", "Monet 配色已${if (enabled) "开启" else "关闭"}")
+        AppLog.d("Settings", "主题已切换为 ${if (enabled) "Monet" else "MIUIX"}")
         context.settingsDataStore.edit { it[Keys.MONET_ENABLED] = enabled }
     }
 
-    suspend fun setKeyColor(preset: KeyColorPreset) {
-        AppLog.d("Settings", "保存 Monet 种子色，preset=${preset.storageValue}")
-        context.settingsDataStore.edit { it[Keys.KEY_COLOR] = preset.storageValue }
+    /** 保存主题色预设；两种主题都读这一个值，切换主题后选择保持不变 */
+    suspend fun setThemeColor(preset: ThemeColorPreset) {
+        AppLog.d("Settings", "保存主题色，preset=${preset.storageValue}")
+        context.settingsDataStore.edit { it[Keys.THEME_COLOR] = preset.storageValue }
+    }
+
+    /** 保存自定义主题色的具体色值（调色盘确认后调用） */
+    suspend fun setCustomThemeColor(color: Color) {
+        AppLog.d("Settings", "保存自定义主题色，#${color.toArgb().toUInt().toString(16)}")
+        context.settingsDataStore.edit { it[Keys.CUSTOM_THEME_COLOR] = color.toArgb() }
     }
 
     suspend fun setStartupPage(index: Int) {
         context.settingsDataStore.edit { it[Keys.STARTUP_PAGE] = index }
-    }
-
-    suspend fun setUseAfdianColor(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.USE_AFDIAN_COLOR] = enabled }
     }
 
     /** 消息页「发电明细」开关，默认关闭 */

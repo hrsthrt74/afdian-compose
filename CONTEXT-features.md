@@ -4,7 +4,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 应用基础
 
-- 单一 `MiuixTheme`，支持跟随系统/浅色/深色三模式，并可切换成 Monet 色板（见设置页）。
+- 单一 `MiuixTheme`，支持跟随系统/浅色/深色三模式；主题可选 MIUIX（默认）/ Monet，
+  两种主题共用一套主题色预设（见设置 → 外观）。
 - 根页面使用 Miuix `Scaffold`。
 - 使用 Miuix `NavigationBar` 展示 4 个 Tab：首页、发现、消息、我的。
 - 使用 `miuix-nav` 的 `NavKey`、`rememberNavBackStack`、`NavDisplay` 和 `entry<T>`。
@@ -552,9 +553,9 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   （`Tune` 蓝 / `Theme` 紫 / `Info` 灰），图标与文字之间 4dp，行高 56dp 量级。
   图标块用 `squircleClip` 裁剪。
   点击 push 对应分类页，入栈前做 `none { it == route }` 去重。
-- 分类图标颜色跟随配色：
-  - **Monet 配色关闭**时，用上面的固定自定义色，图标为白色；
-  - **Monet 配色开启**时，三个方块统一取 `MiuixTheme.colorScheme.primary`，图标改用 `onPrimary`，
+- 分类图标颜色跟随主题：
+  - **主题 = MIUIX** 时，用上面的固定自定义色，图标为白色；
+  - **主题 = Monet** 时，三个方块统一取 `MiuixTheme.colorScheme.primary`，图标改用 `onPrimary`，
     避免固定彩色和动态色板打架。是否 Monet 统一读 `MiuixTheme.isDynamicColor`。
 - 版本号与构建类型页脚已移到「关于」页底部。
 
@@ -579,24 +580,73 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ### 外观（`Route.SettingsAppearance`）
 
-- 分组「外观」：底栏样式、配色模式、使用爱发电主题色、Monet 配色、主题色、模糊效果、渐进模糊。
-- 配色模式选择：跟随系统 / 浅色 / 深色。
-- Monet 配色（默认关闭）：打开后色板改由 Miuix 用种子色生成，
-  与配色模式正交 —— 跟随系统/浅色/深色分别映射到 `MonetSystem`/`MonetLight`/`MonetDark`。
-  开启时隐藏「使用爱发电主题色」（其持久化值不清除，关闭后自动恢复），并显示 `Key Color`。
-- `Key Color` 用 `OverlaySpinnerPreference` 而非普通 Dropdown，因为只有 Spinner 的
-  `DropdownItem` 带 `icon` 槽位，能在选项文字前插颜色球。展示顺序：跟随系统壁纸 → 爱发电主题色 →
-  官方 demo 的 6 色（预设见 `data/settings/KeyColorPreset.kt`，官方那 7 色里的「紫色」因与品牌紫太像已剔除）。
-  「跟随系统壁纸」没有固定色值，球用 `Brush.sweepGradient` 色环区分；Miuix 传给 icon 的 Modifier
-  已含「最小 26dp 图标格 + 末尾 12dp 间距」，不要再自己补间距。
-  注意折叠态那一行只显示选项**文字**（Spinner 的取值区只渲染 `DropdownItem.text`，不渲染 icon）。
-  系统壁纸取色要 API 31+，低版本下拉里会过滤掉该项、并把已选中的它解析成蓝色
-  （`KeyColorPreset.resolveForSdk`），保证下拉显示色与主题实际用色一致。
-  模式映射集中在 `AfdianTheme`（`ui/theme/Theme.kt`），是「明暗」与「是否 Monet」两个维度的唯一权威出处。
-- Monet 相关 UI 的显隐/勾选态读 `MiuixTheme.isDynamicColor`（全局主题真实生效的模式），**不要**读
-  `SettingsViewModel` 的流：外观页的 VM 是进入页面时才创建的，初值固定为「Monet 关闭」，
-  会让「使用爱发电主题色」先渲染出来再被隐藏（闪一下）。这也是 `ThemeColorTransition` 里
-  「抄全局主题的结果最稳」的同一套思路。
+- 分组「外观」：底栏样式、配色模式、主题、主题色、模糊效果、渐进模糊。
+- 配色模式选择：跟随系统 / 浅色 / 深色，只决定明暗，与「主题」正交。
+- 主题选择：**MIUIX（默认）/ Monet**，对应 `monetEnabled`（DataStore 键沿用 `monet_enabled`）。
+  - MIUIX：Miuix 静态色板，主色由主题色决定；跟随系统/浅色/深色分别映射到
+    `ColorSchemeMode.System`/`Light`/`Dark`；
+  - Monet：色板改由 Miuix 用种子色生成，同样三档明暗，分别映射到
+    `MonetSystem`/`MonetLight`/`MonetDark`。
+- 主题色：**两种主题共用同一个值**（`theme_color`，默认 MIUIX 蓝），
+  MIUIX 下当主色、Monet 下当种子色。预设见 `data/settings/ThemeColorPreset.kt`，
+  顺序：自定义 → 跟随壁纸 → MIUIX 蓝 → 爱发电紫 → 绿色 / 黄色 / 橙色 / 粉色 / 青色 → 彩虹
+  （官方 demo 那 7 色里的「紫色」因与品牌紫太像已剔除；彩虹固定放最后）。
+  - 「自定义」：色值不写死，由用户在外观页调色盘里挑，存 `custom_theme_color`（ARGB Int，
+    键与预设分开）。具体色值经 `LocalCustomThemeColor` 下发；未调过色时默认
+    `ThemeColorPreset.DefaultCustomColor`（50% 灰 #808080）。
+  - 「MIUIX 蓝」= `MiuixBrandBlue`（Miuix 默认色板的 primary #3482FF）。
+    MIUIX 主题下选它直接使用官方默认色板；其余档位（含自定义）用
+    `afdianLightColorScheme`/`afdianDarkColorScheme` 按主色染整套色板
+    （禁用态、强调容器、下拉选中项等一并跟随）。
+  - 主色变体 `primaryVariant` 是**同色系更深一档**，不等于主色（`AfdianColors` 里的
+    `primaryVariantOf`：向黑色插值 15%，即 HSV 明度 ×0.85、色相与饱和度不变）。
+    Miuix 官方那两套默认值本身不一致 —— 浅色 `#3482FF` 与 primary 相同，深色
+    `#277AF7 → #0073DD` 深一档，生成式色板（Monet）又取 `primaryFixed`（tone 90 浅色调）；
+    我们是从任意强调色现场算色板，照抄浅色那套会让变体永远看不出层次（调色盘的三段预览
+    会出现两段同色），所以统一按深色那档的比例压暗。
+  - 「跟随壁纸」两种主题**都提供**（只要 Android 12 / API 31 以上）：
+    - MIUIX 主题下**只有主色跟随壁纸**：从系统动态色（`platformDynamicColors`）取主色，
+      再按 Miuix 的派生规律染主色家族，背景 / 卡片 / 文字等中性色仍是 Miuix 静态色板
+      （`AfdianTheme` 里的 `wallpaperAccent`）；
+    - Monet 主题下则整套 Monet 色板都跟随壁纸。
+    低版本没有系统取色能力时，选择器里过滤掉该项，已选中的它解析成 MIUIX 蓝
+    （`ThemeColorPreset.resolveForTheme`），保证高亮色球与主题实际用色一致。
+  - 「彩虹」：色相按固定节奏一直轮换，色值由时间算、不存 DataStore（`ThemeColorPreset.Rainbow.color` 为 null）。
+    节奏在 `AfdianTheme` 里：每 100 毫秒推进 5 度色相（`RainbowStepMillis` / `RainbowHueStep`），
+    转完一圈约 7 秒。步长保持很小 —— 除外观页外其他页面没有配色过渡，步子一大就会看到明显的跳色；
+    节奏刻意调快，代价是整包重组更频繁（每秒 10 次重建 `ThemeController`）。
+    只在真正选中彩虹档时才启动这个计时循环，其余档位不付出任何重组代价。
+  - 点击彩虹档先弹警告弹窗（`AppDialog`，标题「彩虹主题色」）：
+    「此配色仅供娱乐，可能会导致性能大幅下降，请勿反馈此配色相关的问题。」
+    点「确定」才真正切换，并 Toast 「Enjoy~」。
+  - 旧值迁移（`SettingsStore.themeColor`）：新键 `theme_color` 优先；否则读旧的 `key_color`
+    （旧的「蓝色」并到 MIUIX 蓝）；再否则看旧的 `use_afdian_color` 开关 —— 显式设为 true 的保留爱发电紫，
+    其余（含从未设置过）走新的默认值 MIUIX 蓝。旧键只读不写。
+- 主题色选择器是**横向滚动的色球列表**（不是下拉）：每项上面 28dp 色球（外框 36dp）、下面名称，
+  选中项的色球外框描 2dp 主题色圆环（与外框之间留空隙，切换选中不跳动）。
+  点击**关闭水波纹**（`selectable(indication = null)`）：波纹会盖住色球，选中态已由描边表达；
+  按下时用 `pressable(indication = SinkFeedback())` 做按压下沉，与项目里其他可点卡片同一套反馈。
+  「跟随壁纸」没有固定色值，球用 `Brush.sweepGradient` 色环区分。整块（球 + 名字）是热区，
+  语义为单选（`Role.RadioButton`），点击有触感反馈。
+- 「彩虹」那颗的**球体**用 `AfdianCardDefaults.overlayColors().color`（浮层内容器色 `secondaryContainer`，
+  直径与其他球一致 28dp），上面叠一个 18dp 的 Help 图标、颜色取同一套 `overlayColors().contentColor`。
+  图标刻意比球小一圈：Demibold 的 Help 是实心圆，和球一样大会把球色整片盖住、看着像「这颗球更小」。
+  选中态同样只靠外框描边表达。
+- 「自定义」那颗球：球色取 `LocalCustomThemeColor`；**已选中时**球上叠一个 16dp 的「+」图标
+  （未选中不显示）。点击行为分两种：未选中 → 只切到自定义档；已选中 → 再点一次弹出调色盘
+  （`AppDialog` + Miuix `ColorPalette`，与官方 demo 同一用法）。调色盘里的颜色是草稿，
+  点「确定」先保存色值、再切到自定义档；点「取消」不写 DataStore。
+  弹窗顶部不用 ColorPalette 自带的单色预览条（传 `showPreview = false`），改为用草稿色
+  试算一张真实色板（MIUIX 走 `afdian*ColorScheme`、Monet 走种子色生成），把
+  **primary / primaryVariant / tertiaryContainer** 三等分铺成一条 32dp 色带，让用户先看到
+  选完之后的配色大概长什么样。
+- 主题 / 主题色的**当前值**一律读全局主题：是否 Monet 读 `MiuixTheme.isDynamicColor`，
+  当前主题色读 `LocalThemeColor`。**不要**读 `SettingsViewModel` 的流 —— 外观页的 VM
+  是进入页面时才创建的，初值固定是默认档，会先按默认值渲染一帧再跳回来。
+  这也是 `ThemeColorTransition` 里「抄全局主题的结果最稳」的同一套思路。
+- 模式映射集中在 `AfdianTheme`（`ui/theme/Theme.kt`），是「明暗」「是否 Monet」「主题色」
+  三个维度的唯一权威出处；`LocalThemeColor` 下发的已是解析后的生效档位，
+  `LocalCustomThemeColor` 下发自定义档的具体色值。
 - 切配色时的平滑过渡：整页包在 `ThemeColorTransition`（`ui/theme/ThemeColorTransition.kt`）里，
   改动配色模式或主题色时逐帧插值到新色板（时长见文件内 `ColorTransitionDurationMillis`），不再瞬间换色。
   只有外观页有，总览页与其他页面不参与。
