@@ -56,6 +56,7 @@ import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.navigation.rememberCustomTabsBranding
 import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.BlocklistScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.ChangelogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.DeveloperScreen
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
@@ -480,6 +481,11 @@ fun MainScreen(
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 开源许可页：设置 → 关于 入口进入
             OssLicensesScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
+        }
+        entry<Route.Changelog> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 更新日志页：设置 → 关于 入口进入，数据来自打包进 assets 的 CHANGELOG.md
+            ChangelogScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.FeatureStatus> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }

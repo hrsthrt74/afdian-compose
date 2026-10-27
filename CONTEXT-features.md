@@ -693,7 +693,18 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 整页背后铺**动态海水 shader**（`ui/components/background/WaterBackground.kt`）：
   legacy 包不画、用户关掉「模糊效果」时也不画（都回落普通主题底色）；浅色模式用浅海配色、深色模式用深海配色。
   细节与「复用时要同时改哪三处」见 `DESIGN.md` 的「动态背景（关于页海水）」。
-- 功能完成度、**更新通道**（正式版 / Actions 构建，见「检查更新」一节）、检查更新、开源许可、免责声明。
+- 功能完成度、**更新通道**（正式版 / Actions 构建，见「检查更新」一节）、检查更新、更新日志、开源许可、免责声明。
+- **关于页直接外显本版更新**：分组「更新」的第二张卡是「更新日志」——
+  卡头是可点进完整页面的入口，下面是当前版本的 `v1.0.2` + 日期、分割线、**全部**条目
+  （不折叠、不截断：当前版本通常就几条，折叠反而多一次点击）。条目渲染复用更新日志页的
+  `ReleaseNoteItems`，两处样式不会各自漂移。卡放在「检查更新 / 更新通道」下面。
+- **更新日志页**（`Route.Changelog`，入口是上面那张卡的卡头「更新日志」）：
+  数据来自**仓库根的 `CHANGELOG.md`**——构建时由 `copyChangelogAssets` 任务复制进 assets
+  （AGP 9 禁止 `sourceSets.assets.srcDir(provider)`，走 Variant API 的 `addGeneratedSourceDirectory`），
+  运行时由 `data/content/Changelog.kt` 解析。应用内不另存副本，发版只改 markdown 一处。
+  只解析 `## 版本 · 日期` 与 `- 条目` 两种语法，不引 Markdown 引擎；行内 `**` / 反引号 / 链接会被剥掉。
+  版式：每个版本一张卡、行内「版本号 + 日期 + 箭头」，手风琴式（同时只展开一个），当前版本默认展开并标「当前」。
+  「未发布」小节只在非 stable 通道显示（`BuildConfig.BUILD_CHANNEL != "stable"`）。
 - 版本号在 hero 里（`版本 x (code) S|L` —— 字母标 flavor：S = standard、L = legacy，跟着版本号走，
   两个包并存时一眼能分清；用 `AnnotatedString` 把字母上主题色 + SemiBold。Actions 包额外附带
   `· 构建 #N · <sha>`，方便报 issue 时直接截图），

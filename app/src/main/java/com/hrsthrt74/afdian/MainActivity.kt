@@ -61,6 +61,7 @@ import com.hrsthrt74.afdian.ui.screens.auth.WrongEditionScreen
 import com.hrsthrt74.afdian.ui.screens.main.MainScreen
 import com.hrsthrt74.afdian.ui.screens.main.OssLicensesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.ChangelogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FeatureStatusScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAboutScreen
@@ -537,6 +538,12 @@ private fun AfdianApp(
                                     }
                                     entry<Route.OssLicenses> {
                                         OssLicensesScreen(
+                                            onBack = { loginBackStack.removeLastOrNull() },
+                                            backStack = loginBackStack,
+                                        )
+                                    }
+                                    entry<Route.Changelog> {
+                                        ChangelogScreen(
                                             onBack = { loginBackStack.removeLastOrNull() },
                                             backStack = loginBackStack,
                                         )

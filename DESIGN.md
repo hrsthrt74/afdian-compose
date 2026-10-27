@@ -279,6 +279,36 @@ path —— 界面上就是一块空白，还很难看出哪里错了。非要�
 - 别的页面想复用：把 `WaterBackground(Modifier.matchParentSize())` 放在内容区最底层即可，
   再按上面三条把容器/卡片/顶栏调成透明或半透明。
 
+### 更新日志
+
+「设置 → 关于 → 更新日志」按版本折叠展示改动，版式是「版本号 + 日期 + 展开箭头」的卡片列表，
+手风琴式（同时只展开一个），当前版本默认展开并在版本号旁标「当前」。
+
+关于页的「更新」分组里还有一张**外显卡**：卡头「更新日志」是可点进完整页面的入口，
+下面是当前版本的版本号 + 日期、一条分割线、以及**全部**条目（不折叠、不截断）。
+分割线的左右各留 16dp 跟内容走而不通栏——和上面 preference 的内边距对齐；
+条目末行不带尾部间距，卡片底边的留白由调用方给一次，否则条目间距会叠加成「底部比顶部空一大截」。
+条目正文的 `lineHeight` 固定 22sp（比 body2 默认松一档）：一条一句功能，行距太挤会糊成整段。
+
+- **数据源只有一个**：仓库根的 `CHANGELOG.md`。`app/build.gradle.kts` 里的 `copyChangelogAssets`
+  在构建时把它复制进 assets，`data/content/Changelog.kt` 运行时解析。
+  不要在 `app/src/main/assets` 里另放一份 —— 两份必然漂移，而这种「文档不同步」的错误
+  要等用户截图指出更新日志少了最新一版才会被发现。
+- AGP 9 **禁止** `sourceSets.assets.srcDir(provider)`（Studio 无法判断 Provider 指向的是生成目录
+  还是静态文件），必须走 `variant.sources.assets.addGeneratedSourceDirectory(...)`；
+  那条路径要求任务输出声明成 `DirectoryProperty`，而内置 `Copy` 只暴露 `File` 类型的
+  `destinationDir`，所以自己写了 `CopyChangelogAssets` 这个最小任务。
+- **不引 Markdown 引擎**：只解析 `## 版本 · 日期` 与 `- 条目` 两种语法，
+  行内 `**` / `__` / 反引号 / `~~` / `[文字](url)` 在解析时剥掉。为了一个只读信息页装几十上百 KB、
+  还要处理链接点击与代码块主题色不划算，而 CHANGELOG 的格式本来就是自己定的。
+- 日期写在 CHANGELOG 的版本标题里（`## 1.0.2 · 2026-10-27`），不靠 git tag 反查：
+  CI 的 `actions/checkout` 默认浅克隆没有 tag，反查在正式构建里会静默拿不到。
+  markdown 里保持 ISO 格式（Git/GitHub 通行写法），**界面上显示成 `2026/10/27`**——
+  转换在解析层做（`Changelog.formatDate`，顺带把月/日补零），不要两个展示位各转一次，
+  否则哪天新增一个入口就会漏掉。
+- 「未发布」小节只在非 stable 通道显示（`BuildConfig.BUILD_CHANNEL != "stable"`），
+  正式包用户不会看到还没发出去的内容。
+
 ### 状态管理
 
 - 业务状态放 ViewModel，临时 UI 状态用 `remember`。

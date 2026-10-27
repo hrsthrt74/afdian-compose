@@ -61,6 +61,8 @@ sealed interface Route : NavKey {
     @Serializable data object FeatureStatus : Route
     // 开源许可页：AboutLibraries 收集的第三方依赖与许可证，入口在设置 → 关于
     @Serializable data object OssLicenses : Route
+    // 更新日志页：解析打包进 assets 的 CHANGELOG.md，按版本折叠展示，入口在设置 → 关于
+    @Serializable data object Changelog : Route
     // 存储空间管理页：本地缓存/数据占用总览与分类清理，入口在设置 → 通用
     @Serializable data object Storage : Route
     // 日志页：运行日志与崩溃报告的记录开关、占用查看、导出与清空，入口在设置 → 通用

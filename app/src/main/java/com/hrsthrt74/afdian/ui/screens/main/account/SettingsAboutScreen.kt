@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,6 +58,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.BuildConfig
 import com.hrsthrt74.afdian.R
+import com.hrsthrt74.afdian.data.content.Changelog
+import com.hrsthrt74.afdian.data.content.ReleaseNote
 import com.hrsthrt74.afdian.data.update.UpdateChannel
 import com.hrsthrt74.afdian.ui.components.background.WaterBackground
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
@@ -80,6 +83,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
@@ -265,6 +269,14 @@ fun SettingsAboutScreen(
     val showWater = !BuildConfig.LEGACY_EDITION && themeSettings.enableBlur
     // 卡片配色：画了海水就半透明（让水纹透出来），否则用主题默认的不透明卡片
     val cardColors = aboutCardColors(showWater = showWater)
+
+    // 本版更新：直接读打包进 assets 的 CHANGELOG.md，把**当前版本**那一节外显在页面上，
+    // 省得为了看一两条改动还要点进「更新日志」。
+    // 找不到这一版（CHANGELOG 还没写 / 版本号对不上）时为 null，卡片退化成纯入口，不会空着。
+    // 几 KB 文本，remember 内同步读一次，与「开源许可」页解析 aboutlibraries.json 的做法一致
+    val currentReleaseNote = remember(context) {
+        Changelog.load(context).firstOrNull { it.version == BuildConfig.VERSION_NAME }
+    }
 
     // hero 的实测高度：列表要靠它留一块透明占位。初值给个接近的估计，
     // 实测完成后会立刻校正（差几 dp 肉眼看不出来，总比首帧闪一下强）
@@ -501,6 +513,13 @@ fun SettingsAboutScreen(
                                 },
                             )
                         }
+                        // 本版更新：把当前版本的改动直接铺出来，不用点进去才看得到。
+                        // 排在操作卡下面 —— 先给「检查更新」这些动作，再给说明性内容
+                        UpdateLogCard(
+                            note = currentReleaseNote,
+                            colors = cardColors,
+                            onShowAll = { if (backStack.none { it == Route.Changelog }) backStack.add(Route.Changelog) },
+                        )
                     }
                 }
 
@@ -689,7 +708,69 @@ private fun AboutHero(
 }
 
 /**
- * 关于页卡片的配色。
+ * 「本版更新」卡：当前版本的改动直接铺在关于页上，不用点进去才看得到。
+ *
+ * 结构：顶部「更新日志」是可点进完整页面的入口（同时充当这张卡标题）→ 版本号 + 日期
+ * → 分割线 → 全部条目（不截断、不折叠：当前版本通常就几条，折叠反而多一次点击）。
+ * 数据来自 [com.hrsthrt74.afdian.data.content.Changelog]（打包进 assets 的 CHANGELOG.md），
+ * 与更新日志页同源；条目渲染复用 `ReleaseNoteItems`，两处样式不会各自漂移。
+ *
+ * @param note 当前版本的更新记录；为 null（CHANGELOG 里还没写这一版）时只剩入口那一行
+ * @param colors 卡片配色（有海水时是半透明，与本页其他卡片一致）
+ * @param onShowAll 打开完整更新日志
+ */
+@Composable
+private fun UpdateLogCard(
+    note: ReleaseNote?,
+    colors: CardColors,
+    onShowAll: () -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    Card(
+        modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+        colors = colors,
+    ) {
+        Column {
+            ArrowPreference(title = "更新日志", onClick = onShowAll)
+            if (note != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // top 10dp：ArrowPreference 自带的下边距很小，不给的话
+                        // 「更新日志」和 v1.0.2 会挤成上下两行贴在一起
+                        .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "v${note.version}",
+                        style = MiuixTheme.textStyles.title4,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    note.date?.let { date ->
+                        Text(
+                            text = date,
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onSurfaceVariantSummary,
+                        )
+                    }
+                }
+                // 把「这一版是什么」和「改了什么」分开。线从卡片边缘开始会更像分区，
+                // 但和上面 ArrowPreference 的内边距对不齐，所以左右各留 16dp 跟着内容走
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                ReleaseNoteItems(
+                    items = note.items,
+                    // 下边距只留 14dp：条目自己不再带尾部间距（见 ReleaseNoteItems），
+                    // 这里就是正文到卡片底边的实际距离
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
  *
  * 画了海水时给 `surfaceContainer` 加一层透明度，让水纹从卡片里透出来——
  * 这是「整页背景」能成立的关键，卡片全不透明的话水面只在卡片缝隙里露几条边，白做。

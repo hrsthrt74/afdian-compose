@@ -71,6 +71,37 @@ val injectedBuildChannel = propText("buildChannel") ?: "local"
 // 短 commit sha（7 位），Actions / Release 构建才有
 val injectedGitSha = propText("gitSha").orEmpty()
 
+// ── 更新日志（CHANGELOG.md）──
+// 仓库根的 CHANGELOG.md 是唯一数据源：构建时复制进 assets，「设置 → 关于 → 更新日志」运行时解析它。
+// 不手工往 app/src/main/assets 里放一份：两份必然漂移，而这种「文档不同步」的错误
+// 要等用户截图指出「更新日志少了最新一版」才会被发现。
+//
+// 为什么要自定义任务而不是内置 Copy：
+// AGP 9 起禁止 `sourceSets.assets.srcDir(provider)`（Studio 无法判断 Provider 指向的是
+// 生成目录还是静态文件），必须走 Variant API 的 `addGeneratedSourceDirectory`。
+// 那条路径要求任务的输出声明成 DirectoryProperty，而 Copy 只暴露 File 类型的 destinationDir，
+// 所以这里写一个最小任务。
+abstract class CopyChangelogAssets : DefaultTask() {
+
+    @get:InputFile
+    abstract val source: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        source.get().asFile.copyTo(
+            target = outputDir.get().asFile.resolve("CHANGELOG.md"),
+            overwrite = true,
+        )
+    }
+}
+
+val copyChangelogAssets = tasks.register<CopyChangelogAssets>("copyChangelogAssets") {
+    source.set(rootProject.layout.projectDirectory.file("CHANGELOG.md"))
+}
+
 android {
     namespace = "com.hrsthrt74.afdian"
     compileSdk {
@@ -213,6 +244,14 @@ aboutLibraries {
 // 供设置页底部居中小字提示当前打包类型；同时定制 APK 输出文件名
 androidComponents {
     onVariants { variant ->
+        // 更新日志：把复制任务的产物挂进这个变体的 assets。
+        // addGeneratedSourceDirectory 会自动把任务接进构建图（不用手动 dependsOn mergeAssets），
+        // 并把它登记成 Studio 眼中的「生成目录」，不会误报只读文件。
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            copyChangelogAssets,
+            CopyChangelogAssets::outputDir,
+        )
+
         // AGP 9 的 BuildConfigField(type, value, comment)：value 即字面值，
         // String 类型必须自带引号（KDoc 明确要求），comment 传 null 无注释
         variant.buildConfigFields?.put(
