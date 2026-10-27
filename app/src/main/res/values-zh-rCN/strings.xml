@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">爱发电</string>
+    <!-- 关于页品牌区用；debug 变体不覆盖这一条，正式名不跟着变成「爱发电 Debug」 -->
+    <string name="app_display_name">爱发电</string>
 </resources>

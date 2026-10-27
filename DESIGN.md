@@ -205,6 +205,80 @@ Box(modifier = Modifier.weight(1f).fillMaxSize()) {
   铺一层 `surface` 底色兜底：`TopAppBar` 只会给自己上背景，往顶栏里塞它之外的内容（TabRow、表头等）
   不会自动获得底色，靠的就是这层。所以**别把顶栏内容拆到 `BlurredBar` 外面**。
 
+### 品牌图标
+
+关于页 hero 用 `drawable/icon.webp`（不透明位图，背景烘进图里，深色主题下是一块深色卡片），
+外面套 squircle 裁角，观感与系统启动器图标一致：
+
+```kotlin
+Image(
+    painter = painterResource(R.drawable.icon),
+    contentDescription = null,
+    modifier = Modifier
+        .size(88.dp)
+        .graphicsLayer { /* 滚动时的缩放 / 淡出 */ }
+        .squircleClip(cornerRadius = 22.dp), // 取边长的 1/4
+)
+```
+
+注意 `squircleClip` 要写在 `graphicsLayer` **之后**（更内层）：蒙版被那个缩放图层一起缩放，
+图标缩小时圆角才对得上。
+
+产品名与版本标记：hero 的应用名读 `app_display_name`，**不要用 `app_name`** —— debug 变体把后者
+改成了「爱发电 Debug」给桌面图标用，关于页要的是干净的产品名。版本行是 `版本 x (code) S|L`，
+字母由 `BuildConfig.LEGACY_EDITION` 选（S = standard / L = legacy），用 `AnnotatedString`
+单独上主题色 + SemiBold，读起来是版本号的一部分，又不跟主标题抢注意力。
+
+坑：`drawable/icon_splash.xml` 的填充是 aapt 的 `<gradient>`，Compose 自带的矢量解析器
+（`painterResource` / `ImageVector.vectorResource`）**不认 `aapt:attr`**，解析出来是一个没有填充的
+path —— 界面上就是一块空白，还很难看出哪里错了。非要用这个矢量，只能借平台 `VectorDrawable`
+画到 canvas 上（`context.getDrawable(...)` + `draw(drawContext.canvas.nativeCanvas)`）。
+
+### 动态背景（关于页海水）
+
+「设置 → 关于」整页背后是一层 AGSL 动态海水（`ui/components/background/WaterBackground.kt`），
+自己写的「平静水面」：上亮下深的水色 + 透视压缩的连续波纹 + 右侧阳光反射带里稀疏的碎金，
+与 miuix demo 的渐变色斑 shader 无关。
+
+写这类 shader 有三个已经踩过的坑（别重复）：
+
+- **浪脊不能对 fbm 直接取阈值**——噪声高处会整片点亮，看起来像白云，不像水；
+  要在「被浪高扰动的 y」上取正弦再做窄化，等值线才是连续流动的横带。
+- **不能取值噪声的双线性版本**——它的等值线是折线，取窄带会画出「低多边形碎片」；
+  必须用梯度（Perlin）噪声 + 五次曲线淡入淡出。
+- **碎金不能对连续噪声取高次幂**——值噪声每个格点顶点都恰好到 1，取幂的结果是整片「下雪」；
+  要按格子哈希撒点（只让千分之几的格子亮）。
+
+其余约定：
+
+- **只有「standard 包 + 用户开着模糊效果」才画**：
+  `showWater = !BuildConfig.LEGACY_EDITION && themeSettings.enableBlur`。
+  包身份用 `LEGACY_EDITION` 判断（不要复用 `SUPPORT_BLUR`，两者是刻意解耦的）；
+  用户在外观设置里关掉「模糊效果」时也整层不画 —— 全屏逐像素 shader 是纯装饰性开销，
+  关模糊的人通常在意流畅度/发热。两处任一不满足就连 shader 都不实例化，回落普通主题底色。
+- 深浅色各一套调色板（深海 / 浅海），判断走 `isDarkColorScheme(MiuixTheme.colorScheme)`，
+  不要读「用户选了哪个模式」。
+- 页面画了动态背景时，这三处必须一起改，少一处就会被盖住：
+  - `Scaffold(containerColor = Color.Transparent)`；
+  - `Card(colors = CardDefaults.defaultColors(color = surfaceContainer.copy(alpha = 深 0.70 / 浅 0.62)))`
+    —— **卡片不透明的话水面只在卡片缝隙里露几条边，背景等于白做**；
+  - 顶栏 `SmallTopAppBar(color = Color.Transparent)` + 外层滚动渐显的 surface 蒙层。
+- 顶栏底色/标题的时机照 miuix demo 的 About 页走 **hero 占位的滚动进度**，不要用
+  `scrollBehavior.state.contentOffset` 拉满 —— 它是累计像素，按 48dp 算的话稍微划一下整条顶栏
+  就变成不透明白板。现在底色在 70%→100%、标题在 35%→100% 之间渐变。
+  另外 `SmallTopAppBar` 会把 `heightOffsetLimit` 钉成 0，`collapsedFraction` /
+  `overlappedFraction` 在这种 pinned 小栏下恒为 0，本来也读不到进度。
+  标题色要自己按进度给 alpha：miuix 内部的 `smallTitleAlpha` 弹簧在滚动第一个像素时就跳到 1。
+- 帧驱动：时间存在 `mutableFloatStateOf`，**只在 `drawBehind` 里读** —— 每帧只失效 draw、不重组；
+  按 `FrameIntervalNanos` 抽帧（当前 60fps）；系统开启「移除动画」时静止。`setFloatUniform` 本身不会触发重绘，重绘靠读这个 State。
+- **水随滚动淡出**：`alpha = 1 - heroProgress`（抄 demo 的 `BgEffectBackground(alpha = ...)`）。
+  滑过 hero 之后整页回到实色 `surface`，卡片落在纯色上更好读，也让水面只当首屏的氛围元素。
+  淡出后露出的底色是单独一层 `Box.background(surface)`，不能只靠 Scaffold 透明——
+  否则会透到窗口背景色，和卡片色对不上。
+- 组件自带降级：API < 33 或 AGSL 编译失败 → 静态竖向渐变兜底 + `AppLog.e`，不会崩。
+- 别的页面想复用：把 `WaterBackground(Modifier.matchParentSize())` 放在内容区最底层即可，
+  再按上面三条把容器/卡片/顶栏调成透明或半透明。
+
 ### 状态管理
 
 - 业务状态放 ViewModel，临时 UI 状态用 `remember`。

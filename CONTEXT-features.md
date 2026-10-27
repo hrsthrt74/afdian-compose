@@ -676,10 +676,28 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ### 关于（`Route.SettingsAbout`）
 
-- 单组页面，不再显示与页名同义的「关于」小标题。
+- 版式照 miuix demo 的 About 页：hero（`icon.webp` 88dp + squircle 裁角 + 应用名 34sp Bold + 版本号）
+  → 分组「关于」→ 分组「更新」→ 页脚「构建类型」。应用名读 `app_display_name` 而**不是** `app_name`：
+  debug 变体只给桌面图标加 Debug 后缀，关于页始终是干净的产品名。**不再用 `SettingsPageScaffold`**
+  （那套骨架是大标题顶栏形态，与本页冲突），顶栏换成只有返回键的 `SmallTopAppBar`，标题滚动后淡入。
+- hero 是**固定在列表之上的叠层**（不跟滚动），列表第一项是一块透明占位（高度 = hero 实测高度 + 底部留白）；
+  随滚动进度逐级退场：版本号最先淡出 → 应用名 → 图标（同时缩到 0.94），卡片从 hero 上方滑过。
+  进度只在 `graphicsLayer` 里读，不触发重组。
+- **hero 区会吸附**：滚动停稳时如果还停在占位中间，自动补一段动画，只允许落在「顶部」或「完全滑过 hero」两个位置。
+  方向和阈值都按「这一次手势的起点」判（对比手势开始时的 offset，而不是 `lastScrolledBackward`——
+  松手回弹会把它翻向）：往上推只要 6% 就吸进列表（轻划即可），往回拉要掉过 30% 才退回顶部。
+  **轻划在手指抬起那一拍（`onPreFling`）就吸附**，不等惯性衰减；速度超过 3000px/s 的重甩交给惯性自己飞，
+  避免用力一甩被吸附动画掐断。`isScrollInProgress` 停稳 + 120ms 静默期只是兜底路径。
+  miuix 没有这个行为，是本页自己的手感处理。
+- 水面随滚动淡出（`alpha = 1 - heroProgress`），滑过 hero 后整页回到实色 `surface`。
+- 整页背后铺**动态海水 shader**（`ui/components/background/WaterBackground.kt`）：
+  legacy 包不画、用户关掉「模糊效果」时也不画（都回落普通主题底色）；浅色模式用浅海配色、深色模式用深海配色。
+  细节与「复用时要同时改哪三处」见 `DESIGN.md` 的「动态背景（关于页海水）」。
 - 功能完成度、**更新通道**（正式版 / Actions 构建，见「检查更新」一节）、检查更新、开源许可、免责声明。
-- 页脚显示 `版本 x (code)`，Actions 包额外附带 `· 构建 #N · <sha>`，方便报 issue 时直接截图。
-  README 里「反馈请附设置页底部版本号」的说法已同步改为「设置 → 关于」。
+- 版本号在 hero 里（`版本 x (code) S|L` —— 字母标 flavor：S = standard、L = legacy，跟着版本号走，
+  两个包并存时一眼能分清；用 `AnnotatedString` 把字母上主题色 + SemiBold。Actions 包额外附带
+  `· 构建 #N · <sha>`，方便报 issue 时直接截图），
+  页脚只留「构建类型：standardDebug」。README 里「反馈请附设置页底部版本号」的说法仍指向「设置 → 关于」。
 - 站外链接入口（都走 Custom Tabs，不进 App 内路由）：
   - **交流群** → `https://qm.qq.com/q/YVBgTJLi26`。
     点击一次干两件事：打开入群链接 **+ 把群号 `1108445904` 复制到剪贴板**
