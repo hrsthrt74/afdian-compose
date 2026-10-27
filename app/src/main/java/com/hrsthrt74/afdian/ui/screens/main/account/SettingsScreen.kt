@@ -1,16 +1,12 @@
 package com.hrsthrt74.afdian.ui.screens.main.account
 
 import android.app.Application
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
+import com.hrsthrt74.afdian.ui.components.basic.CategoryIconTile
 import com.hrsthrt74.afdian.ui.components.basic.TooltipInfoButton
 import com.hrsthrt74.afdian.ui.components.basic.TooltipInfoButtonStyle
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
@@ -50,7 +47,6 @@ import top.yukonga.miuix.kmp.icon.extended.Tune
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -73,18 +69,22 @@ private data class SettingsCategoryItem(
 )
 
 /**
- * 设置总览的三个分类入口，顺序即展示顺序。
+ * 设置总览的偏好分类入口（通用 / 外观），顺序即展示顺序，共用同一张卡。
  *
- * 配色取参考截图里的 MIUI 风格：蓝（通用）、紫（外观）、灰（关于）。
+ * 配色取参考截图里的 MIUI 风格：蓝（通用）、紫（外观）。
  * 图标统一用单色描边，压在 32dp 圆角方块上，与「账号」分区的头像列左缘对齐。
- * 若用户开启了 Monet 配色，三个方块统一改用主题主色（见 [SettingsCategoryIcon]），
+ * 若用户开启了 Monet 配色，方块统一改用主题主色（见 [CategoryIconTile]），
  * 把配色决定权交回动态色板。
  */
 private val settingsCategories = listOf(
     SettingsCategoryItem("通用", MiuixIcons.Tune, Color(0xFF3D8BFD), Route.SettingsGeneral),
     SettingsCategoryItem("外观", MiuixIcons.Theme, Color(0xFF8B7BF7), Route.SettingsAppearance),
-    SettingsCategoryItem("关于", MiuixIcons.Info, Color(0xFF8A8F98), Route.SettingsAbout),
 )
+
+/**
+ * 「关于」分类：与偏好分类（通用 / 外观）性质不同，单独一张卡在视觉上分开。
+ */
+private val aboutCategory = SettingsCategoryItem("关于", MiuixIcons.Info, Color(0xFF8A8F98), Route.SettingsAbout)
 
 /**
  * 设置总览页。
@@ -92,7 +92,7 @@ private val settingsCategories = listOf(
  * 页面只保留两块：
  * 1. **账号**：整块沿用改造前的实现（账号列表、添加账号、首页账号切换器、删除/退出），
  *    逻辑与间距都不动，未登录栈里 `LocalAccountSwitcher` 为 null 时整块不渲染；
- * 2. **分类入口**：通用 / 外观 / 关于，点击 push 到对应二级页。
+ * 2. **分类入口**：通用 / 外观 同一张卡，关于 单独一张卡，点击 push 到对应二级页。
  *
  * 原先铺在本页的偏好项已按分类拆到 [SettingsGeneralScreen]、[SettingsAppearanceScreen]、
  * [SettingsAboutScreen]；原「更多」页内容已并入「通用」，版本号与构建类型页脚在「关于」页底部。
@@ -237,15 +237,33 @@ fun SettingsScreen(
 
         // ── 分类入口 ──
         item {
-            Card(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 24.dp)) {
-                settingsCategories.forEach { category ->
+            Column {
+                // 偏好分类（通用 / 外观）：同一张卡；下边距 12dp 是它与「关于」卡之间的分隔
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 24.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    settingsCategories.forEach { category ->
+                        ArrowPreference(
+                            title = category.title,
+                            startAction = { CategoryIconTile(icon = category.icon, iconBackground = category.iconBackground) },   // 左侧图标
+                            onClick = {
+                                // 去重：转场期间连点不会重复入栈
+                                //（miuix-nav 栈内 contentKey 重复会直接抛异常闪退）
+                                if (backStack.none { it == category.route }) backStack.add(category.route)
+                            },
+                        )
+                    }
+                }
+                // 「关于」单独一张卡：不加上边距，与上一张卡的间距全靠它的 12dp 下边距
+                Card(modifier = Modifier.padding(horizontal = 16.dp)) {
                     ArrowPreference(
-                        title = category.title,
-                        startAction = { SettingsCategoryIcon(category) },   // 左侧图标
+                        title = aboutCategory.title,
+                        startAction = { CategoryIconTile(icon = aboutCategory.icon, iconBackground = aboutCategory.iconBackground) },
                         onClick = {
-                            // 去重：转场期间连点不会重复入栈
-                            //（miuix-nav 栈内 contentKey 重复会直接抛异常闪退）
-                            if (backStack.none { it == category.route }) backStack.add(category.route)
+                            if (backStack.none { it == aboutCategory.route }) backStack.add(aboutCategory.route)
                         },
                     )
                 }
@@ -267,37 +285,6 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
-        )
-    }
-}
-
-/**
- * 分类入口左侧的彩色图标块
- */
-@Composable
-private fun SettingsCategoryIcon(category: SettingsCategoryItem) {
-    // Monet 配色开启时，三个分类统一使用主题主色，避免固定彩色和动态色板打架；
-    // 关闭 Monet 时保留参考截图里的自定义配色。
-    val monetActive = MiuixTheme.isDynamicColor
-    // 方块底色：Monet 时取 primary，否则用每个分类自己的固定色
-    val tileColor = if (monetActive) MiuixTheme.colorScheme.primary else category.iconBackground
-    // 图标颜色：主色底上改用 onPrimary 保证对比度；自定义色底继续用白色
-    val iconTint = if (monetActive) MiuixTheme.colorScheme.onPrimary else Color.White
-
-    Box(
-        modifier = Modifier
-            .padding(end = 4.dp)    // 图标 <-> 文字
-            .size(32.dp)
-            .squircleClip(8.dp)
-            .background(color = tileColor),
-        contentAlignment = Alignment.Center,
-    ) {
-        // 分类图标：装饰性，标题已经说明了入口含义
-        Icon(
-            imageVector = category.icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(24.dp),
         )
     }
 }

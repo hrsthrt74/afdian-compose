@@ -549,13 +549,14 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   其他账号行尾是删除）+「添加账号」行；下方**独立卡片**是「首页账号切换器」开关（设备级、默认关闭），
   仅在已保存账号数 > 1 时渲染 —— 单账号没有可切换对象，露出来只会让人困惑。
   未登录栈里 `LocalAccountSwitcher` 为 null，整块不渲染。
-- 分类卡：一张 `Card` 内放三个 `ArrowPreference`，左侧是 32dp 圆角方块 + 24dp 单色图标
-  （`Tune` 蓝 / `Theme` 紫 / `Info` 灰），图标与文字之间 4dp，行高 56dp 量级。
-  图标块用 `squircleClip` 裁剪。
+- 分类卡：「通用 / 外观」一张 `Card`，「关于」单独一张卡（自身不加上边距，
+  与上一张的分隔靠上一张卡的 12dp 下边距）。行是 `ArrowPreference`，左侧是 32dp 圆角方块 +
+  24dp 单色图标（`Tune` 蓝 / `Theme` 紫 / `Info` 灰）。
   点击 push 对应分类页，入栈前做 `none { it == route }` 去重。
-- 分类图标颜色跟随主题：
-  - **主题 = MIUIX** 时，用上面的固定自定义色，图标为白色；
-  - **主题 = Monet** 时，三个方块统一取 `MiuixTheme.colorScheme.primary`，图标改用 `onPrimary`，
+- 图标块是共用组件 `CategoryIconTile`（`ui/components/basic/`）：设置总览分类卡与文档页文档卡
+  共用一份实现，Monet 适配只在组件里做——
+  - **主题 = MIUIX** 时，用各入口自己的固定自定义色，图标为白色；
+  - **主题 = Monet** 时，方块统一取 `MiuixTheme.colorScheme.primary`，图标改用 `onPrimary`，
     避免固定彩色和动态色板打架。是否 Monet 统一读 `MiuixTheme.isDynamicColor`。
 - 版本号与构建类型页脚已移到「关于」页底部。
 
