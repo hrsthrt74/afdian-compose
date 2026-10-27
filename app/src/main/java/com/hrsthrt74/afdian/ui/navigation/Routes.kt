@@ -23,7 +23,7 @@ sealed interface Route : NavKey {
     // scrollToComments=true 表示「从列表页点评论按钮进来的」，进页面后要把评论区滚进视口。
     // 该标记进路由而非全局变量，进程重建/返回栈重放后依然有效。
     @Serializable data class PostDetail(val post: RecommendedPost, val scrollToComments: Boolean = false) : Route
-    // 按动态 id 打开详情（如「创作者指南」入口，只持有 id 时进入）；语义同上
+    // 按动态 id 打开详情（如文档页、开发者页的文档入口，只持有 id 时进入）；语义同上
     @Serializable data class PostDetailById(val postId: String, val scrollToComments: Boolean = false) : Route
     @Serializable data class MessageConversation(val userId: String, val userName: String, val avatarUrl: String? = null) : Route
 
@@ -73,6 +73,8 @@ sealed interface Route : NavKey {
     @Serializable data object Blocklist : Route
     // 开发者页（官网 /dashboard/dev：user_id、Webhook URL、API Token），入口在「我的」页屏蔽与拒绝名单下方
     @Serializable data object Developer : Route
+    // 文档聚合页：收录官网文档站、创作者指南与开发者文档入口，入口在「我的」页底部卡
+    @Serializable data object Docs : Route
     // 售卖商品管理页（创作者后台 all-plans 的 sale_list），入口在「我的」页快捷入口的创作者分组
     @Serializable data object Shop : Route
     // 外部商品链接打开商品详情 Sheet，底层复用商品管理页的数据与弹层实现

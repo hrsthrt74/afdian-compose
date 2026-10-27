@@ -185,6 +185,11 @@ private fun ProfileMainScreen(
                                 title = "开发者",
                                 onClick = { onNavigate(Route.Developer) }
                             )
+                            // 文档页：官网文档站、创作者指南、开发者文档的统一收录
+                            ArrowPreference(
+                                title = "文档",
+                                onClick = { onNavigate(Route.Docs) }
+                            )
                         }
                     }
                 }

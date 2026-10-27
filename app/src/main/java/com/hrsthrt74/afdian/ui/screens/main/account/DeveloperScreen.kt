@@ -35,6 +35,7 @@ import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.CardActionBar
 import com.hrsthrt74.afdian.ui.components.basic.CardActionBarItem
+import com.hrsthrt74.afdian.ui.components.basic.CategoryIconTile
 import com.hrsthrt74.afdian.ui.components.basic.CopyButton
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.ErrorStateView
@@ -43,6 +44,10 @@ import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
+import com.hrsthrt74.afdian.ui.navigation.DEV_DOC_OVERVIEW_POST_ID
+import com.hrsthrt74.afdian.ui.navigation.DEV_DOC_WEBHOOK_API_POST_ID
+import com.hrsthrt74.afdian.ui.navigation.DocTileGreen
+import com.hrsthrt74.afdian.ui.navigation.DocTilePurple
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.util.AfdianCardDefaults
 import com.hrsthrt74.afdian.ui.viewmodel.DeveloperViewModel
@@ -61,8 +66,10 @@ import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.File
 import top.yukonga.miuix.kmp.icon.extended.Hide
+import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.icon.extended.Send
 import top.yukonga.miuix.kmp.icon.extended.Show
+import top.yukonga.miuix.kmp.icon.extended.Tune
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -85,7 +92,7 @@ import top.yukonga.miuix.kmp.window.WindowBottomSheet
 @Composable
 fun DeveloperScreen(
     viewModel: DeveloperViewModel,
-    /** 打开一篇官方动态（post id），与「我的」页「创作者指南」同一套跳转方式 */
+    /** 打开一篇官方动态（post id），进动态详情页展示 */
     onOpenDoc: (String) -> Unit,
     backStack: NavBackStack,
     onBack: () -> Unit,
@@ -219,18 +226,23 @@ fun DeveloperScreen(
                     )
                 }
 
-                // ---- 开发者文档入口：两篇官方动态 ----
+                // ---- 开发者文档入口：两篇官方动态（同源收录在「我的」页 → 文档） ----
                 item(key = "docs") {
                     SmallTitle("文档", modifier = Modifier.padding(start = 4.dp, top = 12.dp))
                     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                         Column {
-                            // 与「我的」页「创作者指南」同一套跳转：进动态详情页
+                            // 按 post id 打开动态详情页；行样式与「我的 → 文档」的文档卡一致
+                            //（图标块配色 / 图标 / 摘要与文档页一一对应）
                             ArrowPreference(
-                                title = "爱发电 Webhook 与 API 文档",
+                                title = "Webhook 与 API 文档",
+                                summary = "Webhook 推送与 API 签名调用",
+                                startAction = { CategoryIconTile(icon = MiuixIcons.Link, iconBackground = DocTileGreen) },
                                 onClick = { onOpenDoc(DEV_DOC_WEBHOOK_API_POST_ID) },
                             )
                             ArrowPreference(
-                                title = "开发者功能汇总：API 与 Webhook、OAuth2、网页嵌入",
+                                title = "开发者功能汇总",
+                                summary = "API、Webhook、OAuth2 与网页嵌入",
+                                startAction = { CategoryIconTile(icon = MiuixIcons.Tune, iconBackground = DocTilePurple) },
                                 onClick = { onOpenDoc(DEV_DOC_OVERVIEW_POST_ID) },
                             )
                         }
@@ -638,16 +650,6 @@ private fun WebhookCard(
  * 这里用一个不可见的 Spacer 补齐，使三张卡的头行严格等高。
  */
 private val HeaderRowMinHeight = 40.dp
-
-/**
- * 官方文档动态的 post id。
- *
- * 两篇都是爱发电官方（Lain音酱）发布的动态，点击走动态详情页展示，
- * 与「我的」页「创作者指南」入口的跳转方式一致。
- * 2026-10 浏览器实测确认标题与发布时间。
- */
-private const val DEV_DOC_WEBHOOK_API_POST_ID = "9c65d9cc617011ed81c352540025c377"
-private const val DEV_DOC_OVERVIEW_POST_ID = "010ff078177211eca44f52540025c377"
 
 /** Token 打码展示占位（长度与真实 token 无关，纯视觉）。 */
 private const val MASKED_TOKEN = "••••••••••••••••••••••••••••••••" // 32 个

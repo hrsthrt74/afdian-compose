@@ -58,6 +58,7 @@ import com.hrsthrt74.afdian.ui.screens.main.account.ApiProbeScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.BlocklistScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.ChangelogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.DeveloperScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.DocsScreen
 import com.hrsthrt74.afdian.ui.screens.auth.DisclaimerScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FeatureStatusScreen
@@ -552,8 +553,16 @@ fun MainScreen(
                 viewModel = vm,
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
-                // 开发者文档入口：与「我的」页「创作者指南」同一套跳法，进动态详情页
+                // 开发者文档入口：按 post id 打开动态详情页（同源收录在「我的」页 → 文档）
                 onOpenDoc = { postId -> backStack.pushUnique(Route.PostDetailById(postId)) },
+            )
+        }
+        entry<Route.Docs> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // 文档聚合页：官网文档站、创作者指南与开发者文档的统一收录，入口在「我的」页底部卡
+            DocsScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
             )
         }
         entry<Route.Shop> {

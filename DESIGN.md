@@ -105,6 +105,7 @@ Text(
 - 动态卡片 → `PostCard`
 - 卡片底部操作栏 → `CardActionBar`（N 个动作均分一行，「图标 + 文字」居中，触觉先震后动；`onClick = null` 表示纯展示/禁用，视觉为次要色；激活态由调用方显式传 `primary`，`tint = null` 为次要色。带点赞/收藏业务状态时用 `PostActionBar`，不要手写均分列底栏）
 - 环形占比图 → `DonutChart`（`ui/components/data/DonutChart.kt`，基于 Vico；圆心可放内容；颜色由调用方按业务含义固定给出，不要按扇区下标轮转取色；`minSweepDegrees` 保证小占比分类也看得见，默认 5 度）
+- 分类/文档入口的彩色图标块 → `CategoryIconTile`（`ui/components/basic/`：32dp squircle 底 + 白色单色图标；Monet 开启时统一主题主色，判断收在组件里。设置总览分类卡与文档页文档卡共用，不要另写同款）
 - 创作者卡（长条形） → `CreatorListItem`
 - 圆形快捷入口 → `QuickEntry`（圆形底 + 图标 + 下方标题，触感反馈内聚；`containerSize`/`iconSize` 可调紧凑档，面板网格与页面入口共用同一个组件）
 - 创作者卡（矩形） → `CreatorLargeCard` / `CreatorSmallCard`

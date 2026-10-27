@@ -571,8 +571,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
     生效范围：接口请求、App 自己构造的外跳网页（购买 / 商品编辑 / 提现）、分享链接（动态 / 优惠码）与
     图片相对路径补全都跟随该线路；**服务端下发**的链接（消息卡片、富文本正文）保持原样，不改写其 host。
 - 链接打开方式：系统浏览器（Custom Tabs，默认）/ 优先官方客户端（失败仍回退 Custom Tabs）。
-- 分组「其他」：「爱发电文档」→ `https://guide.afdian.com`。
-  ⚠️ 这个地址**刻意不跟「优先线路」走**：另外两个域名（ifdian.net / www.afdian.com）下
+- 「爱发电文档」链接入口已迁到「我的 → 文档」聚合页（见「文档页」一节），本页不再有站外链接杂项。
+  guide.afdian.com **刻意不跟「优先线路」走**的约束不变：另外两个域名（ifdian.net / www.afdian.com）下
   并没有 guide 子域，跟着线路改写 host 会直接 404，所以写死域名、不用 `afdianWebUrl()`。
 - 分组「管理」：本地数据与排查工具 `存储空间管理`、`日志管理`、`接口调试`
   （原「清除浏览历史」入口已移除，清理统一收敛到存储页）。
@@ -715,7 +715,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
     （群号单独复制是给已经在 QQ 里、懒得再点一次「加入群聊」的用户用的）。
     复制走 `SettingsAboutScreen` 内的私有工具函数 `copyTextToClipboard`（写法抄 `MessageBubbleMenu.copyToClipboard`）。
   - **GitHub 仓库** → `https://github.com/hrsthrt74/afdian-compose`（源码、Issue、Release）。
-  - **爱发电文档**归「通用」页。
+  - （「爱发电文档」外链入口已迁到「我的 → 文档」聚合页，见「文档页」一节。）
 - 这几个入口用 `ui/navigation/AppLinkNavigator.kt` 里的**顶层函数 `openExternalLink(...)`**，
   而不是 `LocalAppLinkNavigator`：后者带站内跳转能力（`onNavigate`），只在 MainScreen 里提供，
   而设置页在未登录栈（登录页顶栏的设置入口）也能进，那儿取不到这个组合局部。
@@ -730,6 +730,25 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 - 两处栈都必须注册总览页与三个分类页：已登录 `MainScreen` 的 `NavDisplay` 一套，
   未登录 `MainActivity` 登录页栈一套。miuix-nav 遇到未注册的路由是直接 `error()` 崩溃，
   给设置页加新入口时两处都要补。
+
+## 文档页（DocsScreen）
+
+- 路由 `Route.Docs`，入口在「我的」页底部卡（设置 / 屏蔽与拒绝名单 / 开发者 / 文档）。
+  全 App「看官方文档」的入口统一收在这里：
+  - **爱发电文档**：官网文档站外链 `https://guide.afdian.com`（写死域名不跟「优先线路」，见上文）；
+  - **创作者指南**：官网动态，按 post id 进动态详情页——原「我的」页快捷入口
+    （`QuickEntryPreset.CreatorGuide`）已删，此处是唯一收录；
+  - **Webhook 与 API 文档 / 开发者功能汇总**：两篇官网开发者动态，与开发者页「文档」卡同源收录
+    （那边是就地入口不撤，这边做全量聚合）。
+- 版式：`SettingsPageScaffold` 骨架 + 分组「SmallTitle + 卡」，一篇文档一张卡；
+  行是 `ArrowPreference` + 共用图标块 `CategoryIconTile`（32dp squircle 彩色方块，
+  Monet 适配在组件内，与设置总览分类共用同一份实现，见「设置页 → 总览页」）。
+- 官方文档的 post id、文档站域名/URL、文档卡四色（`DocTileBlue/Orange/Green/Purple`，
+  文档页与开发者页共用）都集中在 `ui/navigation/OfficialDocs.kt`，新增收录先加常量再往页面加卡。
+- 按动态 id 打开详情时入栈前做 `none { it == route }` 去重（与 MainScreen 的 `pushUnique`
+  同一语义；那边是 private，页面内各自收口）。
+- 已保存的快捷入口配置若还存着 `creator_guide`（已删条目），`normalizeQuickEntries` 会按
+  未知值丢弃，不需要数据迁移。
 
 ## 存储空间管理页（StorageScreen）
 

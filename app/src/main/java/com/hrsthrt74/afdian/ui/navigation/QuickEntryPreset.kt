@@ -11,7 +11,6 @@ import top.yukonga.miuix.kmp.icon.extended.Blocklist
 import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
 import top.yukonga.miuix.kmp.icon.extended.Favorites
 import top.yukonga.miuix.kmp.icon.extended.ListView
-import top.yukonga.miuix.kmp.icon.extended.MindMap
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Rename
 import top.yukonga.miuix.kmp.icon.extended.Settings
@@ -80,7 +79,6 @@ enum class QuickEntryPreset(
     Affiliates("affiliates", "优惠码", QuickEntryGroup.CREATOR, Route.Affiliates, MiuixIcons.Demibold.Rename),
     /** 图标是「上个月」的月份数字，随月份变化，故不静态给图标 */
     MonthlySummary("monthly_summary", "每月汇总", QuickEntryGroup.CREATOR, Route.MonthlySummary),
-    CreatorGuide("creator_guide", "创作者指南", QuickEntryGroup.CREATOR, Route.PostDetailById(CREATOR_GUIDE_POST_ID), MiuixIcons.Demibold.MindMap),
 
     // ===== 账号 =====
     Settings("settings", "设置", QuickEntryGroup.ACCOUNT, Route.Settings, MiuixIcons.Demibold.Settings),
@@ -148,6 +146,3 @@ internal fun normalizeQuickEntries(saved: List<String>): List<QuickEntryPreset> 
         .take(QUICK_ENTRY_SLOTS)
         .toList()
         .ifEmpty { defaultHomeQuickEntries }
-
-/** 「创作者指南」动态的 post id：官网的创作者指南长文，入口按 id 打开动态详情页。 */
-private const val CREATOR_GUIDE_POST_ID = "2da755247a8911e8ad6d52540025c377"

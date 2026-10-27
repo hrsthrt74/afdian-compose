@@ -125,17 +125,6 @@ private const val QQ_GROUP_NUMBER = "1108445904"
 // 下拉直接拿 enum 的 ordinal 当下标用。
 private val updateChannelNames = listOf("正式版", "Actions 构建")
 
-/**
- * 爱发电官方文档站域名。
- *
- * **刻意不跟随「优先线路」**：另外两个线路域名（ifdian.net / www.afdian.com）下
- * 并没有 guide 子域，把 host 跟着线路改写会直接 404。
- */
-private const val AFDIAN_GUIDE_HOST = "guide.afdian.com"
-
-/** 爱发电官方文档站地址（写死域名，不走 `afdianWebUrl()`）。 */
-private const val AFDIAN_GUIDE_URL = "https://$AFDIAN_GUIDE_HOST"
-
 /** 应用图标边长（跟 miuix demo 的 88dp 对齐）。 */
 private val HeroIconSize = 88.dp
 
@@ -198,7 +187,8 @@ private const val ReleaseSnapMaxVelocity = 3000f
  *
  * 页内含：
  * - hero：应用名、版本号、构建号（Actions 包额外带 commit）；
- * - 分组「关于」：爱发电文档、交流群、GitHub、开源许可、免责声明、功能完成度；
+ * - 分组「关于」：交流群、GitHub、开源许可、免责声明、功能完成度
+ *   （爱发电文档入口已收进「我的」页 → 文档）；
  * - 分组「更新」：检查更新、更新通道；
  * - 页脚：构建类型（版本号已上移到 hero，不再重复）。
  *
@@ -430,19 +420,7 @@ fun SettingsAboutScreen(
 
                 item(key = "about-group") {
                     Column {
-                        SmallTitle(text = "关于", modifier = Modifier.padding(start = 4.dp))
-                        Card(
-                            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
-                            colors = cardColors,
-                        ) {
-                            // 爱发电官方文档：地址写死 guide.afdian.com，**不跟「优先线路」走** ——
-                            // 另外两个域名（ifdian.net / www.afdian.com）下并没有 guide 子域，
-                            // 跟着线路改写 host 会直接 404，所以这里刻意不走 afdianWebUrl()。
-                            ArrowPreference(
-                                title = "爱发电文档",
-                                onClick = { openExternalLink(context, AFDIAN_GUIDE_URL, preferOfficialClient, customTabsBranding) },
-                            )
-                        }
+                        // 「关于」分组不再放小标题：hero 已经讲完「这是关于页」，直接铺卡片更透气
                         Card(
                             modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
                             colors = cardColors,
