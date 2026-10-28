@@ -275,16 +275,9 @@ fun SettingsScreen(
     AppDialog(
         state = logoutDialogState,
         title = "退出当前账号",
+        summary = "退出后需要重新输入账号密码登录；该账号会从账号列表中移除，其他已保存的账号不受影响。",
         confirmText = "退出",
         destructive = true,
         onConfirm = onLogout,
-    ) {
-        Text(
-            "退出后需要重新输入账号密码登录；该账号会从账号列表中移除，其他已保存的账号不受影响。",
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        )
-    }
+    )
 }
