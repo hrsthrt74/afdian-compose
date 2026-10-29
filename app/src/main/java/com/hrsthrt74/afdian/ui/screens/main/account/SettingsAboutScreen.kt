@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
@@ -45,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +66,7 @@ import com.hrsthrt74.afdian.data.update.UpdateChannel
 import com.hrsthrt74.afdian.ui.components.background.WaterBackground
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
+import com.hrsthrt74.afdian.ui.components.basic.SettingItemIcon
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.components.update.UpdateDialog
@@ -76,7 +79,6 @@ import com.hrsthrt74.afdian.ui.theme.isDarkColorScheme
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.UpdateDownloadState
 import com.hrsthrt74.afdian.ui.viewmodel.UpdateViewModel
-import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -92,6 +94,11 @@ import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.File
+import top.yukonga.miuix.kmp.icon.extended.Notes
+import top.yukonga.miuix.kmp.icon.extended.Reply
+import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -99,6 +106,7 @@ import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import kotlin.math.abs
 
 /**
  * 项目 GitHub 仓库。
@@ -401,21 +409,16 @@ fun SettingsAboutScreen(
                     // 松手检测放在最外层：onPreFling 是「手指抬起、惯性还没开始」的那一拍
                     .nestedScroll(releaseConnection)
                     .nestedScroll(scrollBehavior.nestedScrollConnection)
-                    // 放在 nestedScroll 之后：fling 到边界的剩余速度最先被它捕获
                     .scrollEndHaptic(),
                 contentPadding = PaddingValues(
                     top = paddingValues.calculateTopPadding(),
-                    bottom = contentBottomPadding() + 24.dp,
+                    bottom = contentBottomPadding(),
                 ),
             ) {
                 // 透明占位：高度 = hero 自身 + 与第一张卡片之间的留白，
                 // 既把内容推到 hero 下面，也给 heroProgress 当分母
                 item(key = HeroSpacerKey) {
-                    Spacer(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(HeroTopGap + heroHeight + HeroBottomGap),
-                    )
+                    Spacer(modifier = Modifier.fillMaxWidth().height(HeroTopGap + heroHeight + HeroBottomGap))
                 }
 
                 item(key = "about-group") {
@@ -430,6 +433,7 @@ fun SettingsAboutScreen(
                             ArrowPreference(
                                 title = "交流群",
                                 summary = "本第三方客户端的交流群",
+                                startAction = { SettingItemIcon(MiuixIcons.Reply) },
                                 onClick = {
                                     AppLog.d("Settings", "打开交流群并复制群号: $QQ_GROUP_JOIN_URL")
                                     copyTextToClipboard(context, QQ_GROUP_NUMBER, "群号", "群号已复制")
@@ -439,6 +443,7 @@ fun SettingsAboutScreen(
                             // 项目源码仓库
                             ArrowPreference(
                                 title = "GitHub",
+                                startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_github)) },
                                 summary = GITHUB_REPO_SLUG,
                                 onClick = { openExternalLink(context, GITHUB_REPO_URL, preferOfficialClient, customTabsBranding) },
                             )
@@ -449,16 +454,19 @@ fun SettingsAboutScreen(
                         ) {
                             ArrowPreference(
                                 title = "开源许可",
+                                startAction = { SettingItemIcon(MiuixIcons.File) },
                                 onClick = { if (backStack.none { it == Route.OssLicenses }) backStack.add(Route.OssLicenses) },
                             )
                             ArrowPreference(
                                 title = "免责声明",
+                                startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_warning)) },
                                 onClick = { if (backStack.none { it == Route.Disclaimer }) backStack.add(Route.Disclaimer) },
                             )
                             // 功能完成度：常驻的「当前尚未完成的功能」清单入口。
                             ArrowPreference(
                                 title = "功能完成度",
                                 summary = "当前尚未完成的功能清单",
+                                startAction = { SettingItemIcon() },
                                 onClick = { if (backStack.none { it == Route.FeatureStatus }) backStack.add(Route.FeatureStatus) },
                             )
                         }
@@ -475,6 +483,7 @@ fun SettingsAboutScreen(
                             // 检查更新：手动查一次，有新版本会给出「忽略此版本 / 稍后 / 去下载」三个出口
                             ArrowPreference(
                                 title = "检查更新",
+                                startAction = { SettingItemIcon(MiuixIcons.Update) },
                                 onClick = {
                                     updateViewModel.checkManually()
                                     updateDialogState.show()
@@ -484,6 +493,7 @@ fun SettingsAboutScreen(
                             // Actions 构建追 master 的 CI 产物（http 页面跳转，artifact 需登录才能下）
                             OverlayDropdownPreference(
                                 title = "更新通道",
+                                startAction = { SettingItemIcon() },
                                 items = updateChannelNames,
                                 selectedIndex = updateChannel.ordinal,
                                 onSelectedIndexChange = { index ->
@@ -504,25 +514,21 @@ fun SettingsAboutScreen(
                 // 构建类型提示：居中小字显示当前打包变体（如 standardRelease），
                 // 便于区分测试包来源；样式沿用 DESIGN.md「列表内小字」的统一约定。
                 // 版本号在 hero 里，这里不再重复。
-                item(key = "footer") {
-                    Text(
-                        text = "构建类型：" + BuildConfig.APP_VARIANT_NAME,
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = colorScheme.onSurfaceVariantSummary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                    )
-                }
+//                item(key = "footer") {
+//                    Text(
+//                        text = "构建类型：" + BuildConfig.APP_VARIANT_NAME,
+//                        style = MiuixTheme.textStyles.footnote1,
+//                        color = colorScheme.onSurfaceVariantSummary,
+//                        textAlign = TextAlign.Center,
+//                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+//                    )
+//                }
             }
 
             // 右侧滚动条：top 让出顶栏高度
             VerticalScrollBar(
                 adapter = rememberScrollBarAdapter(listState),
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight(),
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
                 trackPadding = PaddingValues(top = paddingValues.calculateTopPadding()),
             )
         }
@@ -709,7 +715,7 @@ private fun UpdateLogCard(
         colors = colors,
     ) {
         Column {
-            ArrowPreference(title = "更新日志", onClick = onShowAll)
+            ArrowPreference(title = "更新日志", startAction = { SettingItemIcon(MiuixIcons.Notes) }, onClick = onShowAll)
             if (note != null) {
                 Row(
                     modifier = Modifier

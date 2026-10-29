@@ -27,6 +27,7 @@ import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.CategoryIconTile
+import com.hrsthrt74.afdian.ui.components.basic.SettingItemIcon
 import com.hrsthrt74.afdian.ui.components.basic.TooltipInfoButton
 import com.hrsthrt74.afdian.ui.components.basic.TooltipInfoButtonStyle
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
@@ -246,6 +247,7 @@ fun SettingsScreen(
                                 checked = homeAccountSwitcherEnabled,
                                 onCheckedChange = viewModel::setHomeAccountSwitcherEnabled,
                                 title = "首页账号切换器",
+                                startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_multiuser)) },
                             )
                         }
                     }

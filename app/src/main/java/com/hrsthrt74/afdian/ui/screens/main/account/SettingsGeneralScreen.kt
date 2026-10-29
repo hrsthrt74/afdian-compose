@@ -19,11 +19,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.network.AfdianRoute
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
+import com.hrsthrt74.afdian.ui.components.basic.SettingItemIcon
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.navigation.Route
-import com.hrsthrt74.afdian.ui.navigation.openExternalLink
-import com.hrsthrt74.afdian.ui.navigation.rememberCustomTabsBranding
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -32,12 +33,14 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Community
 import top.yukonga.miuix.kmp.icon.extended.Contacts
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.Search
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // 「通用」分组里启动页的下拉选项
 private val startupPageNames = listOf(
@@ -91,9 +94,6 @@ fun SettingsGeneralScreen(
     val historyEnabled by viewModel.historyEnabled.collectAsState()
     val preferOfficialClient by viewModel.preferOfficialClient.collectAsState()
     val networkRoute by viewModel.networkRoute.collectAsState()
-    // 品牌化 Custom Tabs 参数：不在 ThemeColorTransition 里构建，避免每次配色插值都重建位图
-    val customTabsBranding = rememberCustomTabsBranding()
-    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
     // 两个布局重置确认弹窗：都会丢掉用户当前的自定义顺序，必须二次确认
@@ -112,6 +112,7 @@ fun SettingsGeneralScreen(
                 OverlaySpinnerPreference(
                     title = "打开 App 后默认进入",
                     items = startupPageNames,
+                    startAction = { SettingItemIcon(MiuixIcons.Forward) },
                     selectedIndex = startupPage,
                     onSelectedIndexChange = viewModel::setStartupPage
                 )
@@ -119,6 +120,7 @@ fun SettingsGeneralScreen(
                 SwitchPreference(
                     checked = historyEnabled,
                     onCheckedChange = viewModel::setHistoryEnabled,
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_history)) },
                     title = "记录历史",
                     summary = "最近访问、最近搜索等" +
                             "（仅保存在本地）",
@@ -132,7 +134,8 @@ fun SettingsGeneralScreen(
                 // 优先网络线路：所选项不可用时按固定有序链回退
                 OverlayDropdownPreference(
                     title = "优先线路",
-                    summary = "所选项不可用时会回退到其他线路",
+                    summary = "所选项不可用时，会回退到其他线路",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_network)) },
                     items = networkRouteNames,
                     selectedIndex = networkRoute.ordinal.coerceIn(0, networkRouteNames.lastIndex),
                     onSelectedIndexChange = { index ->
@@ -142,6 +145,7 @@ fun SettingsGeneralScreen(
                 // 链接打开方式：0=Custom Tabs、1=优先官方客户端（失败仍回退 Custom Tabs）
                 OverlayDropdownPreference(
                     title = "链接打开方式",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_link)) },
                     items = linkOpenModeNames,
                     selectedIndex = if (preferOfficialClient) 1 else 0,
                     onSelectedIndexChange = { index ->
@@ -157,16 +161,19 @@ fun SettingsGeneralScreen(
                 // 本地存储与排查工具：三者都属于「本机数据」这一类，放同一张卡
                 ArrowPreference(
                     title = "存储空间管理",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_storage)) },
                     onClick = { if (backStack.none { it == Route.Storage }) backStack.add(Route.Storage) },
                 )
                 // 日志页：运行日志与崩溃报告的记录开关、占用、导出与清空
                 ArrowPreference(
                     title = "日志管理",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_log)) },
                     onClick = { if (backStack.none { it == Route.Log }) backStack.add(Route.Log) },
                 )
                 // 接口调试页：主动探针逐个运行核心接口，用于肉眼核对各接口当前的返回值
                 ArrowPreference(
                     title = "接口调试",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_debug)) },
                     onClick = { if (backStack.none { it == Route.ApiProbe }) backStack.add(Route.ApiProbe) },
                 )
             }
@@ -175,14 +182,16 @@ fun SettingsGeneralScreen(
         item { SmallTitle(text = "重置", modifier = Modifier.padding(start = 4.dp)) }
         item {
             Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)){
-                ArrowPreference(
+                BasicComponent(
                     title = "重置管理页卡片布局",
+                    titleColor = BasicComponentDefaults.titleColor(MiuixTheme.colorScheme.error),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         resetManagementDialogState.show() },
                 )
-                ArrowPreference(
+                BasicComponent(
                     title = "重置首页创作者数据卡片布局",
+                    titleColor = BasicComponentDefaults.titleColor(MiuixTheme.colorScheme.error),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         resetHomeCreatorDialogState.show()

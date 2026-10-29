@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +42,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -51,12 +51,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.BuildConfig
+import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MAX
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_MIN
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_SLIDER_STEPS
 import com.hrsthrt74.afdian.data.settings.ThemeColorPreset
 import com.hrsthrt74.afdian.ui.components.DataCard
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
+import com.hrsthrt74.afdian.ui.components.basic.SettingItemIcon
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.theme.DATACARD_VALUE_FONT_FEATURE_SETTINGS
 import com.hrsthrt74.afdian.ui.theme.LocalBottomBarStyle
@@ -83,6 +85,7 @@ import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Background
 import top.yukonga.miuix.kmp.icon.extended.Help
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
@@ -235,13 +238,13 @@ private fun ThemeColorPicker(
     // 上下各留 12dp：与相邻 miuix 偏好项的内边距对齐（上方是「主题」下拉、下方是卡片底缘）
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         // 标题：与 miuix 偏好项的标题同一套排版（16dp 内边距 + headline1 字号 + Medium）
-        Text(
-            text = "主题色",
-            fontSize = MiuixTheme.textStyles.headline1.fontSize,
-            fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
-        )
+//        Text(
+//            text = "主题色",
+//            fontSize = MiuixTheme.textStyles.headline1.fontSize,
+//            fontWeight = FontWeight.Medium,
+//            color = MiuixTheme.colorScheme.onBackground,
+//            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+//        )
         LazyRow(
             // 标题与卡片右缘各留 16dp，滑到尽头时内容不会贴边
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -501,6 +504,7 @@ private fun SettingsAppearanceContent(
                 // 配色模式：只决定明暗（跟随系统/浅色/深色），与「主题」正交
                 OverlayDropdownPreference(
                     title = "配色模式",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_dark)) },
                     items = colorModeNames,
                     selectedIndex = colorMode.coerceIn(0, colorModeNames.lastIndex),
                     onSelectedIndexChange = viewModel::setColorMode
@@ -508,6 +512,7 @@ private fun SettingsAppearanceContent(
                 // 主题：MIUIX（Miuix 静态色板，默认）/ Monet（按壁纸或主题色生成整套色板）
                 OverlayDropdownPreference(
                     title = "配色主题",
+                    startAction = { SettingItemIcon(MiuixIcons.Background) },
                     items = themeStyleNames,
                     selectedIndex = if (monetActive) 1 else 0,
                     onSelectedIndexChange = { index -> viewModel.setMonetEnabled(index == 1) },
@@ -540,7 +545,8 @@ private fun SettingsAppearanceContent(
                         checked = themeSettings.enableBlur,
                         onCheckedChange = viewModel::setEnableBlur,
                         title = "模糊效果",
-                        summary = "顶栏、底栏、数字滚动等动画中的模糊效果",
+                        summary = "适用于顶栏、底栏、数字滚动等",
+                        startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_blur)) },
                     )
                     // 渐进模糊是模糊效果的子选项，总开关关掉时一起隐藏，避免出现无效选项
                     AnimatedVisibility(visible = themeSettings.enableBlur) {
@@ -548,6 +554,7 @@ private fun SettingsAppearanceContent(
                             checked = themeSettings.progressiveBlur,
                             onCheckedChange = viewModel::setProgressiveBlur,
                             title = "渐进模糊",
+                            startAction = { SettingItemIcon() },
                         )
                     }
                 }
@@ -562,12 +569,14 @@ private fun SettingsAppearanceContent(
                     onCheckedChange = viewModel::setAdvancedTransition,
                     title = "高级过渡动画（实验性）",
                     summary = "创作者主页以卡片展开的方式打开和返回",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_size)) },
                 )
                 SwitchPreference(
                     checked = gestureBack,
                     onCheckedChange = viewModel::setGestureBack,
                     title = "手势返回",
                     summary = "页面任意位置向右滑动以返回",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_back_alt)) },
                 )
                 // legacy 低配版不支持系统预测性返回（SUPPORT_PREDICTIVE_BACK=false），
                 // 开关直接隐藏，避免出现永不生效的选项
@@ -576,6 +585,7 @@ private fun SettingsAppearanceContent(
                         checked = predictiveBack,
                         onCheckedChange = viewModel::setPredictiveBack,
                         title = "预测性返回",
+                        startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_pred_back)) },
                     )
                 }
             }
@@ -627,6 +637,7 @@ private fun SettingsAppearanceContent(
                     checked = rollingNumberEnabled,
                     onCheckedChange = viewModel::setRollingNumberEnabled,
                     title = "数字滚动动画",
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_status)) },
                     // 尾部补一个「重播」按钮：自增 replayToken 会让上方两张预览卡重建
                     // （见 key(replayToken)），从而重新滚一遍，方便反复看效果
                     endActions = {
@@ -653,11 +664,13 @@ private fun SettingsAppearanceContent(
                     checked = showIncomeUnit,
                     onCheckedChange = viewModel::setShowIncomeUnit,
                     title = "显示收入单位",
+                    startAction = { SettingItemIcon() },
                 )
                 SwitchPreference(
                     checked = showCountUnit,
                     onCheckedChange = viewModel::setShowCountUnit,
                     title = "显示人次单位",
+                    startAction = { SettingItemIcon() },
                 )
                 // 数值窄体字体：默认关闭，关闭时数值完全沿用系统默认字体。
                 // 用自写的 CondensedFontSwitchPreference（而不是 miuix 的 SwitchPreference）：
@@ -665,7 +678,7 @@ private fun SettingsAppearanceContent(
                 CondensedFontSwitchPreference(
                     checked = dataCardCustomFontEnabled,
                     onCheckedChange = viewModel::setDataCardCustomFontEnabled,
-                    title = "数值窄字体",
+                    title = "数字窄字体",
                     summary = "MiSans Condensed 2T",
                     summaryFontFamily = summaryFontFamily,
                 )
@@ -748,6 +761,7 @@ private fun CondensedFontSwitchPreference(
 
     BasicComponent(
         modifier = modifier,
+        startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_cond_num)) },
         // 右侧：开关本体（对应 miuix 的 SwitchPreferenceEndActions）
         endActions = {
             Switch(

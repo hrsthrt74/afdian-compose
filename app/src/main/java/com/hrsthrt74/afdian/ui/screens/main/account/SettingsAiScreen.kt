@@ -15,7 +15,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,8 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -43,11 +44,13 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.ai.AiProviderPreset
 import com.hrsthrt74.afdian.data.ai.AiThinkingLevel
 import com.hrsthrt74.afdian.data.ai.normalizeAiBaseUrl
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.CopyButton
+import com.hrsthrt74.afdian.ui.components.basic.SettingItemIcon
 import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.viewmodel.SettingsViewModel
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -62,10 +65,9 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Hide
+import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -128,6 +130,7 @@ fun SettingsAiScreen(
             Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                 OverlaySpinnerPreference(
                     title = "供应商预设",
+                    startAction = { SettingItemIcon(MiuixIcons.CloudFill) },
                     items = presetItems,
                     selectedIndex = AiProviderPreset.entries.indexOf(draft.preset),
                     onSelectedIndexChange = { index ->
@@ -253,6 +256,7 @@ fun SettingsAiScreen(
                     } else {
                         "供外部 AI 应用读取爱发电数据"
                     },
+                    startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_mcp)) },
                 )
                 // 开关打开时展开端口 / 地址 / 令牌配置，收起时纵向收缩动画隐藏
                 AnimatedVisibility(
