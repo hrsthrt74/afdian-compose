@@ -13,8 +13,8 @@ import kotlin.math.roundToInt
 /**
  * 「历史记录」分类下可分别勾选的子项。
  *
- * 只有这一类需要逐项勾选：浏览记录与搜索关键词都能单独清、用户也常只想清其中一个；
- * 但两者都只有几百字节到几 KB，拆成两行展示又太碎，所以合成一行 + 勾选弹窗。
+ * 只有这一类需要逐项勾选：浏览记录、搜索关键词、AI 记录都能单独清、用户也常只想清其中一个；
+ * 但三者都只有几百字节到几百 KB，拆成三行展示又太碎，所以合成一行 + 勾选弹窗。
  */
 enum class HistoryPart(val label: String) {
     /** 浏览过的创作者 / 动态 / 会话，以及旧版遗留的头像缓存目录。 */
@@ -22,6 +22,9 @@ enum class HistoryPart(val label: String) {
 
     /** 本地保存的搜索关键词。 */
     Search("搜索历史"),
+
+    /** 本地保存的 AI 问答快照（消息页「AI 记录」入口）。 */
+    AiChat("AI 记录"),
 }
 
 /**
@@ -45,17 +48,17 @@ enum class StorageCategory(
     ImageCache("image_cache", "图片", "封面、头像、正文插图等缓存", true),
 
     /**
-     * 浏览记录与搜索关键词。
+     * 浏览记录、搜索关键词与 AI 记录。
      *
-     * 合成一类展示：两者都属于「本地历史」，都是能自动重建的小体积数据，分开展示只会让明细列表变长。
+     * 合成一类展示：三者都属于「本地历史」，都是能自动重建的小体积数据，分开展示只会让明细列表变长。
      * 但保留分别清理的能力，所以带上 [selectableParts]，点击时让用户勾选要清哪几项。
      */
     History(
         id = "history",
         title = "历史记录",
-        summary = "浏览记录、搜索记录",
+        summary = "浏览记录、搜索记录、AI 记录",
         cleanable = true,
-        selectableParts = listOf(HistoryPart.Browsing, HistoryPart.Search),
+        selectableParts = listOf(HistoryPart.Browsing, HistoryPart.Search, HistoryPart.AiChat),
     ),
 
     /**
@@ -115,11 +118,12 @@ data class StorageSnapshot(
 internal fun categorizeStoragePath(relativePath: String): StorageCategory = when {
     // 图片缓存：Coil 全局磁盘缓存目录（目录名与 ImageLoader 构建共用同一个常量）
     relativePath.startsWith("cache/$IMAGE_CACHE_DIRECTORY_NAME/") -> StorageCategory.ImageCache
-    // 历史记录：浏览条目 DataStore + 旧版遗留的头像缓存目录 + 搜索关键词
+    // 历史记录：浏览条目 DataStore + 旧版遗留的头像缓存目录 + 搜索关键词 + AI 问答快照
     // （头像已改为只存链接，这个目录只剩升级残留，仍归到这里以便一并回收）
     relativePath.startsWith("files/history_record_cache/") -> StorageCategory.History
     relativePath.startsWith("files/datastore/history.") -> StorageCategory.History
     relativePath.startsWith("files/datastore/search_history.") -> StorageCategory.History
+    relativePath.startsWith("files/datastore/ai_history.") -> StorageCategory.History
     // 首页与「我的」资料快照：两个 DataStore 合成一类展示与清理
     relativePath.startsWith("files/datastore/home.") -> StorageCategory.Snapshot
     relativePath.startsWith("files/datastore/profile.") -> StorageCategory.Snapshot

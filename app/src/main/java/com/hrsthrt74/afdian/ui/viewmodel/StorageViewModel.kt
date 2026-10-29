@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import coil3.SingletonImageLoader
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.ai.AiHistoryStore
 import com.hrsthrt74.afdian.data.content.HomeCache
 import com.hrsthrt74.afdian.data.content.ProfileCache
 import com.hrsthrt74.afdian.data.history.HistoryStore
@@ -50,6 +51,7 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
     private val settingsStore = SettingsStore(application)
     private val historyStore = HistoryStore(application)
     private val searchHistoryStore = SearchHistoryStore(application)
+    private val aiHistoryStore = AiHistoryStore(application)
     private val homeCache = HomeCache(application)
     private val profileCache = ProfileCache(application)
     // 日志清理走 LogStore 统一入口：它持有 writer 线程的文件句柄，直接删文件会删不掉
@@ -212,6 +214,7 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
             StorageCategory.History -> {
                 if (HistoryPart.Browsing in parts) historyStore.clearAllAccounts()
                 if (HistoryPart.Search in parts) searchHistoryStore.clearAllAccounts()
+                if (HistoryPart.AiChat in parts) aiHistoryStore.clearAllAccounts()
             }
             // 快照缓存：首页与「我的」两个快照一起清，避免只清一半造成观感不一致
             StorageCategory.Snapshot -> {

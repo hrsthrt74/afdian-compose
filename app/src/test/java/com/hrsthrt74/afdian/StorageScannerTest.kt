@@ -81,17 +81,27 @@ class StorageScannerTest {
 
     @Test
     fun historyAndSearchHistoryShareOneCategoryWithSelectableParts() {
-        // 浏览记录与搜索关键词合成一类展示，但保留「可分别勾选清理」的能力
+        // 浏览记录、搜索关键词、AI 记录合成一类展示，但保留「可分别勾选清理」的能力
         assertEquals(StorageCategory.History, categorizeStoragePath("files/datastore/history.preferences_pb"))
         assertEquals(StorageCategory.History, categorizeStoragePath("files/datastore/search_history.preferences_pb"))
         assertEquals(
-            listOf(HistoryPart.Browsing, HistoryPart.Search),
+            listOf(HistoryPart.Browsing, HistoryPart.Search, HistoryPart.AiChat),
             StorageCategory.History.selectableParts,
         )
         // 其余分类不应带子项，否则点击时会错误地弹勾选窗
         StorageCategory.entries
             .filter { it != StorageCategory.History }
             .forEach { assertEquals("${it.id} 不该有可勾选子项", emptyList<HistoryPart>(), it.selectableParts) }
+    }
+
+    @Test
+    fun aiHistoryIsClassifiedAsCleanableHistory() {
+        // AI 问答快照的 DataStore：不显式归类会掉进 Other 兜底，用户就永远清不掉它
+        assertEquals(StorageCategory.History, categorizeStoragePath("files/datastore/ai_history.preferences_pb"))
+        // 原子写的临时残留也要归到同一类
+        assertEquals(StorageCategory.History, categorizeStoragePath("files/datastore/ai_history.preferences_pb.tmp"))
+        // 子项已在分类里登记，否则勾选弹窗里不会出现「AI 记录」
+        assertTrue(StorageCategory.History.selectableParts.contains(HistoryPart.AiChat))
     }
 
     @Test
