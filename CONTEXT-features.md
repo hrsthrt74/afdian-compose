@@ -537,7 +537,7 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ## 设置页（SettingsScreen）
 
-设置采用「总览页 + 三个分类页」结构：总览页只保留账号与分类入口，具体偏好项按分类拆到独立二级页。
+设置采用「总览页 + 分类页」结构（通用 / AI 助手 / 外观 / 关于四个分类）：总览页只保留账号与分类入口，具体偏好项按分类拆到独立二级页。
 原「更多」分类已并入「通用」，不再有独立路由。
 所有页面共用 `SettingsPageScaffold`（大标题顶栏、模糊、双击回顶、右侧滚动条、边界触觉）。
 
@@ -549,9 +549,9 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   其他账号行尾是删除）+「添加账号」行；下方**独立卡片**是「首页账号切换器」开关（设备级、默认关闭），
   仅在已保存账号数 > 1 时渲染 —— 单账号没有可切换对象，露出来只会让人困惑。
   未登录栈里 `LocalAccountSwitcher` 为 null，整块不渲染。
-- 分类卡：「通用 / 外观」一张 `Card`，「关于」单独一张卡（自身不加上边距，
+- 分类卡：「通用 / AI 助手 / 外观」一张 `Card`，「关于」单独一张卡（自身不加上边距，
   与上一张的分隔靠上一张卡的 12dp 下边距）。行是 `ArrowPreference`，左侧是 32dp 圆角方块 +
-  24dp 单色图标（`Tune` 蓝 / `Theme` 紫 / `Info` 灰）。
+  24dp 单色图标（`Tune` 蓝 / AI 星芒绿 / `Theme` 紫 / `Info` 灰）。
   点击 push 对应分类页，入栈前做 `none { it == route }` 去重。
 - 图标块是共用组件 `CategoryIconTile`（`ui/components/basic/`）：设置总览分类卡与文档页文档卡
   共用一份实现，Monet 适配只在组件里做——
@@ -726,11 +726,194 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 ### 导航注册
 
-- `Route.Settings` 是总览页；三个分类页是独立的无参路由
-  （`SettingsGeneral` / `SettingsAppearance` / `SettingsAbout`）。
-- 两处栈都必须注册总览页与三个分类页：已登录 `MainScreen` 的 `NavDisplay` 一套，
+- `Route.Settings` 是总览页；四个分类页是独立的无参路由
+  （`SettingsGeneral` / `SettingsAi` / `SettingsAppearance` / `SettingsAbout`）。
+- 两处栈都必须注册总览页与四个分类页：已登录 `MainScreen` 的 `NavDisplay` 一套，
   未登录 `MainActivity` 登录页栈一套。miuix-nav 遇到未注册的路由是直接 `error()` 崩溃，
   给设置页加新入口时两处都要补。
+
+## AI 集成（BYOK + MCP）
+
+应用不内置任何模型，AI 能力分两半：**对内**是「把数据发给用户自配的 OpenAI 兼容服务」（BYOK），
+**对外**是「把本机数据作为 MCP 工具暴露给外部 AI 客户端」。代码在 `data/ai/` 与 `data/mcp/`。
+
+### AI 基础设施（`data/ai/`）
+
+- **`AiProviderPreset`**：供应商预设（DeepSeek / Kimi / 智谱 / 自定义），各带官方兼容端点与常用模型；
+  `Custom` 允许不填 Key。
+- **`AiConfig` / `AiConfigDraft`**：完整配置（含解密后的 Key，仅在发请求前组装）与
+  UI 展示草稿（不含 Key 明文，只有 `hasKey`）。归一化函数（`normalizeAiBaseUrl` 等）
+  会剥掉用户多粘的 `/chat/completions` 后缀与末尾斜杠，拒绝缺协议头/非 http(s) 的输入，
+  见 `AiConfigTest`。
+- **Key 存储**：`AiKeyStore` 复用 `TokenCipher`（AndroidKeyStore AES/GCM）但用独立别名
+  `afdian_ai_api_key`，密文存 DataStore；日志红线：Key 一个字符都不进日志。
+- **`AiChatClient`**：OpenAI 兼容 `/chat/completions` 流式客户端。手写 SSE 解析
+  （兼容 `data:` 带不带空格、多行 data、`[DONE]` 结束、流内嵌 `error` 对象、非流式 JSON 兜底）；
+  正文取 `choices[0].delta.content`，思考过程取 `reasoning_content` 并作为独立事件
+  `AiStreamEvent.Reasoning` 上抛。取消语义：Flow 被 collect 方取消时经
+  `Job.invokeOnCompletion` 调 `call.cancel()` 断流。`sharedAiHttpClient` 基于爱发电共享 client
+  派生，只放宽读超时到 5 分钟（推理模型思考间隔长）。
+  - **推理模型要显示思考进度**：小米 MiMo 的 `mimo-v2.6-flash` / `-pro` 系列 `thinking.type`
+    默认就是 `enabled`，会先长时间流 `reasoning_content`，正文要等思考完才来。早先版本把这类
+    增量直接丢弃，表现是「HTTP 200 之后界面完全空白、像卡死」。现在思考增量单独成事件，
+    气泡里显示「已输出 N 字思考过程」。
+  - **读流不能按行阻塞**：`readUtf8Line()` 必须等到换行才返回，网关把事件拆成不带换行的数据块时
+    会一直挂着。改成按块读（`source.read(buffer, 8K)`）再自己切行，并按 SSE 规范把多行 `data:`
+    拼接后再解析。请求头显式带 `Accept-Encoding: identity`，避免反代对 SSE 做压缩缓冲导致零字节。
+  - **流式判定不看 `Content-Type`，看内容**：大量中转/聚合网关把 SSE 标成 `application/json`
+    或干脆不给这个头，信了它就会走 `readUtf8()` 整段读，表现是弹层长时间空白、模型说完才一次性出现。
+    现在的做法是逐块读，见到第一行 `data:` 即认定为 SSE 并实时 emit 增量，从未见到 `data:`
+    才把攒下的原文当整段 JSON 解析。
+  - 结束日志会打出正文增量数 / 思考增量数 / 解析失败数 / 首包延迟，排查「有 HTTP 200 但不出字」先看这条。
+  - **链路日志 + 看门狗**（调试日志开关打开时输出）：`发起请求：POST …，请求体 N 字节` →
+    `HTTP 200，收到响应头（Xms）` → `首字节到达：响应头后 Xms` → 之后每 5 秒一条看门狗状态
+    （`StreamProgress.describe()`：还没响应头 / 有响应头没首字节 / 正文与思考字数、最后一条数据几秒前）
+    → `SSE 流结束：…`。前 3 个事件还会原样打印载荷，网关偷换格式一眼可见。
+    看门狗是独立协程，读 socket 阻塞在 `read()` 时也照常汇报——这是区分「服务端在思考」与「真卡死」的唯一手段。
+- **`AiPromptBuilder`**：纯函数层——收入明细 → 分析提示词 + Markdown 表格（应用内「问 AI」），
+  月度账单 → Markdown 表格（MCP 工具用）。应用内「问 AI」的旧复制方案
+  （`IncomeStatRepository.fetchAllMarkdown`）现在也委托到这里，口径只有一份。
+
+### AI 设置页（`Route.SettingsAi`）
+
+- 设置总览新增「AI 助手」分类卡（星芒图标 `R.drawable.ic_ai_sparkle`，绿色）。
+- 页面分区：供应商预设（切换时自动填该家端点与常用模型）→ 连接（Base URL / 模型 / API Key
+  密码框 + 保存 + **测试连接**，测试发一条极简提示词的请求，回包只取首行 20 字符做摘要）
+  → **思考** → **MCP 服务器**分区 → 数据说明。
+- **思考**（`AiThinkingMode` / `AiReasoningEffort` / `AiThinkingLevel`，见 `data/ai/AiThinking.kt`）：
+  推理模型回答前先吐思维链，耗时可能几十秒，所以给一根**四档滑块**（`SliderPreference`
+  风格：`BasicComponent` + `Slider`，`steps = 2` 吸附四档）——最左 `关闭`（只发
+  `thinking.type=disabled`），往右依次 `low` / `high` / `max`（发
+  `thinking.type=enabled` + 对应 `reasoning_effort`）。滑块离开最左端即视为「开启」，
+  不再有「跟随服务端」这一档：界面上永远是一个确定状态，不存在「什么都没选但不知道发了什么」。
+  `AiThinkingLevel` 是这两个字段在 UI 上的合成刻度（`of(mode, effort)` 反查档位），
+  落盘仍拆成两个 Key（开关 + 强度），旧档 `default` / `medium` 读出后分别落到
+  「开启 + high」与「high」。默认档 = 开启 + high。
+- **不再暴露「生成参数」**：请求体不带 `temperature` / `max_tokens`。新模型（GPT-5、o 系列等）
+  已不接受温度调节，部分网关还会对不认识的参数直接报错；输出长度交给模型与场景提示词掌控。
+  思考相关的 `thinking` / `reasoning_effort` 见上文「思考」，按滑块档位下发。
+- `SettingsViewModel` 暴露 `aiConfigDraft` 与 `testAiConnection`；两处栈（MainScreen /
+  MainActivity 登录栈）都要注册 `Route.SettingsAi`（见「设置页 → 导航注册」）。
+  `aiConfigDraft`（`StateFlow<AiConfigDraft>`）的初值由 `firstBlocking` **同步取真实首值**：
+  DataStore 异步，若拿默认草稿垫一帧，预设下拉与思考滑块会先画错值再跳过去
+  （滑块还带弹簧动画，肉眼就是「闪一下」）。DataStore 的 `data` 是热流，
+  App 启动期间已有订阅者读过，这里基本是内存快照；只有冷启动直奔本页才真读一次盘。
+  同一个 `firstBlocking` 也用于 `mcpEnabled` / `mcpPort`，否则开关会先显示「关」再跳到「开」。
+
+### AI 功能接入（复用 `ui/components/ai/AiResultSheet`）
+
+- **`AiResultSheet`** 是各 AI 场景（目前是收入分析）共用的流式结果**底栏**（`WindowBottomSheet`，不是 Dialog：
+  分析报告动辄十几段，Dialog 的小窗装不下）：内部负责读配置 → 调 `buildPrompt`（suspend
+  闭包，由调用方提供数据拉取+提示词）→ 流式 Markdown 渲染（mikepenz
+  multiplatform-markdown-renderer 的 `StreamingMarkdownState`，重试/重开底栏靠换
+  `ReferenceLinkHandler` 的 remember key 整体重建）→ 停止/重试/复制，可选 `onAdopt`
+  「采用」回调。只有底栏真正打开时才会拉数据发请求。
+  - 版式对齐 DeepSeek 移动端，自上而下三段：**用户侧气泡**（右对齐）→ **思考块**（灰字 +
+    左侧竖线，标题可点开合）→ **正文直接铺在页面上**（无头像、无气泡卡片，可用宽度最大）。
+  - 气泡内容两种形态：`queryChip` 静态文案（打开即自动发请求），或
+    `composer` 槽（收入明细：时间尺度 chips + 发送，**点「发送」才发请求**，发送后 chips 锁定；
+    失败/停止时解锁，可以换个尺度直接重发）。`preparingHint` 可替换「正在拉取数据…」的默认文案。
+  - **思考块**：思考中标题是「正在思考」，正文一开始就定格成「已思考（用时 N 秒）」
+    并自动收起成一行（用户手动开合过则不再自动收）；中途停止/失败时保持展开，
+    用时照样定格。思考原文只在这里显示，不拼进正文。
+  - 对话区自己滚动、动作区固定贴底，整块撑满 Sheet 高度：流式过程中高度不会随内容跳变。
+    动作区的下边距 = 12dp + `WindowInsets.navigationBars`：Sheet 的 Dialog 是 edge-to-edge
+    （`decorFitsSystemWindows = false`）且 `insideMargin` 纵向为 0，不自己让开就会被手势条压住。
+    水平方向不再叠加内边距，直接用 Sheet 自带的 24dp（与标题对齐）。
+  - **依赖必须用 m3 变体**（`multiplatform-markdown-renderer-m3`）：m2 变体内部引用
+    `androidx.compose.material.MaterialTheme`，本项目只有 Material3（M2 本体只被 icons/ripple
+    间接带进来），用 m2 会在弹层首帧就 `NoClassDefFoundError` 闪退。
+  - 增量按 100ms 节流后再 `append`（正文与思考共用同一拍）：Markdown 每刷一次都要重解析整篇、
+    思考块每改一次都要重排版，逐包刷新会把长报告的主线程压死。
+  - 首包未到时思考块里给「正在等待模型响应…（Ns）」占位：秒表状态收在独立小组件里，
+    每秒只重组那一行，不会拖着整段 Markdown 一起重排。
+  - 颜色/排版全部显式传 Miuix 值（`markdownColor` / `markdownTypography`）：这两者的默认参数
+    读 `MaterialTheme`，而项目里没有 MaterialTheme 提供者，未覆盖的项会落在 M3 默认亮色方案上，
+    暗色主题下会看不清。
+- **收入明细「问 AI」**（`IncomeDetailScreen`）：菜单直接开底栏（**不再有隐私确认弹窗**，
+  气泡里那行说明承担告知职责，且点「发送」前不会把数据发给 AI）。打开底栏即开始**分页预取**
+  （`IncomeDetailViewModel.startAiFeed()`，先复用表格已加载的页作种子，再往后翻），
+  用户选时间尺度（7天/30天/3个月/6个月/全部，默认 30 天）后点「发送」：
+  - 手上数据已覆盖所选窗口（`IncomeAiFeedState.covers()`）→ **立刻取消后面的翻页**，马上开始对话；
+  - 还不够 → 底栏显示「正在拉取数据…（已 N 条，覆盖至 YYYY/MM/DD）」，到位后自动开跑。
+  提示词由 `buildAiPromptForRange()` 按窗口过滤后组装（`AiPromptBuilder.incomeAnalysisPrompt`
+  会写明「近 N 天 + 实际日期跨度 + 条数」）。关闭底栏即停掉后台翻页；菜单保留「复制提示词」走旧方案兜底。
+  时间尺度的纯逻辑（窗口起始日 / 覆盖判定 / 过滤）在 `data/stats/IncomeAiRange.kt`，有单测锁定。
+
+### AI 记录（`Route.AiHistory`）
+
+- **定位**：只读快照回看，**不是会话**——每条 = 一次问答（问题范围 + 完整回答 + 思考过程 + 模型信息），
+  没有 sessionId、不支持继续追问。这一点与 roadmap 里「不做独立 AI 聊天页 / 多会话管理」一致，
+  只是补了「生成物不该关掉就没了」这一块。
+- **写入**：由 `AiResultSheet` 在 `phase == Success` 后直接写盘，不经过 ViewModel ——
+  将来新增场景接上底栏时自动拥有历史。要点：
+  - 只在 Success 写。失败没有正文，「停止」是用户主动打断的半截内容，记进历史会污染回看语义。
+  - 写盘包在 `withContext(NonCancellable)` 里：用户看到成功立刻点「关闭」会取消本次协程，
+    不加这层会偶发性丢记录。
+  - 底栏新增两个带默认值的参数：`scene`（场景标识）与 `historyQuery: (() -> String)?`
+    （落盘那一刻才求值的摘要 lambda）。用 lambda 而非 String 是因为时间尺度在 composer 里是状态，
+    提前传会拿到打开底栏时的旧值。返回空白时回退 `queryChip`。
+- **数据**：`data/ai/AiHistoryStore`（独立 DataStore `ai_history`）+ `AiHistoryModels.AiHistoryEntry`。
+  按 `CurrentAccount.userId` 分区（与浏览历史同构），单账号上限 50 条，超出按时间截断。
+  思考过程截断到 8000 字符：它不参与复制/采用，存全量只会拖慢 DataStore 的整文件读写。
+- **入口**：消息列表里的一条**标准会话行**，不是特殊卡片。做法是在 `MessagesViewModel` 里把最近一条
+  记录合成一个虚拟 `MessageDialog`（`user.user_id = AI_HISTORY_DIALOG_ID`），合进 `filteredDialogs`
+  的展示流，于是自动获得会话行的版式、`formatMessageTime` 时间格式、置顶 Pin 与长按菜单：
+  - **按时间混排**，不固定在顶部：`mergeAiDialogInto` 按 `send_time` 插到非置顶区的正确位置
+    （置顶区固定在最前，不能插进去）。
+  - **可长按置顶**：走与真实会话同一条 `togglePinned` 链路，快照存在 `msgPinnedDialogCards` 里。
+    置顶后快照的 desc 会冻结，所以合并时用实时数据覆盖它，否则新生成的记录不会反映到卡片上。
+  - **只在有记录时才存在**：没记录就不该在会话列表里占一行。
+  - **点击进 AI 记录页**（`Route.AiHistory`），不进聊天页——它没有真实 `user_id`。
+  - `unread_count` 恒为 0：不参与「未读」筛选、不计入 Tab 角标；长按菜单对它只给置顶 / 取消置顶，
+    没有「标为已读」。
+  - 虚拟行只在展示流里，**永远不进 `_dialogs`**，所以分页合并、`markConversationRead`、
+    「共 N 条对话」计数（排除它）都不受影响。
+- **页面**：`AiHistoryScreen`（结构照 `HistoryScreen`：时间分组 + 一张 Card 装一组 + 整页空态 +
+  顶栏清空）→ 点条目开 `AiHistoryDetailSheet`。复制 / 删除单条 / 清空都走 `AppDialog` 破坏性确认。
+- **UI 与数据分层**，这是这块代码唯一的阅读入口约定：
+  - `ui/viewmodel/AiGenerationEngine.kt` + `AiGenerationViewModel.kt`（**数据**）：
+    引擎持有阶段 / 正文 / 思考 / 用时，负责读配置、发请求、节流、计时、成功后落盘；
+    ViewModel 装配真实依赖并暴露五个事件（`onSheetOpened` / `onSend` / `onRetry` / `onStop` /
+    `onSheetClosed`）。对外只暴露只读状态 + 事件，UI 改不坏状态。状态机可 JVM 单测
+    （`AiGenerationEngineTest`：假时钟 + 假流，覆盖节流窗口 / 思考定格 / 落盘时机）。
+  - `ui/components/ai/AiSheet.kt`（**UI**）：`AiSheetScaffold` 骨架（窗口 / 可滚动对话区 + 滚动条 /
+    贴底动作区 / 导航栏让位，两个底栏共用一份）+ `AiResultSheet`（现场生成）+ `AiHistoryDetailSheet`
+    （历史回看，纯展示，数据由调用方传入）。这里只持有纯视觉局部态（思考块展开态、滚动位置）。
+  - 两者靠两个通道衔接：`answerDeltas`（节流后的正文增量 SharedFlow，UI 喂流式 Markdown）与
+    `AiGenerationRequest.resolveHistoryQuery`（落盘那一刻才求值的问题摘要，调用方晚绑定 lambda）。
+  - `AiResultSheet` 的调用面收成 6 个参数：`dialogState` / `request`（AiGenerationRequest）/
+    `question`（AiQuestionSlot.Static 或 .Composer，互斥）/ `preparingHint` / `onAdopt` /
+    `onSheetVisibilityChanged`（底栏开/关钩子，调用方借它启停数据预取）。
+- **两个底栏为什么还放在同一个 UI 文件**：它们展示的是同一个东西，差异只有「正文从哪来」和
+  「底部给哪些按钮」。也刻意**没有**合并成「一个函数 + 模式参数」——那会让 `buildPrompt` / `entry` /
+  `onDelete` / `onAdopt` 变成一堆互斥的可选参数，调用方得先判断该传哪几个，更难读。
+- **共享零件**：气泡 / chip 在 `AiMessageParts.kt`，思考块在 `AiThinkingBlock.kt`
+  （贴底跟随 + 手势接管抽成 `Modifier.streamAutoFollow`），Markdown 渲染在 `AiMarkdown.kt`，
+  间距 token（`AiSheetSpacing`）与失败/停止状态卡（`AiStatusCard`）在 `AiSheetTheme.kt`。
+  生成与回看共用同一份配色字号，否则回看时的排版迟早和生成时漂移。
+
+### MCP 本地服务器（`data/mcp/`）
+
+- **传输**：MCP Streamable HTTP 的最小合规子集——`POST /mcp` 收 JSON-RPC 回
+  `application/json`（不用 SSE 应答，规范允许）、`GET /mcp` 回 405（声明无 SSE 下行）、
+  `DELETE /mcp` 关会话；不支持批量（2025-06-18 规范已废止）。协议实现在
+  `McpProtocol.kt`（`McpRequestHandler`，纯逻辑可单测，见 `McpProtocolTest`）。
+- **安全三道闸**：仅绑定 `127.0.0.1`；Origin 校验（浏览器请求带 Origin 时只放行本机回环，
+  防 DNS rebinding；非浏览器客户端不带 Origin 直接放行）；Bearer 访问令牌（设置页生成/
+  重置，SecureRandom 32 位十六进制，`AiKeyStore` 加密落盘）。initialize 之外的方法必须带
+  有效 `Mcp-Session-Id`，无效回 404 让客户端自动重新握手。
+- **工具集**（`McpTools.kt` + `McpDataContext` 接口）：`get_user_info` / `get_income_stats` /
+  `get_monthly_summary` / `get_recent_sponsors` / `get_my_orders`，
+  输出与 `AiPromptBuilder` 同源的 Markdown 表格。**隐私红线**：不提供私信类工具；
+  收货地址/收件人/完整快递单号不进任何工具输出；未登录抛 `McpToolException` →
+  协议层转 `isError` 结果。
+- **生命周期**（`McpServerController`）：`AfdianApplication` 创建并订阅
+  （开关/端口/令牌组合流）；关闭 → stop；开启且参数没变 → 不动；参数变化 → 自动重启。
+  随应用进程存活，不做前台服务/常驻通知。
+- **设置分区**：开关（含运行状态展示）、端口（1024-65535）、访问令牌（复制/重置，重置走
+  破坏性确认弹窗）、连接指引（Cherry Studio 等 Streamable HTTP 客户端配置示例 +
+  `adb reverse tcp:<port> tcp:<port>` 命令）。
 
 ## 文档页（DocsScreen）
 
@@ -760,11 +943,11 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   - `categorizeStoragePath` 用**前缀**匹配而非文件名全等：DataStore 先写 `<name>.preferences_pb.tmp` 再原子 rename，可能残留 `.tmp`。
   - `formatBytes` / `categorizeStoragePath` 是顶层 `internal` 纯函数，见 `StorageScannerTest`。
 - 分类与清理动作一一对应：图片缓存 → Coil `diskCache.clear()`（同步阻塞，必须在 IO 线程，且**不能**直接删目录，目录内有 LRU journal）；
-  历史记录 → 按勾选的子项分别走 `HistoryStore.clearAll()` / `SearchHistoryStore.clear()`；
+  历史记录 → 按勾选的子项分别走 `HistoryStore.clearAllAccounts()` / `SearchHistoryStore.clear()` / `AiHistoryStore.clearAllAccounts()`；
   快照缓存（`Snapshot`）→ `HomeCache.clear()` + `ProfileCache.clear()` 一起清。
 - 共 6 个分类：图片缓存、历史记录、快照缓存、日志、设置与登录数据、其他。
 - 两处「合并展示」的取舍不同，区别就在要不要让用户选子项：
-  - 浏览记录 + 搜索关键词 → **「历史记录」**（`History`）。两者都是本地历史、都能自动重建，
+  - 浏览记录 + 搜索关键词 + AI 记录 → **「历史记录」**（`History`）。三者都是本地历史、都能自动重建，
     但**保留分别清理的能力**：`StorageCategory.selectableParts` 声明可勾选子项（`HistoryPart`），
     点击该行弹的是勾选弹窗（`CheckboxPreference`，每次打开默认全选、可以全不选）而不是整类确认框，
     确认按钮在「一项都没勾」时 `confirmEnabled = false` 置灰。勾选项整体包在一张
