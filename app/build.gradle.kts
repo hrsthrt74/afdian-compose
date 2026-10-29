@@ -208,6 +208,13 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // 默认规则 + 本项目的补充规则（目前只有 Ktor 的 java.lang.management 缺失类忽略，
+            // 见 app/proguard-rules.pro）。必须用 optimize 版本：AGP 9 已不再支持
+            // proguard-android.txt（它内含 -dontoptimize，会挡住 R8 优化）。
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             optimization {
                 enable = false
             }
