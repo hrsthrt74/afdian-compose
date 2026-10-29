@@ -22,10 +22,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.ai.AI_HISTORY_DIALOG_ID
 import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.ui.components.basic.InlineActionItem
 import com.hrsthrt74.afdian.ui.components.basic.InlineActionPopup
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.Unpin
@@ -52,6 +54,15 @@ internal enum class ConversationAction(
 
     /** 标为已读：单会话操作，沿用 MiuixIcons.Ok；三点菜单的「全部已读」已换成资料库的自定义图标，两者刻意区分。会话已读时**保留这一格但置灰**不可点 */
     MarkRead("标为已读", MiuixIcons.Ok),
+
+    /**
+     * 清空全部 AI 记录：只出现在「AI 记录」这条虚拟会话的菜单里。
+     *
+     * 和「标为已读」不是一类东西——那是改会话状态，这是删本地数据，
+     * 所以文案用动词「清空」而不是「删除」（AI 记录页顶栏那个按钮也叫「清空全部 AI 记录」），
+     * 并且一定要先弹确认框，不能点一下就没了。
+     */
+    ClearAiHistory("清空全部记录", MiuixIcons.Delete),
 }
 
 /**
@@ -120,12 +131,14 @@ internal fun rememberConversationActionMenuState(): ConversationActionMenuState 
  *
  * @param onTogglePin 置顶 / 取消置顶（参数是整条会话：置顶时要把卡片快照存下来）
  * @param onMarkRead 标为已读（参数为对端 user_id）
+ * @param onClearAiHistory 清空全部 AI 记录（走确认弹窗，见调用方；菜单只负责把意图抛出去）
  */
 @Composable
 internal fun ConversationActionMenu(
     state: ConversationActionMenuState,
     onTogglePin: (MessageDialog) -> Unit,
     onMarkRead: (String) -> Unit,
+    onClearAiHistory: () -> Unit,
 ) {
     val target = state.target
 
@@ -133,10 +146,14 @@ internal fun ConversationActionMenu(
     // 会话已读时置灰不可点 —— 菜单项数量与位置稳定，不会因为一次操作成功就整行改版。
     // 弹层本体无条件组合（不在这里 return），保证 PopupLayout 始终挂在宿主上，
     // 首次打开不会多等一帧注册。
+    //
+    // 例外：「AI 记录」是本地虚拟会话，永远没有未读，给它一格永远置灰的「标为已读」纯属噪音，
+    // 所以对它只保留置顶 / 取消置顶，换成「清空全部记录」——那条会话里唯一有意义的实用操作。
+    val isAiEntry = target?.dialog?.id == AI_HISTORY_DIALOG_ID
     val actions = buildList {
         if (target != null) {
             add(if (target.pinned) ConversationAction.Unpin else ConversationAction.Pin)
-            add(ConversationAction.MarkRead)
+            if (isAiEntry) add(ConversationAction.ClearAiHistory) else add(ConversationAction.MarkRead)
         }
     }
 
@@ -159,6 +176,8 @@ internal fun ConversationActionMenu(
                 ConversationAction.Unpin -> onTogglePin(current.dialog)
 
                 ConversationAction.MarkRead -> onMarkRead(current.dialog.id)
+
+                ConversationAction.ClearAiHistory -> onClearAiHistory()
             }
         },
     )

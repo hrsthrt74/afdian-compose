@@ -17,6 +17,8 @@ sealed interface Route : NavKey {
     @Serializable data object Messages : Route
     @Serializable data object Profile : Route
     @Serializable data object History : Route
+    // AI 记录页（只读回看每次 AI 问答的快照），入口在消息页私信列表最前面的一条卡片
+    @Serializable data object AiHistory : Route
 
     @Serializable data class CreatorDetail(val user: AfadianUser) : Route
     // 动态详情：路由里携带列表页已有的 post 数据，详情页可先秒显再拉全文。

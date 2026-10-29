@@ -77,6 +77,7 @@ import com.hrsthrt74.afdian.ui.theme.LocalBottomBarStyle
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.theme.isDarkColorScheme
 import com.hrsthrt74.afdian.ui.util.rememberMainPagerState
+import com.hrsthrt74.afdian.ui.viewmodel.AiHistoryViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.BlocklistViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.DeveloperViewModel
 import com.hrsthrt74.afdian.ui.viewmodel.FavoritesViewModel
@@ -148,6 +149,12 @@ fun MainScreen(
 ) {
     val messagesViewModel: MessagesViewModel = viewModel()
     val historyViewModel: HistoryViewModel = viewModel(
+        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
+            LocalContext.current.applicationContext as Application
+        )
+    )
+    // AI 记录：消息页入口卡片与 AI 记录页共用同一个实例，删除后卡片摘要能立刻同步
+    val aiHistoryViewModel: AiHistoryViewModel = viewModel(
         factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
             LocalContext.current.applicationContext as Application
         )
@@ -605,6 +612,15 @@ fun MainScreen(
                 },
             )
         }
+        // AI 记录页：入口在消息页私信列表最前面的一条卡片（不吸顶，随列表滚走）
+        entry<Route.AiHistory> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            AiHistoryScreen(
+                viewModel = aiHistoryViewModel,
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+            )
+        }
         }
         // 图片查看器覆盖层：与登录页覆盖层同样依赖「后组合者绘制在上层」
         ImageViewerHost(imageViewer)
@@ -865,6 +881,8 @@ private fun MainTabsContent(
                             Route.FaqSetting -> onNavigate(route)
                             // 「收到的喜欢」弹层：点击卡片跳转动态详情
                             is Route.PostDetailById -> onNavigate(route)
+                            // AI 记录页：私信列表中那条固定不吸顶的入口卡片
+                            Route.AiHistory -> onNavigate(route)
                             // 其余路由暂不放行
                             else -> {}
                         }

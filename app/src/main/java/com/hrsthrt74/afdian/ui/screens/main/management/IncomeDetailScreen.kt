@@ -35,7 +35,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.data.ai.AiHistoryEntry
 import com.hrsthrt74.afdian.data.stats.IncomeStatType
+import com.hrsthrt74.afdian.ui.components.ai.AiQuestionSlot
+import com.hrsthrt74.afdian.ui.components.ai.AiResultSheet
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.BackButton
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
@@ -50,6 +53,7 @@ import com.hrsthrt74.afdian.ui.components.basic.rememberDialogState
 import com.hrsthrt74.afdian.ui.components.home.IncomeStatTableHeader
 import com.hrsthrt74.afdian.ui.components.home.IncomeStatTableRow
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
+import com.hrsthrt74.afdian.ui.viewmodel.AiGenerationRequest
 import com.hrsthrt74.afdian.ui.viewmodel.IncomeDetailViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -104,8 +108,10 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
     // 「问 AI」/「导出数据」的全量拉取进行中
     val working by viewModel.working.collectAsState()
 
-    // 「问 AI」确认弹窗
+    // 「复制提示词」确认弹窗（旧方案兜底：复制后用户自行粘贴给外部 AI）
     val aiDialogState = rememberDialogState()
+    // 「问 AI」直调：点菜单直接开底栏（底栏里选时间尺度 + 点发送才发数据）
+    val aiResultDialogState = rememberDialogState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val toast: (String) -> Unit = { message ->
@@ -158,6 +164,11 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
                                     items = listOf(
                                         DropdownItem(
                                             text = "问 AI",
+                                            // 直接开底栏：数据在底栏里选时间尺度、点发送才发出去
+                                            onClick = { aiResultDialogState.show() },
+                                        ),
+                                        DropdownItem(
+                                            text = "复制提示词",
                                             onClick = { aiDialogState.show() },
                                         ),
                                         DropdownItem(
@@ -269,11 +280,11 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
         }
     }
 
-    // 「问 AI」确认弹窗：确认后全量拉取 → 复制 Markdown 表格
+    // 「复制提示词」确认弹窗（旧方案兜底）：确认后全量拉取 → 复制 Markdown 表格
     AppDialog(
         state = aiDialogState,
-        title = "问 AI",
-        summary = "将当前维度的统计数据并与已写好的提示词一起复制，可直接粘贴给 AI 分析。\n" +
+        title = "复制提示词",
+        summary = "将当前维度的统计数据与已写好的提示词一起复制，可直接粘贴给 AI 分析。\n" +
                   "全量拉取数据可能需要几秒。",
         confirmText = "复制",
         // 拉取期间禁用确认按钮，防止重复触发
@@ -290,6 +301,42 @@ fun IncomeDetailScreen(onBack: () -> Unit, backStack: NavBackStack, providedView
                     toast("拉取失败：${it.message ?: "未知错误"}")
                 }
             }
+        },
+    )
+
+    // 发车输入只构造一次：内部 lambda 都是「调用时才读状态」的晚绑定
+    //（buildPrompt 发车时才拉数据、问题摘要落盘时才求值），不随重组刷新
+    val aiRequest = remember {
+        AiGenerationRequest(
+            title = "AI 收入分析",
+            scene = AiHistoryEntry.SCENE_INCOME,
+            // 问题摘要：落盘那一刻才读，用户可能刚切过时间尺度，如「收入分析：近7天」。
+            // 不再带粒度（按日/按月）：摘要要说的是「分析了哪段时间」，不是底层统计口径
+            resolveHistoryQuery = { "收入分析：${viewModel.aiRange.value.windowText}" },
+            buildPrompt = { viewModel.buildAiPromptForRange() },
+        )
+    }
+    // AI 流式分析结果底栏：打开即预取数据，气泡里选时间尺度 + 发送后才开始对话
+    AiResultSheet(
+        dialogState = aiResultDialogState,
+        request = aiRequest,
+        question = AiQuestionSlot.Composer {
+            // 只在这个槽里订阅时间尺度：切换分段时只重组选择器，不牵动整页。
+            // 发送按钮不在这里——它由底栏动作栏提供，条件与触发各归一处
+            val range by viewModel.aiRange.collectAsState()
+            IncomeAiComposer(
+                selected = range,
+                onSelect = viewModel::setAiRange,
+            )
+        },
+        preparingHint = {
+            // 进度只影响这一行：每拉一页都会更新，别让它拖着整个底栏重组
+            val feed by viewModel.aiFeed.collectAsState()
+            IncomeAiPreparingHint(feed)
+        },
+        // 底栏开/关 = 数据预取的启停（隐私：只有底栏真正打开才拉数据）
+        onSheetVisibilityChanged = { visible ->
+            if (visible) viewModel.startAiFeed() else viewModel.stopAiFeed()
         },
     )
 }

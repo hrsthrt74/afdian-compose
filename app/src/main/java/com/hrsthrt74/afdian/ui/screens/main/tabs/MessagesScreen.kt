@@ -51,10 +51,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hrsthrt74.afdian.R
+import com.hrsthrt74.afdian.data.ai.AI_HISTORY_DIALOG_ID
 import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.NoticeAction
 import com.hrsthrt74.afdian.ui.components.AppChip
 import com.hrsthrt74.afdian.ui.components.ReceivedNoticeSheet
+import com.hrsthrt74.afdian.ui.components.ai.AiHistoryAvatarSize
+import com.hrsthrt74.afdian.ui.components.ai.AiSparkleAvatar
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
@@ -137,6 +140,8 @@ fun MessagesScreen(
     // 「全部标为已读」的执行中状态：执行期间禁用确认按钮，防止重复触发
     val isMarkingAllRead by viewModel.isMarkingAllRead.collectAsState()
     val markAllDialogState = rememberDialogState()
+    // 「清空全部 AI 记录」确认弹窗：删本地数据不可撤销，菜单点完只弹这个框，确认后才真删
+    val clearAiDialogState = rememberDialogState()
 
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
@@ -389,17 +394,31 @@ fun MessagesScreen(
                     }
 
                     // key = user_id：唯一性由 MessagesViewModel 的分页写入（mergeDialogs）保证，
-                    // 这里不要再加 distinctBy 之类的兜底——重复说明数据层出了问题，应该在那里修
+                    // 这里不要再加 distinctBy 之类的兜底——重复说明数据层出了问题，应该在那里修。
+                    // 「AI 记录」也走这条 items：它在 ViewModel 里被合成一条虚拟会话，
+                    // 因此自动获得标准会话行的版式、时间格式、Pin 与长按菜单，并按时间混排在私信之间。
                     items(dialogs, key = { it.id }) { dialog ->
+                        val isAiEntry = dialog.id == AI_HISTORY_DIALOG_ID
                         MessageDialogRow(
                             dialog = dialog,
                             // 是否已置顶：名字旁显示 Pin 标记
                             pinned = dialog.id in pinnedIds,
                             showSponsorDetail = showSponsorDetail,
+                            // AI 记录不是真人，头像位换成应用内的 sparkle 图标块
+                            avatar = if (isAiEntry) {
+                                { AiSparkleAvatar(size = AiHistoryAvatarSize) }
+                            } else {
+                                null
+                            },
                             onClick = {
-                                // 消息页在 Pager 中常驻，进入会话后返回不会重新组合；先同步清除卡片 badge。
-                                viewModel.markConversationRead(dialog.user.user_id)
-                                onNavigate(Route.MessageConversation(dialog.user.user_id, dialog.user.name, dialog.user.avatar))
+                                if (isAiEntry) {
+                                    // 虚拟会话没有真实 user_id，点开的是 AI 记录页而不是聊天页
+                                    onNavigate(Route.AiHistory)
+                                } else {
+                                    // 消息页在 Pager 中常驻，进入会话后返回不会重新组合；先同步清除卡片 badge。
+                                    viewModel.markConversationRead(dialog.user.user_id)
+                                    onNavigate(Route.MessageConversation(dialog.user.user_id, dialog.user.name, dialog.user.avatar))
+                                }
                             },
                             // 长按：冻结「会话 + 置顶状态 + 卡片窗口坐标」后弹出操作菜单
                             onLongClick = { cardBounds ->
@@ -428,7 +447,8 @@ fun MessagesScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "共 ${dialogs.size} 条对话",
+                                    // 虚拟的「AI 记录」不算一条真实对话，计数时排除
+                                    text = "共 ${dialogs.count { it.id != AI_HISTORY_DIALOG_ID }} 条对话",
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
@@ -536,13 +556,15 @@ fun MessagesScreen(
             },
         )
 
-        // 长按卡片的操作菜单（置顶 / 标为已读）。
+        // 长按卡片的操作菜单（置顶 / 标为已读；AI 记录那条是 置顶 / 清空全部记录）。
         // 必须挂在本 Scaffold 内：PopupLayout 会注册到 Scaffold 提供的 LocalPopupStates，
         // 放到 Scaffold 外会注册进无人消费的孤儿列表，弹层永不显示。
         ConversationActionMenu(
             state = conversationMenuState,
             onTogglePin = viewModel::togglePinned,
             onMarkRead = viewModel::markSingleRead,
+            // 菜单已经在 onSelect 里关掉了，这里只负责弹确认框
+            onClearAiHistory = { clearAiDialogState.show() },
         )
     }
 
@@ -556,6 +578,17 @@ fun MessagesScreen(
         // 执行期间置灰，避免用户重复点击叠加请求
         confirmEnabled = !isMarkingAllRead,
         onConfirm = { viewModel.markAllRead() },
+    )
+
+    // 「清空全部 AI 记录」确认弹窗：与 AI 记录页顶栏的清空同一个动作，
+    // 所以文案、口头用词（清空 / 全部记录）都对齐那边，避免两个入口说法不一。
+    AppDialog(
+        state = clearAiDialogState,
+        title = "清空全部 AI 记录",
+        summary = "将删除本机保存的全部 AI 问答记录，删除后无法恢复。",
+        confirmText = "清空",
+        destructive = true,
+        onConfirm = { viewModel.clearAiHistory() },
     )
 }
 
@@ -609,6 +642,8 @@ private fun MessageDialogRow(
     showSponsorDetail: Boolean,
     onClick: () -> Unit,
     onLongClick: (cardBounds: Rect) -> Unit,
+    // 头像位：默认为空，按会话的 avatar 链接加载；「AI 记录」不是真人，传一个图标块进来替换
+    avatar: (@Composable () -> Unit)? = null,
 ) {
     // 卡片在窗口中的最新坐标：长按回调把这份快照交给弹层，既用于摆放菜单，
     // 也用于挖洞遮罩（弹层打开期间页面不再滚动，快照不会过期）
@@ -631,12 +666,16 @@ private fun MessageDialogRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
-                // 1. 头像
-                Avatar(
-                    model = dialog.user.avatar,
-                    size = 48.dp,
-                    contentDescription = dialog.user.name,
-                )
+                // 1. 头像（AI 记录用调用方给的图标块，其余走 Coil 加载头像链接）
+                if (avatar != null) {
+                    avatar()
+                } else {
+                    Avatar(
+                        model = dialog.user.avatar,
+                        size = 48.dp,
+                        contentDescription = dialog.user.name,
+                    )
+                }
 
                 Spacer(modifier = Modifier.width(12.dp))
 

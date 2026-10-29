@@ -5,9 +5,14 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.ai.AI_HISTORY_DIALOG_ID
+import com.hrsthrt74.afdian.data.ai.AI_HISTORY_DIALOG_TITLE
+import com.hrsthrt74.afdian.data.ai.AiHistoryStore
+import com.hrsthrt74.afdian.data.ai.aiAnswerPreview
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.auth.CurrentAccount
 import com.hrsthrt74.afdian.data.content.AfadianContentService
+import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.BlackedType
 import com.hrsthrt74.afdian.data.content.MessageDialog
 import com.hrsthrt74.afdian.data.content.MessageFAQ
@@ -57,6 +62,8 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     private val settingsStore = SettingsStore(application)
     // 浏览历史仓库：打开会话时写入「私信对话」记录，开关关闭时仓库内部会忽略
     private val historyStore = HistoryStore(application)
+    // AI 记录仓库：只用来把「AI 记录」这条虚拟会话合进展示流（见 aiDialog）
+    private val aiHistoryStore = AiHistoryStore(application)
 
     private val _dialogs = MutableStateFlow<List<MessageDialog>>(emptyList())
     val dialogs = _dialogs.asStateFlow()
@@ -101,18 +108,46 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     val pinnedCards: StateFlow<List<PinnedDialogCard>> = _pinnedCards.asStateFlow()
 
     /**
-     * 根据过滤条件筛选 + 置顶合并的对话列表。
+     * 「AI 记录」这条虚拟会话。
+     *
+     * 把本地 AI 记录伪装成一条普通的 [MessageDialog]，它就能直接复用会话行的全部能力：
+     * 统一的卡片版式与时间格式、置顶 Pin、长按菜单、参与同一条时间排序。
+     *
+     * 关键点：
+     * - **只在有记录时才存在**。没记录就不该在会话列表里占一行，更不该伪造一条空壳会话。
+     * - `send_time` 取最近一条记录的生成时间，所以它按时间自然混排在私信之间，
+     *   而不是固定钉在列表顶部。
+     * - `unread_count` 恒为 0：AI 生成不是「消息」，不参与未读筛选，也不计入 Tab 角标。
+     */
+    private val aiDialog: StateFlow<MessageDialog?> = aiHistoryStore.entries
+        .map { entries ->
+            val latest = entries.firstOrNull() ?: return@map null
+            MessageDialog(
+                unread_count = 0,
+                user = AfadianUser(user_id = AI_HISTORY_DIALOG_ID, name = AI_HISTORY_DIALOG_TITLE),
+                // 摘要给「最新的回答」而不是问题：问题只是范围（「近7天」），
+                // 几张卡片长得一样；回答第一行才是这次分析真正说了什么。
+                // 正文是 Markdown，必须先压成一行纯文本（原因见 aiAnswerPreview）
+                desc = aiAnswerPreview(latest.answer).ifBlank { "查看 AI 生成的记录" },
+                send_time = latest.createdAt / 1000.0,
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /**
+     * 根据过滤条件筛选 + 置顶合并 + AI 记录混排的对话列表。
      *
      * 置顶合并只作用于**展示流**：`_dialogs` 本身必须保持服务端顺序，
      * `mergeDialogs` 的按页追加与 `markConversationRead` 的 map 1:1 变换都依赖这一点。
+     * AI 记录同理：它只出现在这里，永远不进 `_dialogs`。
      *
      * 过滤在合并之后做：置顶会话若已从服务端加载到、只是被筛掉（比如「未读」筛选下已读），
-     * 不应再拿快照补一张重复卡片进来。
+     * 不应再拿快照补一张重复卡片进来。AI 记录也因此天然遵守筛选规则（无未读、按时间）。
      */
     val filteredDialogs: StateFlow<List<MessageDialog>> = combine(
-        _dialogs, _showUnreadOnly, _showRecentOnly, _pinnedCards
-    ) { dialogs, unreadOnly, recentOnly, pinned ->
-        val merged = mergePinnedIntoDialogs(dialogs, pinned)
+        _dialogs, _showUnreadOnly, _showRecentOnly, _pinnedCards, aiDialog
+    ) { dialogs, unreadOnly, recentOnly, pinned, ai ->
+        val merged = mergeAiDialogInto(mergePinnedIntoDialogs(dialogs, pinned), ai, pinned)
         merged.filter { dialog ->
             val unreadOk = !unreadOnly || dialog.unread_count > 0
             val recentOk = !recentOnly || dialog.send_time?.let { ts ->
@@ -122,6 +157,55 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
             unreadOk && recentOk
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * 把 AI 记录这条虚拟会话合进展示列表。
+     *
+     * 两种情况：
+     * 1. **用户置顶过它**——[mergePinnedIntoDialogs] 已经用置顶快照把它放进置顶区了，
+     *    这里只把内容换成实时数据。快照的 desc 冻结在置顶那一刻，不换的话新生成的记录
+     *    不会反映到卡片上，看起来像坏掉了。
+     * 2. **没置顶**——按 `send_time` 插到非置顶区的正确位置，和私信一起随时间流动。
+     *    置顶区固定在最前，不能插进它们中间，所以先从置顶区之后开始找位置。
+     */
+    private fun mergeAiDialogInto(
+        dialogs: List<MessageDialog>,
+        ai: MessageDialog?,
+        pinned: List<PinnedDialogCard>,
+    ): List<MessageDialog> {
+        if (ai == null) {
+            // 记录被清空了，但用户之前置顶过快照，置顶区里还留着一条。
+            // 保留入口（用户自己置顶的，不该被悄悄删掉），但把冻结的旧摘要换掉，
+            // 否则卡片会一直显示一条已经不存在的记录。
+            val staleIndex = dialogs.indexOfFirst { it.id == AI_HISTORY_DIALOG_ID }
+            if (staleIndex < 0) return dialogs
+            return dialogs.toMutableList().also {
+                it[staleIndex] = it[staleIndex].copy(desc = "还没有 AI 记录", send_time = null)
+            }
+        }
+
+        val existingIndex = dialogs.indexOfFirst { it.id == AI_HISTORY_DIALOG_ID }
+        if (existingIndex >= 0) {
+            return dialogs.toMutableList().also { it[existingIndex] = ai }
+        }
+
+        val pinnedIds = pinned.mapTo(HashSet(pinned.size)) { it.userId }
+        var barrier = 0
+        while (barrier < dialogs.size && dialogs[barrier].id in pinnedIds) barrier++
+
+        // 列表本身按最新消息时间倒序，所以第一个「比它更旧」的位置就是它的插入点；
+        // 都比它旧（或没有会话）则排在末尾
+        val aiTime = ai.send_time ?: 0.0
+        val index = (barrier until dialogs.size)
+            .firstOrNull { (dialogs[it].send_time ?: 0.0) < aiTime }
+            ?: dialogs.size
+
+        return buildList(dialogs.size + 1) {
+            addAll(dialogs.subList(0, index))
+            add(ai)
+            addAll(dialogs.subList(index, dialogs.size))
+        }
+    }
 
     // ── 未读计数：来自轻量接口 /api/my/check（含评论、点赞、私信三种） ──
     private val _checkData = MutableStateFlow(MyCheckData())
@@ -505,6 +589,22 @@ class MessagesViewModel(application: Application) : AndroidViewModel(application
     /** 轻量提示；项目内 Toast 一律用 ViewModel 直接弹，不做额外封装 */
     private fun toast(message: String) {
         Toast.makeText(getApplication(), message, Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 清空当前账号的全部 AI 记录（消息页长按「AI 记录」卡片 → 清空全部记录）。
+     *
+     * 写的是和 AI 记录页同一个 [AiHistoryStore]，所以删完两处会一起刷新：
+     * [aiDialog] 由 `aiHistoryStore.entries` 派生，记录清空后变回 null，
+     * 列表里那条虚拟会话卡片会自行消失——这里不需要手动从 `_dialogs` 里摘。
+     */
+    fun clearAiHistory() {
+        viewModelScope.launch {
+            // 记录内容属于用户数据，日志里只说「清空了」，不打印任何问答内容
+            aiHistoryStore.clearAll()
+            AppLog.d("Messages", "已清空全部 AI 记录")
+            toast("已清空全部 AI 记录")
+        }
     }
 
     suspend fun fetchMessages(userID: String): List<MessageItem> {

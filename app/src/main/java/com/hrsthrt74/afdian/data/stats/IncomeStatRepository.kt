@@ -1,6 +1,7 @@
 package com.hrsthrt74.afdian.data.stats
 
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.ai.AiPromptBuilder
 import com.hrsthrt74.afdian.data.auth.AuthTokenStore
 import com.hrsthrt74.afdian.data.network.AfdianHttpClient
 import com.hrsthrt74.afdian.data.network.requireAfdianSuccess
@@ -195,25 +196,19 @@ class IncomeStatRepository(
     /**
      * 生成「问 AI」用的文本：内置提示词 + 全量数据的 Markdown 表格，不做时间过滤。
      * 提示词在前、数据在后，粘给 AI 即可直接分析。
+     *
+     * 提示词与表格的构建统一委托给 [AiPromptBuilder]——应用内「问 AI」直调与
+     * 本复制方案共用同一份文案与数据口径，改动只发生在那一处。
      */
     suspend fun fetchAllMarkdown(type: IncomeStatType): String {
         val records = fetchAll(type)
-        return AI_PROMPT + "\n\n" + buildMarkdownTable(records)
+        return AiPromptBuilder.incomeAnalysisPrompt(type, records)
     }
 
     /** 生成导出用的 CSV 文本：全量数据 + 中文表头，带 UTF-8 BOM 防止 Excel 打开乱码。 */
     suspend fun fetchAllCsv(type: IncomeStatType): String {
         val records = fetchAll(type)
         return buildCsv(records)
-    }
-
-    /** 拼 Markdown 表格：表头 + 分隔行 + 数据行，供 AI 直接阅读。 */
-    private fun buildMarkdownTable(records: List<IncomeStatRecord>): String = buildString {
-        append("| 日期 | 访问人数 | 发电金额 | 发电次数 | 发电人数 | 老客数 |\n")
-        append("|---|---|---|---|---|---|\n")
-        for (record in records) {
-            append("| ${record.displayDate} | ${record.uv} | ${record.amount.toPlainString()} | ${record.orderCount} | ${record.userCount} | ${record.oldUserCount} |\n")
-        }
     }
 
     /** 拼 CSV：首行中文表头，字段不含逗号无需转义；开头的 BOM 让 Excel 正确识别 UTF-8。 */
@@ -241,11 +236,5 @@ class IncomeStatRepository(
         const val AFDIAN_HOST = "https://afdian.com"
         /** 全量拉取的页数上限，超过即告警截断 */
         const val MAX_PAGE_COUNT = 100
-
-        /** 「问 AI」内置提示词：要求 AI 基于真实数据做分析与建议 */
-        const val AI_PROMPT = "你是一名专业的数据分析师，请分析以下爱发电每日数据。只基于数据，不要编造。\n" +
-            "要求：计算付费转化率、人均发电金额、单次金额、老客占比、访问人均价值。\n" +
-            "输出：整体概况（总量、日均、转化指标）、趋势与峰值/低谷、转化与付费质量、" +
-            "老客与复购、异常点（如高访问低转化、高金额少人数、零收入日）、结论与3-5条可执行建议"
     }
 }

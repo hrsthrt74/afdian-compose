@@ -18,6 +18,15 @@ enum class IncomeAiRange(val label: String, val days: Int?) {
     All("全部", null);
 
     /**
+     * 窗口的自然语言说法：「近7天」「近3个月」。
+     *
+     * [All] 没有下界，套「近」会变成「近全部」，所以它直接用 label。
+     * 摘要文案（底栏气泡 / AI 记录里的问题摘要）统一走这里，避免各处各拼一遍。
+     */
+    val windowText: String
+        get() = if (days == null) label else "近$label"
+
+    /**
      * 窗口起始日（含当天）。「近 7 天」= 今天往前数 7 天，所以是 [days] - 1 天前。
      * [All] 没有下界，返回 null。
      */
