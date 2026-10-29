@@ -56,14 +56,14 @@ val standardMinSdk = 34
 
 // ── 版本号与构建标识（CI 注入） ──
 // CI 用 `-P` 传参覆盖版本号与构建身份；本地直接点 Run 时一个都不传，
-// 行为与改造前完全一致（1.0.2 / 10002 / BUILD_NUMBER=0）。
+// 行为与改造前完全一致（1.1.0 / 10100 / BUILD_NUMBER=0）。
 // 用 providers.gradleProperty 而不是 project.property：它是配置缓存友好的读法，
 // 读到的值会进入缓存键，换参数时不会命中旧缓存。
 fun propText(name: String): String? =
     providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotEmpty() }
 
-val resolvedVersionName = propText("versionName") ?: "1.0.2"
-val resolvedVersionCode = propText("versionCode")?.toIntOrNull() ?: 10002
+val resolvedVersionName = propText("versionName") ?: "1.1.0"
+val resolvedVersionCode = propText("versionCode")?.toIntOrNull() ?: 10100
 // 0 表示「不是 Actions 构建」：本地包与正式版包都用 0，Actions 包用 GitHub 的 run_number
 val injectedBuildNumber = propText("buildNumber")?.toIntOrNull() ?: 0
 // local / actions / stable：仅用于展示与排查，不参与任何业务判断
