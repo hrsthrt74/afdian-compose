@@ -23,6 +23,12 @@ vico = "3.3.1"
 aboutLibs = "15.2.0"
 # 平滑胶囊
 shapes = "1.2.1"
+# AI 回复的 Markdown 渲染（mikepenz，core + M3 主题 + Coil3 图片；0.46.0 与 Compose BOM 2026.09 兼容）
+# 必须用 m3 变体：m2 变体内部引用 androidx.compose.material.MaterialTheme，
+# 而本项目只有 Material3（M2 本体只被 icons/ripple 间接带入），运行时会 NoClassDefFoundError
+markdownRenderer = "0.46.0"
+# MCP 本地服务器：Ktor Server（CIO 引擎；只取 core + 引擎，Streamable HTTP 自行实现）
+ktor = "3.6.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -64,6 +70,15 @@ miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", ver
 aboutlibraries-core = { group = "com.mikepenz", name = "aboutlibraries-core", version.ref = "aboutLibs" }
 # 平滑胶囊
 shapes = { module = "io.github.kyant0:shapes", version.ref = "shapes" }
+# mikepenz Markdown 渲染三件套：解析核心 / Material3 主题 Composable / Coil3 图片加载
+markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer", version.ref = "markdownRenderer" }
+markdown-renderer-m3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
+markdown-renderer-coil3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-coil3", version.ref = "markdownRenderer" }
+# Ktor Server（MCP 本地服务器）：core 提供路由与类型，cio 是纯 Kotlin 引擎
+ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref = "ktor" }
+ktor-server-cio = { group = "io.ktor", name = "ktor-server-cio", version.ref = "ktor" }
+# OkHttp 官方测试服务器：AI SSE 流式解析的单测用（与 okhttp 同版本号发布）
+mockwebserver3 = { group = "com.squareup.okhttp3", name = "mockwebserver3", version.ref = "okhttp" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -304,7 +304,15 @@ dependencies {
     implementation(libs.vico.compose)
     implementation(libs.aboutlibraries.core)
     implementation(libs.shapes)
+    // AI 集成：Markdown 渲染（AI 回复弹层）、Ktor Server（MCP 本地服务器）
+    implementation(libs.markdown.renderer)
+    // M3 变体（不是 m2）：项目只有 Material3，m2 会在运行时找不到 MaterialTheme 而崩溃
+    implementation(libs.markdown.renderer.m3)
+    implementation(libs.markdown.renderer.coil3)
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
     testImplementation(libs.junit)
+    testImplementation(libs.mockwebserver3)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
