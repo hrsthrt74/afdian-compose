@@ -17,10 +17,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
+import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.ui.components.account.AccountSwitchPopup
 import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
@@ -28,6 +30,7 @@ import com.hrsthrt74.afdian.ui.components.basic.Avatar
 import com.hrsthrt74.afdian.ui.components.basic.BlurredBar
 import com.hrsthrt74.afdian.ui.components.basic.DoubleTapToTop
 import com.hrsthrt74.afdian.ui.components.basic.QuickEntry
+import com.hrsthrt74.afdian.ui.components.basic.SettingItemIcon
 import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
@@ -46,6 +49,10 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Blocklist
+import top.yukonga.miuix.kmp.icon.extended.File
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
@@ -174,20 +181,24 @@ private fun ProfileMainScreen(
                         Column{
                             ArrowPreference(
                                 title = "设置",
+                                startAction = { SettingItemIcon(MiuixIcons.Settings) },
                                 onClick = { onNavigate(Route.Settings) }
                             )
                             ArrowPreference(
                                 title = "屏蔽与拒绝名单",
+                                startAction = { SettingItemIcon(MiuixIcons.Blocklist) },
                                 onClick = { onNavigate(Route.Blocklist) }
                             )
                             // 开发者页：查看 user_id、配置 Webhook URL、生成 API Token
                             ArrowPreference(
                                 title = "开发者",
+                                startAction = { SettingItemIcon(ImageVector.vectorResource(R.drawable.ic_debug)) },
                                 onClick = { onNavigate(Route.Developer) }
                             )
                             // 文档页：官网文档站、创作者指南、开发者文档的统一收录
                             ArrowPreference(
                                 title = "文档",
+                                startAction = { SettingItemIcon(MiuixIcons.File) },
                                 onClick = { onNavigate(Route.Docs) }
                             )
                         }
