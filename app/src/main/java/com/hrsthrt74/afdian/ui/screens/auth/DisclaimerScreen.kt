@@ -67,6 +67,7 @@ import top.yukonga.miuix.kmp.icon.extended.ConvertFile
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.MindMap
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.UploadCloud
@@ -275,6 +276,15 @@ fun DisclaimerScreen(
                             text = "本应用提供原客户端未提供的高级功能，包括创作者数据图表、收入明细中的问 AI 功能、扩展创作者数据以及创作者提现提醒等。\n" +
                                     "这些功能的数据一部分来自爱发电官方已有接口，另一部分来自未直接提供的接口，经由其他接口返回的数据计算、整理或推导而来。\n" +
                                     "我们已尽量对数据来源和含义进行消歧义，但由于部分数据并非通过对应的直接接口获取，计算结果不可避免可能存在误差，不能视为官方数据或财务依据，请以爱发电官方网页或官方客户端展示的结果为准。",
+                        )
+                    }
+                    item(key = "ai-features") {
+                        DisclaimerSection(
+                            icon = MiuixIcons.Demibold.MindMap,
+                            title = "AI 功能与 MCP 服务",
+                            text = "本应用的 AI 功能（问 AI）不内置任何模型：需要在设置中自行配置第三方 AI 服务（API Key），相关数据仅在你主动触发相应功能时发送给该服务，其处理方式受对应服务商的隐私政策约束，请阅读并接受其条款后再使用。\n" +
+                                    "API Key 仅保存在本机（Android Keystore 加密），不会随日志或备份数据外泄；AI 生成的内容可能存在错误或遗漏，仅供参考，采用前请自行核对。\n" +
+                                    "MCP 本地服务器默认关闭，开启后仅监听本机回环地址（127.0.0.1），外部 AI 客户端需凭访问令牌连接并读取你账号下的创作者数据；请妥善保管访问令牌，不用时请及时关闭该功能。",
                         )
                     }
                     item(key = "content") {

@@ -4,16 +4,31 @@ import android.app.Application
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hrsthrt74.afdian.AfdianApplication
 import com.hrsthrt74.afdian.AppLog
+import com.hrsthrt74.afdian.data.ai.AiChatClient
+import com.hrsthrt74.afdian.data.ai.AiConfigDraft
+import com.hrsthrt74.afdian.data.ai.AiMessage
+import com.hrsthrt74.afdian.data.ai.AiProviderPreset
+import com.hrsthrt74.afdian.data.ai.AiStreamEvent
+import com.hrsthrt74.afdian.data.ai.AiThinkingLevel
+import com.hrsthrt74.afdian.data.ai.sharedAiHttpClient
+import com.hrsthrt74.afdian.data.mcp.MCP_DEFAULT_PORT
 import com.hrsthrt74.afdian.data.network.AfdianRoute
 import com.hrsthrt74.afdian.data.settings.DATACARD_FONT_WIDTH_DEFAULT
 import androidx.compose.ui.graphics.Color
 import com.hrsthrt74.afdian.data.settings.ThemeColorPreset
+import kotlinx.coroutines.runBlocking
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.data.settings.ThemeRepository
 import com.hrsthrt74.afdian.data.update.UpdateChannel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -223,4 +238,165 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setProgressiveBlur(enabled: Boolean) {
         viewModelScope.launch { ThemeRepository.setProgressiveBlur(getApplication(), enabled) }
     }
+
+    // ── AI 集成（BYOK）────────────────────────────────────────────────────────
+
+    /**
+     * AI 配置草稿（不含 Key 明文）；设置页与各功能页的「能否发起请求」判断共用。
+     *
+     * 初值必须是**真实值**，不能是「先给个默认档、等 DataStore 回推再改」：
+     * 设置页一进来就按初值画第一帧，初值若是默认档，思考滑块会先停在「高」，
+     * 真实值到达后再被弹簧动画滑走——这就是「进入页面闪一下」。
+     *
+     * 做法是在 ViewModel 构造时同步取一次首值：DataStore 的 `data` 是热流，
+     * App 启动期间已有订阅者（如日志开关、优先线路）读过，这里基本是内存快照，微秒级；
+     * 只有冷启动后直奔本页才会真读一次盘，代价是一次可以忽略的等待，
+     * 换来的是页面第一帧就是最终状态。
+     */
+    val aiConfigDraft: StateFlow<AiConfigDraft> = store.aiConfigDraft.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        store.aiConfigDraft.firstBlocking(
+            AiConfigDraft(
+                preset = AiProviderPreset.DeepSeek,
+                baseUrl = "",
+                model = "",
+                hasKey = false,
+            ),
+        ),
+    )
+
+    /** 正在进行的「测试连接」请求；期间按钮禁用防重复触发。 */
+    private val _aiTesting = MutableStateFlow(false)
+    val aiTesting = _aiTesting.asStateFlow()
+
+    fun setAiPreset(preset: AiProviderPreset) {
+        viewModelScope.launch { store.setAiPreset(preset) }
+    }
+
+    fun setAiBaseUrl(raw: String) {
+        viewModelScope.launch { store.setAiBaseUrl(raw) }
+    }
+
+    fun setAiModel(raw: String) {
+        viewModelScope.launch { store.setAiModel(raw) }
+    }
+
+    /** 保存 API Key；传 null 表示清除已保存的 Key。 */
+    fun setAiApiKey(plainKey: String?) {
+        viewModelScope.launch { store.setAiApiKey(plainKey) }
+    }
+
+    /**
+     * 设置页「思考」滑块的唯一落盘入口：一个档位同时决定开关与强度。
+     *
+     * 两个字段在数据层一次写完（见 SettingsStore.setAiThinking）：
+     * 分两次写会产生中间态，滑块会先跳回上一档再过去。
+     * 关闭档 effort 为 null，不动强度——关闭时本来就不发强度，保留旧值无副作用。
+     */
+    fun setAiThinkingLevel(level: AiThinkingLevel) {
+        viewModelScope.launch { store.setAiThinking(level.mode, level.effort) }
+    }
+
+    /**
+     * 「测试连接」：用当前配置发一条极简请求。
+     * 结果经回调返回（成功=模型回的首行摘要 / 失败=可读错误），异常不抛出协程。
+     *
+     * 刻意用回调而不是 StateFlow 装结果：结果是一次性事件（toast 呈现），
+     * 塞进状态流反而要处理「下一次测试前清旧结果」的额外状态。
+     */
+    fun testAiConnection(onResult: (Result<String>) -> Unit) {
+        if (_aiTesting.value) {
+            onResult(Result.failure(IllegalStateException("正在测试中，请稍候")))
+            return
+        }
+        viewModelScope.launch {
+            _aiTesting.value = true
+            try {
+                // 测试永远按「当前已保存的配置」来，与 UI 输入框里未保存的草稿无关——
+                // 保存动作与测试动作分离，避免「没保存就测」出现配置不一致的困惑
+                val config = store.aiConfig()
+                    ?: return@launch onResult(Result.failure(IllegalStateException("请先完整填写并保存供应商配置")))
+                // 不再限制 max_tokens（新模型普遍不支持该参数），改用极简提示词压住输出长度：
+                // 验证的是「能连上、能鉴权、模型存在」，不是生成质量
+                val client = AiChatClient(sharedAiHttpClient, config)
+                var reply: String? = null
+                client.stream(listOf(AiMessage.user("Hi，只回复 OK，不要任何解释")))
+                    .collect { event ->
+                        if (event is AiStreamEvent.Done) reply = event.text
+                    }
+                // 不回显整段回答：仅取首行前 20 字符做 toast 摘要
+                val preview = reply.orEmpty().lineSequence().firstOrNull()?.take(20).orEmpty()
+                onResult(Result.success(preview.ifBlank { "连接成功" }))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(TAG, "AI 测试连接失败", e)
+                onResult(Result.failure(e))
+            } finally {
+                _aiTesting.value = false
+            }
+        }
+    }
+
+    // ── MCP 本地服务器 ───────────────────────────────────────────────────────
+
+    /** 服务器控制器（Application 级单例，随进程存活）。 */
+    private val mcpController = (getApplication() as AfdianApplication).mcpServerController
+
+    /** MCP 开关（初值取真实值，理由同 [aiConfigDraft]：避免开关先画成「关」再跳到「开」）。 */
+    val mcpEnabled: StateFlow<Boolean> = store.mcpEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, store.mcpEnabled.firstBlocking(false))
+
+    /** 监听端口（同样同步取首值，避免输入框先显示默认端口再跳）。 */
+    val mcpPort: StateFlow<Int> = store.mcpPort
+        .stateIn(viewModelScope, SharingStarted.Eagerly, store.mcpPort.firstBlocking(MCP_DEFAULT_PORT))
+
+    /** 服务器是否在监听（设置页展示运行状态）。 */
+    val mcpRunning: StateFlow<Boolean> = mcpController.running
+
+    /** 访问令牌明文（展示/复制用；重置后由 resetMcpToken 回写）。 */
+    private val _mcpToken = MutableStateFlow<String?>(null)
+    val mcpToken = _mcpToken.asStateFlow()
+
+    init {
+        // 令牌是低频读：进设置页时拉一次，重置动作负责更新
+        viewModelScope.launch { _mcpToken.value = store.mcpToken() }
+    }
+
+    /**
+     * 切换 MCP 服务器开关；开启时顺手确保令牌存在（没有则生成），
+     * 控制器检测到「开关+令牌齐了」就启动监听。
+     */
+    fun setMcpEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            store.setMcpEnabled(enabled)
+            if (enabled) _mcpToken.value = store.ensureMcpToken()
+        }
+    }
+
+    /** 保存监听端口；控制器检测到变化会自动重启服务器。 */
+    fun setMcpPort(port: Int) {
+        viewModelScope.launch { store.setMcpPort(port) }
+    }
+
+    /** 重置访问令牌：旧令牌立即作废（外部客户端需换成新令牌）。 */
+    fun resetMcpToken() {
+        viewModelScope.launch { _mcpToken.value = store.resetMcpToken() }
+    }
+
+    private companion object {
+        const val TAG = "Settings"
+    }
 }
+
+/**
+ * 同步取一个 Flow 的首个值，失败时用 [fallback] 兜底。
+ *
+ * 专供设置页的 `stateIn` 初值：这些页面一进来就按初值画第一帧，
+ * 初值若是「默认值」再等 DataStore 回推，开关/滑块就会肉眼可见地跳一下。
+ * DataStore 的 `data` 是热流，App 启动期间已有订阅者读过，这里基本是内存快照（微秒级）；
+ * 只有冷启动后直奔设置页才会真读一次盘，代价是一次可以忽略的等待。
+ */
+private fun <T> Flow<T>.firstBlocking(fallback: T): T =
+    runCatching { runBlocking { first() } }.getOrDefault(fallback)

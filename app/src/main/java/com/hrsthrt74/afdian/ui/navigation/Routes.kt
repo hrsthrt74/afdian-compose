@@ -50,6 +50,8 @@ sealed interface Route : NavKey {
     @Serializable data object Settings : Route
     // 设置 → 通用：启动页、历史记录、网络线路、文档入口与本地管理/调试入口
     @Serializable data object SettingsGeneral : Route
+    // 设置 → AI 助手：BYOK 供应商配置与 MCP 本地服务器开关（AI 集成的总控页）
+    @Serializable data object SettingsAi : Route
     // 设置 → 外观：配色、模糊、过渡动画与数据卡片
     @Serializable data object SettingsAppearance : Route
     // 设置 → 关于：站外链接、开源许可、免责声明、功能完成度、更新与版本页脚

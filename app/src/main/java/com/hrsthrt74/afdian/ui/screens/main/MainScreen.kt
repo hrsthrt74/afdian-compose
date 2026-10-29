@@ -64,6 +64,7 @@ import com.hrsthrt74.afdian.ui.screens.main.account.FavoritesScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FeatureStatusScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAboutScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAiScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAppearanceScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsGeneralScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
@@ -460,6 +461,14 @@ fun MainScreen(
         entry<Route.SettingsGeneral> {
             PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SettingsGeneralScreen(
+                onBack = { backStack.removeLastOrNull() },
+                backStack = backStack,
+            )
+        }
+        entry<Route.SettingsAi> {
+            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
+            // AI 助手设置：BYOK 供应商配置、测试连接与 MCP 本地服务器
+            SettingsAiScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
             )

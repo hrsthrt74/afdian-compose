@@ -65,6 +65,7 @@ import com.hrsthrt74.afdian.ui.screens.main.account.ChangelogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.FeatureStatusScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.LogScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAboutScreen
+import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAiScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsAppearanceScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsGeneralScreen
 import com.hrsthrt74.afdian.ui.screens.main.account.SettingsScreen
@@ -496,6 +497,13 @@ private fun AfdianApp(
                                     // 未登录栈里同样要注册，否则从登录页进设置再点分类会直接崩。
                                     entry<Route.SettingsGeneral> {
                                         SettingsGeneralScreen(
+                                            onBack = { loginBackStack.removeLastOrNull() },
+                                            backStack = loginBackStack,
+                                        )
+                                    }
+                                    entry<Route.SettingsAi> {
+                                        // AI 助手设置：BYOK 配置与 MCP 服务器（与已登录栈同一页面）
+                                        SettingsAiScreen(
                                             onBack = { loginBackStack.removeLastOrNull() },
                                             backStack = loginBackStack,
                                         )

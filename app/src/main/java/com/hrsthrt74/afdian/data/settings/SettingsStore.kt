@@ -15,8 +15,22 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.BuildConfig
+import com.hrsthrt74.afdian.data.ai.AiConfig
+import com.hrsthrt74.afdian.data.ai.AiConfigDraft
+import com.hrsthrt74.afdian.data.ai.AiKeyStore
+import com.hrsthrt74.afdian.data.ai.AiProviderPreset
+import com.hrsthrt74.afdian.data.ai.AiReasoningEffort
+import com.hrsthrt74.afdian.data.ai.AiThinkingMode
+import com.hrsthrt74.afdian.data.ai.DefaultAiReasoningEffort
+import com.hrsthrt74.afdian.data.ai.DefaultAiThinkingMode
+import com.hrsthrt74.afdian.data.ai.isAiConfigReady
+import com.hrsthrt74.afdian.data.ai.normalizeAiBaseUrl
+import com.hrsthrt74.afdian.data.ai.normalizeAiModel
 import com.hrsthrt74.afdian.data.auth.CurrentAccount
 import com.hrsthrt74.afdian.data.content.PinnedDialogCard
+import com.hrsthrt74.afdian.data.mcp.MCP_DEFAULT_PORT
+import com.hrsthrt74.afdian.data.mcp.generateMcpToken
+import com.hrsthrt74.afdian.data.mcp.normalizeMcpPort
 import com.hrsthrt74.afdian.data.network.AfdianRoute
 import com.hrsthrt74.afdian.data.stats.ChartCatalog
 import com.hrsthrt74.afdian.data.stats.DataCardCatalog
@@ -25,6 +39,7 @@ import com.hrsthrt74.afdian.data.storage.ImageCacheLimit
 import com.hrsthrt74.afdian.data.update.UpdateChannel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -207,6 +222,26 @@ class SettingsStore(private val context: Context) {
         // 检查更新：Actions 通道被忽略的构建号（0 = 未忽略）。
         // 只忽略这一条构建，下一个构建仍然会提示 —— Actions 通道没有「版本号」可以按 tag 记
         val UPDATE_IGNORED_ACTIONS_RUN = intPreferencesKey("update_ignored_actions_run")
+        // ── AI 集成（BYOK，设备级设置）──
+        // AI 供应商预设，存 AiProviderPreset.storageValue，默认 DeepSeek
+        val AI_PRESET = stringPreferencesKey("ai_preset")
+        // AI 服务的 OpenAI 兼容 Base URL（写入时已归一化，见 normalizeAiBaseUrl）
+        val AI_BASE_URL = stringPreferencesKey("ai_base_url")
+        // AI API Key 的 AES/GCM 密文（AiKeyStore 加解密）；键缺失或空串 = 未配置
+        val AI_API_KEY_CIPHER = stringPreferencesKey("ai_api_key_cipher")
+        // AI 模型名（如 deepseek-chat）
+        val AI_MODEL = stringPreferencesKey("ai_model")
+        // 思考模式：default / enabled / disabled（default = 不发送任何思考参数）
+        val AI_THINKING_MODE = stringPreferencesKey("ai_thinking_mode")
+        // 思考强度：low / medium / high / max（仅思考模式为 enabled 时随请求发送）
+        val AI_REASONING_EFFORT = stringPreferencesKey("ai_reasoning_effort")
+        // ── MCP 本地服务器（设备级设置）──
+        // 开关：默认关闭；开启后随应用进程监听 127.0.0.1
+        val MCP_ENABLED = booleanPreferencesKey("mcp_enabled")
+        // 监听端口（1024..65535，默认 8787）
+        val MCP_PORT = intPreferencesKey("mcp_port")
+        // 访问令牌密文（AiKeyStore 加密，与 AI Key 同一把设备级密钥）；键缺失 = 未生成
+        val MCP_TOKEN_CIPHER = stringPreferencesKey("mcp_token_cipher")
     }
 
     /**
@@ -898,8 +933,211 @@ class SettingsStore(private val context: Context) {
 
     /** 记录用户忽略的 Actions 构建号；传 0 表示取消忽略。 */
     suspend fun setUpdateIgnoredActionsRun(runNumber: Int) {
-        AppLog.d("Settings", "忽略 Actions 构建：$runNumber")
+        AppLog.d("Settings", "记录用户忽略的 Actions 构建号：$runNumber")
         context.settingsDataStore.edit { it[Keys.UPDATE_IGNORED_ACTIONS_RUN] = runNumber }
+    }
+
+    // ── AI 集成（BYOK）────────────────────────────────────────────────────
+    //
+    // 设备级设置：API Key 绑定的是「这台设备的用户买了哪家的服务」，与登录哪个
+    // 爱发电账号无关，因此不进账号分区（对比 homeEnabledModules 那组）。
+
+    /** AI 供应商预设，默认 DeepSeek（国内服务零门槛起步）。 */
+    val aiPreset: Flow<AiProviderPreset> =
+        context.settingsDataStore.data.map {
+            AiProviderPreset.fromStorage(it[Keys.AI_PRESET]) ?: AiProviderPreset.DeepSeek
+        }
+
+    /** AI 服务的 Base URL（写入时已归一化）。 */
+    val aiBaseUrl: Flow<String> =
+        context.settingsDataStore.data.map { it[Keys.AI_BASE_URL].orEmpty() }
+
+    /** AI 模型名（读出时顺手 trim，容忍手抖存进的空白）。 */
+    val aiModel: Flow<String> =
+        context.settingsDataStore.data.map { normalizeAiModel(it[Keys.AI_MODEL].orEmpty()) }
+
+    /** 是否已保存过 API Key（只看密文存在与否，不解密、不外露内容）。 */
+    val aiHasApiKey: Flow<Boolean> =
+        context.settingsDataStore.data.map { !it[Keys.AI_API_KEY_CIPHER].isNullOrBlank() }
+
+    /**
+     * 思考开关：默认开启。
+     * 历史上存过 `default`（旧版「跟随服务端」档），这里读不到就落默认值——
+     * 旧档位在设置页会显示为「开启 + 高」，即最接近服务端默认行为的一档。
+     */
+    val aiThinkingMode: Flow<AiThinkingMode> = context.settingsDataStore.data.map {
+        AiThinkingMode.fromStorage(it[Keys.AI_THINKING_MODE]) ?: DefaultAiThinkingMode
+    }
+
+    /** 思考强度：默认高（与 DeepSeek 服务端默认 effort 对齐）。 */
+    val aiReasoningEffort: Flow<AiReasoningEffort> = context.settingsDataStore.data.map {
+        AiReasoningEffort.fromStorage(it[Keys.AI_REASONING_EFFORT]) ?: DefaultAiReasoningEffort
+    }
+
+    /**
+     * AI 配置草稿（不含 Key 明文）：设置页展示与各功能页判断「能否发起请求」都用它。
+     * 六个流合并成一个，订阅方不必各自拼装、也不必担心口径漂移。
+     * combine 带类型 lambda 的重载最多 5 个流，这里拆两半再合（比统一 Array 版保类型）。
+     */
+    val aiConfigDraft: Flow<AiConfigDraft> = combine(
+        combine(aiPreset, aiBaseUrl, aiModel) { preset, baseUrl, model ->
+            Triple(preset, baseUrl, model)
+        },
+        combine(aiHasApiKey, aiThinkingMode, aiReasoningEffort) { hasKey, thinkingMode, effort ->
+            Triple(hasKey, thinkingMode, effort)
+        },
+    ) { head, tail ->
+        AiConfigDraft(
+            preset = head.first,
+            baseUrl = head.second,
+            model = head.third,
+            hasKey = tail.first,
+            thinkingMode = tail.second,
+            reasoningEffort = tail.third,
+        )
+    }
+
+    /**
+     * 组装发起请求用的完整配置（Key 解密为明文），配置不完整返回 null。
+     *
+     * 一次性读取而非 Flow：调用方在用户点「问 AI」等动作时取用即可，
+     * Key 明文不应常驻任何状态流。
+     */
+    suspend fun aiConfig(): AiConfig? {
+        val prefs = context.settingsDataStore.data.first()
+        val preset = AiProviderPreset.fromStorage(prefs[Keys.AI_PRESET]) ?: AiProviderPreset.DeepSeek
+        val baseUrl = prefs[Keys.AI_BASE_URL].orEmpty()
+        val model = normalizeAiModel(prefs[Keys.AI_MODEL].orEmpty())
+        val cipherText = prefs[Keys.AI_API_KEY_CIPHER].orEmpty()
+        val hasKey = cipherText.isNotBlank()
+        if (!isAiConfigReady(preset, baseUrl, model, hasKey)) return null
+        // 自定义端点可能指向本地服务，允许无 Key：密文缺失与解密失败统一按「无鉴权头」处理
+        val apiKey = if (hasKey) AiKeyStore.decrypt(cipherText).orEmpty() else ""
+        return AiConfig(
+            preset = preset,
+            baseUrl = baseUrl,
+            model = model,
+            apiKey = apiKey,
+            thinkingMode = AiThinkingMode.fromStorage(prefs[Keys.AI_THINKING_MODE]) ?: DefaultAiThinkingMode,
+            reasoningEffort = AiReasoningEffort.fromStorage(prefs[Keys.AI_REASONING_EFFORT]) ?: DefaultAiReasoningEffort,
+        )
+    }
+
+    /** 切换 AI 供应商预设；Base URL 与模型由设置页按需跟随填充（这里只存档位）。 */
+    suspend fun setAiPreset(preset: AiProviderPreset) {
+        AppLog.d("Settings", "保存 AI 供应商预设：${preset.storageValue}")
+        context.settingsDataStore.edit { it[Keys.AI_PRESET] = preset.storageValue }
+    }
+
+    /**
+     * 保存 AI Base URL；非法值（缺协议头等）拒绝写入并保留原值，
+     * 校验与用户提示由设置页负责，这里是数据层的最后防线。
+     */
+    suspend fun setAiBaseUrl(raw: String) {
+        val normalized = normalizeAiBaseUrl(raw)
+        if (normalized == null) {
+            AppLog.w("Settings", "AI Base URL 非法，已拒绝写入：${raw.take(80)}")
+            return
+        }
+        AppLog.d("Settings", "保存 AI Base URL：$normalized")
+        context.settingsDataStore.edit { it[Keys.AI_BASE_URL] = normalized }
+    }
+
+    /** 保存 AI 模型名（trim 后写入，不校验拼写——模型名各家规则不同）。 */
+    suspend fun setAiModel(raw: String) {
+        val normalized = normalizeAiModel(raw)
+        AppLog.d("Settings", "保存 AI 模型名：$normalized")
+        context.settingsDataStore.edit { it[Keys.AI_MODEL] = normalized }
+    }
+
+    /**
+     * 保存 AI API Key（加密落盘）；传 null / 空白表示清除。
+     * 日志只记动作不记内容——Key 是全文最敏感的字段，一个字符都不能进日志。
+     */
+    suspend fun setAiApiKey(plainKey: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (plainKey.isNullOrBlank()) {
+                prefs.remove(Keys.AI_API_KEY_CIPHER)
+            } else {
+                prefs[Keys.AI_API_KEY_CIPHER] = AiKeyStore.encrypt(plainKey.trim())
+            }
+        }
+        AppLog.d("Settings", "AI API Key 已${if (plainKey.isNullOrBlank()) "清除" else "更新"}")
+    }
+
+    /**
+     * 一次性保存思考开关与强度（设置页的四档滑块用）。
+     *
+     * 两个字段必须在**同一个 edit** 里写完：分两次写会触发两次流发射，
+     * 中间态（新开关 + 旧强度）会被界面反查成另一个档位，
+     * 表现就是滑块先跳回上一档再滑到目标档。effort 为 null 表示关闭档，此时不动强度。
+     */
+    suspend fun setAiThinking(mode: AiThinkingMode, effort: AiReasoningEffort?) {
+        AppLog.d(
+            "Settings",
+            "保存 AI 思考：${mode.storageValue}" + (effort?.let { " / ${it.storageValue}" } ?: ""),
+        )
+        context.settingsDataStore.edit { prefs ->
+            prefs[Keys.AI_THINKING_MODE] = mode.storageValue
+            if (effort != null) prefs[Keys.AI_REASONING_EFFORT] = effort.storageValue
+        }
+    }
+
+    // ── MCP 本地服务器 ───────────────────────────────────────────────────────
+
+    /** MCP 服务器开关，默认关闭（用户显式开启后才有本地端口监听）。 */
+    val mcpEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.MCP_ENABLED] ?: false }
+
+    /** MCP 监听端口（读出时夹取到合法区间，防手工改坏的数据把服务器起不起来）。 */
+    val mcpPort: Flow<Int> =
+        context.settingsDataStore.data.map { normalizeMcpPort(it[Keys.MCP_PORT] ?: MCP_DEFAULT_PORT) }
+
+    /** 是否已生成过访问令牌。 */
+    val mcpHasToken: Flow<Boolean> =
+        context.settingsDataStore.data.map { !it[Keys.MCP_TOKEN_CIPHER].isNullOrBlank() }
+
+    /** 访问令牌（解密后的明文，供设置页展示复制与服务器鉴权比对）；未生成或解密失败返回 null。 */
+    suspend fun mcpToken(): String? {
+        val cipherText = context.settingsDataStore.data.first()[Keys.MCP_TOKEN_CIPHER]
+            ?: return null
+        return AiKeyStore.decrypt(cipherText)
+    }
+
+    /** 访问令牌流：解密后的明文（null=未生成）；McpServerController 订阅它做「令牌变更即重启」。 */
+    val mcpTokenFlow: Flow<String?> = context.settingsDataStore.data.map { prefs ->
+        prefs[Keys.MCP_TOKEN_CIPHER]?.let { AiKeyStore.decrypt(it) }
+    }
+
+    suspend fun setMcpEnabled(enabled: Boolean) {
+        AppLog.d("Settings", "MCP 服务器已${if (enabled) "开启" else "关闭"}")
+        context.settingsDataStore.edit { it[Keys.MCP_ENABLED] = enabled }
+    }
+
+    /** 保存监听端口（写前夹取）；运行中的服务器由 Controller 检测变化后重启。 */
+    suspend fun setMcpPort(port: Int) {
+        val safe = normalizeMcpPort(port)
+        AppLog.d("Settings", "保存 MCP 端口：$safe")
+        context.settingsDataStore.edit { it[Keys.MCP_PORT] = safe }
+    }
+
+    /**
+     * 取访问令牌，没有则生成一个新的（SecureRandom 32 位十六进制）并加密落盘。
+     * 返回明文给调用方（设置页展示 / 复制）。重置 = 删掉旧密文后再次调用本方法。
+     */
+    suspend fun ensureMcpToken(): String {
+        mcpToken()?.let { return it }
+        val token = generateMcpToken()
+        context.settingsDataStore.edit { it[Keys.MCP_TOKEN_CIPHER] = AiKeyStore.encrypt(token) }
+        AppLog.d("Settings", "已生成新的 MCP 访问令牌")
+        return token
+    }
+
+    /** 重置访问令牌：删除旧密文并生成新的，返回新明文。旧客户端的连接会全部 401。 */
+    suspend fun resetMcpToken(): String {
+        context.settingsDataStore.edit { it.remove(Keys.MCP_TOKEN_CIPHER) }
+        AppLog.d("Settings", "已重置 MCP 访问令牌")
+        return ensureMcpToken()
     }
 }
 

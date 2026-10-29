@@ -12,15 +12,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hrsthrt74.afdian.R
 import com.hrsthrt74.afdian.ui.components.account.LocalAccountSwitcher
 import com.hrsthrt74.afdian.ui.components.basic.AppDialog
 import com.hrsthrt74.afdian.ui.components.basic.Avatar
@@ -36,7 +38,6 @@ import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -60,25 +61,43 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param iconBackground 图标底色（沿用参考截图里的 MIUI 彩色方块）；
  *        Monet 配色开启时会被主题主色统一覆盖
  * @param route 点击后要推入的路由
+ * @param backgroundBrush 非 Monet 时图标底的自定义笔刷（如 sweep 转圈渐变），
+ *        透传给 [CategoryIconTile]，null 则退回 [iconBackground] 纯色
  */
 private data class SettingsCategoryItem(
     val title: String,
     val icon: ImageVector,
     val iconBackground: Color,
     val route: Route,
+    val backgroundBrush: Brush? = null,
 )
 
 /**
- * 设置总览的偏好分类入口（通用 / 外观），顺序即展示顺序，共用同一张卡。
- *
- * 配色取参考截图里的 MIUI 风格：蓝（通用）、紫（外观）。
- * 图标统一用单色描边，压在 32dp 圆角方块上，与「账号」分区的头像列左缘对齐。
- * 若用户开启了 Monet 配色，方块统一改用主题主色（见 [CategoryIconTile]），
- * 把配色决定权交回动态色板。
+ * 「AI」分类图标的背景笔刷：蓝 -> 紫 -> 橙 -> 紫 -> 蓝 的角度渐变（转圈效果）。
+ * 蓝橙互补色直接过渡会发灰发脏，在两侧各插一段紫色作为缓冲；
+ * 首尾同色让 sweepGradient 绕一圈后无缝衔接，不会出现分界线。
  */
-private val settingsCategories = listOf(
+private val aiTileBrush = Brush.sweepGradient(
+    listOf(
+        Color(0xFF4C9DFF),   // 蓝（起始，0°）
+        Color(0xFFD293FF),   // 紫（蓝的过渡缓冲）
+        Color(0xFFFF8B66),   // 橙（半圈处）
+        Color(0xFFD293FF),   // 紫（橙的过渡缓冲）
+        Color(0xFF4C9DFF),   // 回到蓝（360° 无缝收口）
+    )
+)
+
+/**
+ * 设置总览的偏好分类入口，顺序即展示顺序，共用同一张卡。
+ */
+@Composable
+private fun settingsCategories(): List<SettingsCategoryItem> = listOf(
     SettingsCategoryItem("通用", MiuixIcons.Tune, Color(0xFF3D8BFD), Route.SettingsGeneral),
     SettingsCategoryItem("外观", MiuixIcons.Theme, Color(0xFF8B7BF7), Route.SettingsAppearance),
+    // AI 分类：非 Monet 时图标块用蓝橙 sweep 转圈渐变笔刷（见 [aiTileBrush]）
+    SettingsCategoryItem("AI", ImageVector.vectorResource(R.drawable.ic_ai_sparkle), Color(
+        0xFFFF8A65
+    ), Route.SettingsAi, backgroundBrush = aiTileBrush),
 )
 
 /**
@@ -139,7 +158,7 @@ fun SettingsScreen(
                             modifier = Modifier.padding(end = 28.dp)
                         )
                     }
-                    Card(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                         accountSwitcher.accounts.forEach { account ->
                             val isCurrent = account.userId == accountSwitcher.currentUserId
                             // 失效账号给出提示：点击仍会走切换流程，由根层预检失败后再提示，
@@ -221,13 +240,12 @@ fun SettingsScreen(
                     }
                     // 「首页账号切换器」开关：单账号没有可切换对象，整块不渲染
                     if (accountSwitcher.accounts.size > 1) {
-                        Card(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 12.dp)) {
+                        Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                             // 控制首页顶栏起始侧是否显示当前账号头像
                             SwitchPreference(
                                 checked = homeAccountSwitcherEnabled,
                                 onCheckedChange = viewModel::setHomeAccountSwitcherEnabled,
                                 title = "首页账号切换器",
-                                summary = "位于首页顶栏左侧，点击即可切换账号",
                             )
                         }
                     }
@@ -238,17 +256,12 @@ fun SettingsScreen(
         // ── 分类入口 ──
         item {
             Column {
-                // 偏好分类（通用 / 外观）：同一张卡；下边距 12dp 是它与「关于」卡之间的分隔
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .padding(top = 24.dp)
-                        .padding(bottom = 12.dp),
-                ) {
-                    settingsCategories.forEach { category ->
+                SmallTitle(text = "设置", modifier = Modifier.padding(start = 4.dp))
+                Card(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    settingsCategories().forEach { category ->
                         ArrowPreference(
                             title = category.title,
-                            startAction = { CategoryIconTile(icon = category.icon, iconBackground = category.iconBackground) },   // 左侧图标
+                            startAction = { CategoryIconTile(icon = category.icon, iconBackground = category.iconBackground, backgroundBrush = category.backgroundBrush) },   // 左侧图标
                             onClick = {
                                 // 去重：转场期间连点不会重复入栈
                                 //（miuix-nav 栈内 contentKey 重复会直接抛异常闪退）
@@ -257,7 +270,7 @@ fun SettingsScreen(
                         )
                     }
                 }
-                // 「关于」单独一张卡：不加上边距，与上一张卡的间距全靠它的 12dp 下边距
+                // 「关于」单独一张卡
                 Card(modifier = Modifier.padding(horizontal = 16.dp)) {
                     ArrowPreference(
                         title = aboutCategory.title,
