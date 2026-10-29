@@ -1,15 +1,20 @@
 package com.hrsthrt74.afdian.ui.navigation
 
+import androidx.annotation.DrawableRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+import com.hrsthrt74.afdian.R
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.All
 import top.yukonga.miuix.kmp.icon.extended.Backup
 import top.yukonga.miuix.kmp.icon.extended.Blocklist
 import top.yukonga.miuix.kmp.icon.extended.ContactsCircle
 import top.yukonga.miuix.kmp.icon.extended.Favorites
+import top.yukonga.miuix.kmp.icon.extended.File
 import top.yukonga.miuix.kmp.icon.extended.ListView
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Rename
@@ -27,7 +32,6 @@ import top.yukonga.miuix.kmp.icon.extended.Th6
 import top.yukonga.miuix.kmp.icon.extended.Th7
 import top.yukonga.miuix.kmp.icon.extended.Th8
 import top.yukonga.miuix.kmp.icon.extended.Th9
-import top.yukonga.miuix.kmp.icon.extended.Tune
 import java.time.YearMonth
 
 /**
@@ -56,6 +60,10 @@ enum class QuickEntryGroup(val title: String) {
  * 手写 onClick 即可——组件与预设是两回事，别为了统一而硬塞。
  *
  * @param icon 静态图标；null 表示图标要按业务动态算，见 [resolveIcon]。
+ * @param iconRes 自定义矢量资源的 id（如 R.drawable.ic_debug）。给 Miuix 图标集里没有
+ *        对应形状的入口用；[icon] 为 null 时才会生效，同样在 [resolveIcon] 里解析。
+ *        这里存资源 id 而不是 ImageVector，是因为枚举构造参数在类加载时求值，
+ *        而 `ImageVector.vectorResource(...)` 是 @Composable，不能在这个上下文调用。
  */
 enum class QuickEntryPreset(
     val storageValue: String,
@@ -63,6 +71,7 @@ enum class QuickEntryPreset(
     val group: QuickEntryGroup,
     val route: Route,
     val icon: ImageVector? = null,
+    @DrawableRes val iconRes: Int? = null,
 ) {
     // ===== 常用 =====
     Sponsoring("sponsoring", "我发电的", QuickEntryGroup.COMMON, Route.Sponsoring, MiuixIcons.Demibold.Favorites),
@@ -83,7 +92,8 @@ enum class QuickEntryPreset(
     // ===== 账号 =====
     Settings("settings", "设置", QuickEntryGroup.ACCOUNT, Route.Settings, MiuixIcons.Demibold.Settings),
     Blocklist("blocklist", "屏蔽与拒绝名单", QuickEntryGroup.ACCOUNT, Route.Blocklist, MiuixIcons.Demibold.Blocklist),
-    Developer("developer", "开发者", QuickEntryGroup.ACCOUNT, Route.Developer, MiuixIcons.Demibold.Tune),
+    Developer("developer", "开发者", QuickEntryGroup.ACCOUNT, Route.Developer, iconRes = R.drawable.ic_debug),
+    Docs("docs", "文档", QuickEntryGroup.ACCOUNT, Route.Docs, MiuixIcons.Demibold.File),
     ;
 
     companion object {
@@ -99,8 +109,16 @@ fun QuickEntryGroup.presets(): List<QuickEntryPreset> = QuickEntryPreset.entries
  *
  * 「每月汇总」的图标是上个月的月份数字，必须每次取值时才算：枚举的构造参数只在类加载时
  * 求值一次，写死在构造参数里的话，App 跨月不重启就会一直显示旧月份。
+ *
+ * 顺序：自带 ImageVector → 自定义 drawable 资源 → 动态月份数字图标。
+ * 标了 @Composable 是因为 `ImageVector.vectorResource` 只能在组合上下文里读资源；
+ * 现有调用点都在 Composable 内，不受影响。
  */
-fun QuickEntryPreset.resolveIcon(): ImageVector = icon ?: lastMonthNumberIcon()
+@Composable
+fun QuickEntryPreset.resolveIcon(): ImageVector =
+    icon
+        ?: iconRes?.let { ImageVector.vectorResource(it) }
+        ?: lastMonthNumberIcon()
 
 /** 「每月汇总」入口的图标：Miuix 的 ThN 数字图标，取上个月（本月 9 月 → 8）。 */
 private fun lastMonthNumberIcon(): ImageVector =
