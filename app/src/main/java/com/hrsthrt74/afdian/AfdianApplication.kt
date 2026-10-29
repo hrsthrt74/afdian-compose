@@ -2,6 +2,7 @@ package com.hrsthrt74.afdian
 
 import android.app.Application
 import com.hrsthrt74.afdian.data.log.LogStore
+import com.hrsthrt74.afdian.data.mcp.McpServerController
 import com.hrsthrt74.afdian.data.network.AfdianRouteState
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +34,15 @@ class AfdianApplication : Application() {
      * 不用 GlobalScope 是为了语义清晰、可控（虽然 Application 级作用域与它实际等价）。
      */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * MCP 本地服务器控制器：随进程存活，应用被杀即断。
+     * 是否监听完全由「设置 → AI 助手」的开关决定，默认关闭零开销。
+     */
+    // internal：设置页（SettingsViewModel）读取 running/port 状态展示「运行中」
+    internal val mcpServerController by lazy {
+        McpServerController(this, appScope)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -77,6 +87,10 @@ class AfdianApplication : Application() {
                 AppLog.w(TAG, "订阅「优先线路」设置失败", error)
             }
         }
+
+        // 6) MCP 本地服务器：订阅开关/端口/令牌设置流，开启时随进程监听 127.0.0.1。
+        //    lazy 挂载：默认关闭时只有一条轻量 DataStore 订阅，不构建任何服务器对象。
+        mcpServerController.start()
     }
 
     private companion object {
