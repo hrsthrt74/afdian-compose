@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,9 +29,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.settings.SettingsStore
 import com.hrsthrt74.afdian.ui.components.account.AccountSwitchPopup
@@ -49,6 +47,7 @@ import com.hrsthrt74.afdian.ui.components.home.HomeCustomizationSheet
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContent
 import com.hrsthrt74.afdian.ui.components.home.HomeModuleContentContext
 import com.hrsthrt74.afdian.ui.components.home.QuickEntryPickerSheet
+import com.hrsthrt74.afdian.ui.navigation.LocalMainTabsOnTop
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.HistoryViewModel
@@ -169,13 +168,14 @@ fun HomeScreen(
 
     // 编辑态拦截系统返回：编辑页只是页内状态而非导航栈页面，不拦截的话
     // 返回键会穿透到 NavDisplay 把根页面弹掉、直接退出应用。
-    // 与发现页搜索层同款 NavigationBackHandler，预测性返回手势提交后才退出编辑。
-    val editBackState = rememberNavigationEventState(NavigationEventInfo.None)
-    NavigationBackHandler(
-        state = editBackState,
-        isBackEnabled = editingCreatorData,
-        onBackCompleted = { editingCreatorData = false },
-    )
+    // 用 Activity 的 BackHandler（而不是 NavigationBackHandler）：后者注册到 miuix-nav 给每个
+    // entry 建的子 dispatcher 上，而那个 dispatcher 会随 entry 回收被 dispose，子组合晚一帧
+    // 应用时再注册就闪退（详见 LocalMainTabsOnTop）。丢了 entry 作用域，所以要自己判栈顶：
+    // 首页被创作者主页等上层页面盖住时不响应，否则那些页面按返回会误退出编辑态。
+    val mainTabsOnTop = LocalMainTabsOnTop.current
+    BackHandler(enabled = editingCreatorData && mainTabsOnTop) {
+        editingCreatorData = false
+    }
 
     // 首页是根页面：首次进入时清掉 Compose 可能恢复的旧滚动位置，确保顶部模块可见。
     // 必须等模块配置到齐后再校准：配置没齐时列表还没铺出来，

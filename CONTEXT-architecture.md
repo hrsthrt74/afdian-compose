@@ -72,6 +72,29 @@ app/src/main/java/com/hrsthrt74/afdian/
 - 「我的」页的子路由（收藏/我发电的/订单/管理/设置）提升到外层栈，push 时盖住底部导航栏
 - 页面过渡使用 `CreatorDetailTransition`（卡片展开动画），由设置开关控制
 
+### 返回事件：不要往 NavDisplay entry 里注册 handler（会闪退）
+
+**结论：页面里的返回拦截用 `androidx.activity.compose.BackHandler`，整屏共用的拦截用
+`MainScreen` 里 NavDisplay 之后那一个 `PredictiveBackGuard`。不要在 `entry { }` 内容里调用
+`NavigationBackHandler`（androidx.navigationevent）或 miuix 的 `PredictiveBackHandler`。**
+
+原因（1.1.0 standardRelease 崩溃报告的栈，用该变体 mapping 还原）：
+
+- miuix-nav 会给**每个 entry** 建一个「父 dispatcher 的子 dispatcher」，entry 宿主被回收
+  （切页把下层裁掉、快速返回等）时 `dispose()` 它。
+- entry 内容常常落在 `SubcomposeLayout` 的子组合里（miuix `Scaffold`、`HorizontalPager` 都是），
+  子组合的 apply 顺序和父组合的回收顺序没有保证：父组合先 dispose，子组合同一帧才
+  `onRemembered` 去 `dispatcher.addHandler(...)`，就抛
+  `IllegalStateException: This NavigationEventDispatcher has already been disposed`。
+  「快速导航」时命中率最高。
+- `BackHandler` 注册在 **Activity 的 dispatcher** 上（只在 Activity 销毁时释放），不会撞上这个竞态。
+- 代价：丢了 miuix 的 entry 级启用开关（被上层页面盖住时自动禁用），所以要自己判作用域。
+  根 Tab 内页面的判定用 `LocalMainTabsOnTop`（`MainScreen` 提供，值 = 根 Tab 是否在栈顶）。
+
+整屏共用的 `PredictiveBackGuard` 必须放在 `NavDisplay(...)` **之后**：同一 dispatcher 上后注册者优先，
+这样它才能先于 NavDisplay 自己的预测性返回 handler 拿到手势；写到 entry 里反而会各自注册一份，
+既多一份竞态，又和页面自己的拦截器抢顺序。
+
 ## TabRow 固定头部模式（Favorites/Order 已应用；Management 原有 TabRow 已随占位分区移除）
 
 不要用 `stickyHeader` 实现 Tab 吸顶。原因：miuix Scaffold 把内容全屏铺在 (0,0)、TopAppBar 叠在内容上层绘制，LazyColumn 视口顶端被不透明的 TopAppBar 盖住，sticky 吸附点不可见，看起来就像没生效。

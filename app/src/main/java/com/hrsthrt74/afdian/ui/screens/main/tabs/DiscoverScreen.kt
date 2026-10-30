@@ -1,5 +1,6 @@
 package com.hrsthrt74.afdian.ui.screens.main
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -71,9 +72,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
 import com.hrsthrt74.afdian.AppLog
 import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.RecommendedPost
@@ -88,6 +86,7 @@ import com.hrsthrt74.afdian.ui.components.basic.blurBarColor
 import com.hrsthrt74.afdian.ui.components.basic.contentBottomPadding
 import com.hrsthrt74.afdian.ui.components.basic.rememberBlurBackdrop
 import com.hrsthrt74.afdian.ui.components.post.PostCard
+import com.hrsthrt74.afdian.ui.navigation.LocalMainTabsOnTop
 import com.hrsthrt74.afdian.ui.navigation.rememberCreatorOrigin
 import com.hrsthrt74.afdian.ui.theme.LocalThemeSettings
 import com.hrsthrt74.afdian.ui.viewmodel.MainViewModel
@@ -499,14 +498,16 @@ private fun SearchPager(
         if (status.current == SearchPhase.EXPANDED) focusRequester.requestFocus()
     }
 
-    val backState = rememberNavigationEventState(NavigationEventInfo.None)
-    NavigationBackHandler(
-        state = backState,
-        isBackEnabled = !status.isCollapsed(),
-        onBackCompleted = {
-            onStatusChange(status.copy(current = SearchPhase.COLLAPSING))
-        },
-    )
+    // 搜索层拦截系统返回：搜索只是页内状态而非导航栈页面，不拦截的话返回键会把根页面弹掉。
+    // 用 Activity 的 BackHandler（而不是 NavigationBackHandler）：后者注册到 miuix-nav 给每个
+    // entry 建的子 dispatcher 上，那个 dispatcher 会随 entry 回收被 dispose，子组合晚一帧应用时
+    // 再注册就是 "This NavigationEventDispatcher has already been disposed" 闪退
+    // （详见 LocalMainTabsOnTop）。丢了 entry 作用域，所以要自己判栈顶：从搜索结果进创作者主页后
+    // 按返回应该是出栈，而不是在这里把看不见的搜索层收起来。
+    val mainTabsOnTop = LocalMainTabsOnTop.current
+    BackHandler(enabled = !status.isCollapsed() && mainTabsOnTop) {
+        onStatusChange(status.copy(current = SearchPhase.COLLAPSING))
+    }
 
     if (!status.isCollapsed()) {
         Box(

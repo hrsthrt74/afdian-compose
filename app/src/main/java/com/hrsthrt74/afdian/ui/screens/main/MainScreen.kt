@@ -51,6 +51,7 @@ import com.hrsthrt74.afdian.ui.navigation.AppNavTransitionWithoutSwipe
 import com.hrsthrt74.afdian.ui.navigation.CreatorDetailTransition
 import com.hrsthrt74.afdian.ui.navigation.CreatorExpandOrigin
 import com.hrsthrt74.afdian.ui.navigation.LocalAppLinkNavigator
+import com.hrsthrt74.afdian.ui.navigation.LocalMainTabsOnTop
 import com.hrsthrt74.afdian.ui.navigation.NavSwipeGate
 import com.hrsthrt74.afdian.ui.navigation.Route
 import com.hrsthrt74.afdian.ui.navigation.rememberCustomTabsBranding
@@ -118,11 +119,22 @@ private fun NavBackStack.pushUnique(route: Route) {
 }
 
 /**
- * 在当前导航 entry 内消费系统预测性返回事件。
+ * 关闭「预测性返回」时，消费系统返回手势的事件，避免 NavDisplay 驱动手指跟随动画。
  *
- * miuix-nav 会为每个 entry 创建父 dispatcher 的子 dispatcher，entry 内注册的 handler
- * 优先于 NavDisplay 自身的 handler。因此关闭设置后消费手势进度，避免 NavDisplay 驱动
- * 预测性动画；提交时仍执行原有 pop，让系统返回键和返回手势保持可用。
+ * 只在 [NavDisplay] 之后注册一次（整屏一个 handler），不要写进每个 entry：
+ *
+ * - miuix-nav 会给**每个 entry** 建一个父 dispatcher 的子 dispatcher，并在 entry 宿主被回收时
+ *   `dispose()` 它。entry 里的内容可能落在 `Scaffold` / `HorizontalPager` 这类
+ *   `SubcomposeLayout` 的子组合里，子组合的应用顺序与父组合的回收顺序没有保证——父组合先
+ *   dispose，子组合同一帧才 `onRemembered` 去 `addHandler`，就会抛
+ *   `IllegalStateException: This NavigationEventDispatcher has already been disposed`
+ *   （release 崩溃栈里就是这个，见 1.1.0 的 standardRelease 崩溃报告）。
+ * - 注册在 NavDisplay 外层 = 挂在 Activity 的 dispatcher 上，它只在 Activity 销毁时释放；
+ *   而且「后注册者优先」（LIFO），所以它依然先于 NavDisplay 自己的 handler 拿到手势，
+ *   效果与逐 entry 一个是一致的。
+ *
+ * [enabled] 只在「设置里关了预测性返回」且「栈里还有可返回的页面」时打开：栈底不拦截，
+ * 否则系统返回就没法退出应用了。
  */
 @Composable
 private fun PredictiveBackGuard(enabled: Boolean, onCommit: () -> Unit) {
@@ -240,6 +252,9 @@ fun MainScreen(
     CompositionLocalProvider(
         LocalAppLinkNavigator provides appLinkNavigator,
         LocalImageViewer provides imageViewer,
+        // 根 Tab 是否在栈顶：首页编辑态 / 发现页搜索层的返回拦截要靠它判定作用域，
+        // 换成 Activity 的 dispatcher 后没有 miuix 的 entry 级启用开关了（见 LocalMainTabsOnTop）
+        LocalMainTabsOnTop provides (backStack.lastOrNull() == Route.MainTabs),
     ) {
     NavDisplay(
         backStack = backStack,
@@ -253,7 +268,6 @@ fun MainScreen(
         effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius()),
     ) {
         entry<Route.MainTabs> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             MainTabsContent(
                 onReady = onReady,
                 viewModel = viewModel,
@@ -279,12 +293,10 @@ fun MainScreen(
         entry<Route.CreatorDetail>(
             transition = CreatorDetailTransition,
         ) { route ->
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             CreatorDetailScreen(user = route.user, onBack = { backStack.removeLastOrNull() }, backStack = backStack, onOpenPost = { post, toComments -> backStack.pushUnique(Route.PostDetail(post, scrollToComments = toComments)) })
         }
         // 动态详情：全文正文 HTML 渲染 + 分享/点赞/收藏
         entry<Route.PostDetail> { route ->
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             PostDetailScreen(
                 post = route.post,
                 onBack = { backStack.removeLastOrNull() },
@@ -298,7 +310,6 @@ fun MainScreen(
         // 按 id 打开动态详情：用只占 post_id 的占位 post 复用详情页，
         // PostDetailViewModel 后台按 id 拉取全文；加载中由 PostDetailScreen 显示 LoadingComponent
         entry<Route.PostDetailById> { route ->
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             PostDetailScreen(
                 post = RecommendedPost(post_id = route.postId),
                 onBack = { backStack.removeLastOrNull() },
@@ -310,7 +321,6 @@ fun MainScreen(
             )
         }
         entry<Route.MessageConversation> { route ->
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 从 MainViewModel 的资料缓存取自己的头像，替换聊天里「我」的占位头像
             val myProfile by viewModel.profile.collectAsState()
             MessageConversationScreen(
@@ -327,7 +337,6 @@ fun MainScreen(
         // =====「我的」的二级屏幕：全部提升到外层栈，push 时盖住底部导航栏 =====
 
         entry<Route.Favorites> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             val vm: FavoritesViewModel = viewModel(
                 factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
                     LocalContext.current.applicationContext as Application
@@ -345,13 +354,11 @@ fun MainScreen(
             }
         }
         entry<Route.Sponsoring> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SponsoringScreen(viewModel, onOpenCreator = { user -> backStack.pushUnique(Route.CreatorDetail(user)) }, backStack = backStack) {
                 backStack.removeLastOrNull()
             }
         }
         entry<Route.Orders> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             OrderScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
@@ -359,15 +366,12 @@ fun MainScreen(
             )
         }
         entry<Route.Management> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             ManagementScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.IncomeDetail> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             IncomeDetailScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.ReceivedSponsors> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             val app = LocalContext.current.applicationContext as Application
             val vm: ReceivedSponsorsViewModel = viewModel(
                 factory = ViewModelProvider.AndroidViewModelFactory.getInstance(app),
@@ -379,7 +383,6 @@ fun MainScreen(
             )
         }
         entry<Route.SponsorManage> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 赞助者管理页（who-sponsored-me 列表）；入口在「我的」页创作者分组
             val app = LocalContext.current.applicationContext as Application
             val vm: SponsorManageViewModel = viewModel(
@@ -393,7 +396,6 @@ fun MainScreen(
             )
         }
         entry<Route.MonthlySummary> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 每月汇总（创作者后台 /api/my/income）；点某一行 → 该年月的感谢页
             val app = LocalContext.current.applicationContext as Application
             val vm: MonthlySummaryViewModel = viewModel(
@@ -407,7 +409,6 @@ fun MainScreen(
             )
         }
         entry<Route.ThankSponsors> { route ->
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 顶部创作者信息直接用当前登录账号的资料（/api/my/profile）
             val myProfile by viewModel.profile.collectAsState()
             val userId = myProfile?.user?.user_id.orEmpty()
@@ -439,7 +440,6 @@ fun MainScreen(
             )
         }
         entry<Route.Affiliates> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 优惠码列表（创作者后台 creator/list-affiliate）；增删改走页内的创建 / 编辑面板
             AffiliateScreen(
                 onBack = { backStack.removeLastOrNull() },
@@ -447,7 +447,6 @@ fun MainScreen(
             )
         }
         entry<Route.FaqSetting> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // FAQ 设置页（/api/faq/list 增删改查）；入口在消息页三点菜单，位于「爱发电客服」上方
             FaqScreen(
                 onBack = { backStack.removeLastOrNull() },
@@ -455,7 +454,6 @@ fun MainScreen(
             )
         }
         entry<Route.Settings> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 设置总览：账号 + 通用 / 外观 / 关于三个分类入口
             SettingsScreen(
                 onBack = { backStack.removeLastOrNull() },
@@ -464,16 +462,15 @@ fun MainScreen(
             )
         }
         // 设置分类页：总览页点击分类行后 push 到这里。
-        // 与 Settings 同属外层栈，统一套 PredictiveBackGuard 消费系统预测性返回。
+        // 属于外层栈的普通二级页，返回手势由 NavDisplay 统一处理（预测性返回的开关在整屏的
+        // PredictiveBackGuard 里，不再逐 entry 注册）。
         entry<Route.SettingsGeneral> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SettingsGeneralScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
             )
         }
         entry<Route.SettingsAi> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // AI 助手设置：BYOK 供应商配置、测试连接与 MCP 本地服务器
             SettingsAiScreen(
                 onBack = { backStack.removeLastOrNull() },
@@ -481,36 +478,30 @@ fun MainScreen(
             )
         }
         entry<Route.SettingsAppearance> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SettingsAppearanceScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
             )
         }
         entry<Route.SettingsAbout> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             SettingsAboutScreen(
                 onBack = { backStack.removeLastOrNull() },
                 backStack = backStack,
             )
         }
         entry<Route.OssLicenses> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 开源许可页：设置 → 关于 入口进入
             OssLicensesScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Changelog> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 更新日志页：设置 → 关于 入口进入，数据来自打包进 assets 的 CHANGELOG.md
             ChangelogScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.FeatureStatus> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 功能完成度页：设置 → 关于 入口进入，列出当前尚未完成的功能清单
             FeatureStatusScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Disclaimer> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 免责声明查看页：从设置进入时允许返回，不参与首次启动的强制确认流程
             DisclaimerScreen(
                 onAgree = {},
@@ -520,22 +511,18 @@ fun MainScreen(
             )
         }
         entry<Route.Storage> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 存储空间管理页：设置 → 通用 入口进入
             StorageScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Log> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 日志页：设置 → 通用 入口进入，管理运行日志与崩溃报告的记录 / 导出 / 清空
             LogScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.ApiProbe> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 接口调试页：设置 → 通用 入口进入，逐个运行核心无参接口并查看原始返回
             ApiProbeScreen(onBack = { backStack.removeLastOrNull() }, backStack = backStack)
         }
         entry<Route.Blocklist> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 屏蔽 / 拒绝名单页：入口在「我的」页设置上方，TabRow 切换屏蔽与拒绝两个名单
             val app = LocalContext.current.applicationContext as Application
             val vm: BlocklistViewModel = viewModel(
@@ -559,7 +546,6 @@ fun MainScreen(
             )
         }
         entry<Route.Developer> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 开发者页：入口在「我的」页屏蔽与拒绝名单下方，展示 user_id、Webhook URL 与 API Token
             val app = LocalContext.current.applicationContext as Application
             val vm: DeveloperViewModel = viewModel(
@@ -574,7 +560,6 @@ fun MainScreen(
             )
         }
         entry<Route.Docs> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 文档聚合页：官网文档站、创作者指南与开发者文档的统一收录，入口在「我的」页底部卡
             DocsScreen(
                 onBack = { backStack.removeLastOrNull() },
@@ -582,7 +567,6 @@ fun MainScreen(
             )
         }
         entry<Route.Shop> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 售卖商品管理页：入口在「我的」页快捷入口的创作者分组
             ShopScreen(
                 onBack = { backStack.removeLastOrNull() },
@@ -591,7 +575,6 @@ fun MainScreen(
             )
         }
         entry<Route.ProductDetail> { route ->
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             // 商品链接的轻量详情宿主：不复用商品管理页（点商品互链不该露出创作者后台），
             // 页面本体只承载一个自动弹出的 PlanDetailSheet，收起后自动退出页面
             ProductDetailHost(
@@ -600,7 +583,6 @@ fun MainScreen(
             )
         }
         entry<Route.History> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             HistoryScreen(
                 viewModel = historyViewModel,
                 onBack = { backStack.removeLastOrNull() },
@@ -614,7 +596,6 @@ fun MainScreen(
         }
         // AI 记录页：入口在消息页私信列表最前面的一条卡片（不吸顶，随列表滚走）
         entry<Route.AiHistory> {
-            PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
             AiHistoryScreen(
                 viewModel = aiHistoryViewModel,
                 onBack = { backStack.removeLastOrNull() },
@@ -622,6 +603,9 @@ fun MainScreen(
             )
         }
         }
+        // 关闭「预测性返回」时的手势拦截：整屏只注册一个，位置必须在 NavDisplay 之后
+        // （后注册者优先，才能先于 NavDisplay 自己的 handler 拿到手势），原因见函数注释。
+        PredictiveBackGuard(blockPredictiveBack) { backStack.removeLastOrNull() }
         // 图片查看器覆盖层：与登录页覆盖层同样依赖「后组合者绘制在上层」
         ImageViewerHost(imageViewer)
     }

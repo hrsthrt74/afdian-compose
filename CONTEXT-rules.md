@@ -11,6 +11,10 @@
 - `NavigationBar` 是导航外观；页面路由仍由 `miuix-nav` 管理，两者不要混为一个机制。
 - Overlay 组件需要位于 Miuix `Scaffold` 宿主下。
 - 不要把 Material 3 的参数名、颜色 token、导航 API 直接套到 Miuix。
+- 返回拦截只用 `BackHandler`（Activity dispatcher），**不要**在 `NavDisplay` 的 `entry { }` 里
+  调 `NavigationBackHandler` / miuix `PredictiveBackHandler`：miuix 会按 entry 建子 dispatcher
+  并在回收时 `dispose()` 它，子组合晚一帧注册就会崩（详见 `CONTEXT-architecture.md`
+  「返回事件」小节）。
 
 ## 数据层规则
 
