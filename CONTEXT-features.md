@@ -55,6 +55,11 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   老配置里缺失的模块**插到它在枚举声明顺序里的前驱之后**，而不是旧实现那样一律追加末尾
   ——否则新增模块升级后会莫名其妙跑到最后一位。
 - `homeEnabledModules` 在已存配置非空时**不会**自动补入新模块，所以新增模块对老用户天然是关闭的。
+- **跨天自动刷新**（`data/content/DailyRefresh.kt` + `MainViewModel.startDailyRefreshTicker`）：
+  应用一直开着时，每到本地自然日 0 点刷新一次主页，与具体日期无关。计时器放在会话级 ViewModel 里，
+  切底栏、退到后台都不会被组合生命周期打断；每轮重新计算到下一个 0 点的时长，
+  改系统时间 / 换时区 / 跨夏令时后自动纠正。延迟额外留 1 秒缓冲，保证触发时 `LocalDate.now()`
+  已经翻篇；跨天瞬间若正好在刷新则跳过这一轮，避免两轮请求互相覆盖。
 
 快捷方式（`QuickEntries`）：
 - 预设目录 `QuickEntryPreset`（`ui/navigation/QuickEntryPreset.kt`）是「入口 → 标题/图标/路由」的

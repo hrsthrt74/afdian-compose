@@ -19,6 +19,7 @@ import com.hrsthrt74.afdian.data.content.AfadianUser
 import com.hrsthrt74.afdian.data.content.HomeCache
 import com.hrsthrt74.afdian.data.content.HomeCacheSnapshot
 import com.hrsthrt74.afdian.data.content.HomeCacheCard
+import com.hrsthrt74.afdian.data.content.millisUntilNextLocalDay
 import com.hrsthrt74.afdian.data.history.HistoryStore
 import com.hrsthrt74.afdian.data.search.SearchHistoryStore
 import com.hrsthrt74.afdian.data.settings.SettingsStore
@@ -46,6 +47,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import java.math.BigDecimal
+import java.time.ZonedDateTime
 import kotlin.time.Duration.Companion.milliseconds
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -119,6 +121,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var searchQuery = ""
     private var searchPage = 0
     private var nextPublishSN = ""
+
+    init {
+        // 跨天自动刷新：应用一直开着时，每到新的一天刷新一次主页。
+        // 放在 ViewModel 而不是首页 Composable 里：ViewModel 活在会话作用域内，
+        // 用户切到别的底栏页、甚至把应用退到后台，计时都不会被组合生命周期打断。
+        startDailyRefreshTicker()
+    }
+
+    /**
+     * 跨天自动刷新计时器：每到本地自然日 0 点触发一次 [refresh]，然后重新计时。
+     *
+     * 与具体日期无关，纯粹按「自然日翻篇」触发；每次循环都重新计算到下一个 0 点的时长，
+     * 因此用户改系统时间、换时区、跨夏令时之后都能自动纠正，不会一直沿用旧节拍。
+     *
+     * 设备休眠时协程不会被执行，但 `delay` 是按时间点算的：进程重新拿到 CPU
+     * （例如用户早上点亮屏幕回到应用）时会立刻补上这次刷新，而不是白等一整天。
+     */
+    private fun startDailyRefreshTicker() {
+        viewModelScope.launch {
+            while (true) {
+                val waitMillis = millisUntilNextLocalDay(ZonedDateTime.now())
+                AppLog.d("Home", "跨天自动刷新：${waitMillis / 1000} 秒后进入新的一天")
+                delay(waitMillis)
+                // 正好在一次手动刷新中途跨天时不并发发起第二次：这一天的数据已经是最新的，
+                // 直接进入下一轮计时，避免两轮请求互相覆盖。
+                if (_isLoading.value) {
+                    AppLog.d("Home", "跨天自动刷新跳过：当前已有刷新在进行")
+                    continue
+                }
+                AppLog.d("Home", "跨天自动刷新：新的一天开始，刷新主页")
+                refresh()
+                // refresh() 内部自己起协程，这里不等待；下一轮计时从现在开始即可
+            }
+        }
+    }
 
     fun searchCreators(query: String) {
         searchJob?.cancel()
