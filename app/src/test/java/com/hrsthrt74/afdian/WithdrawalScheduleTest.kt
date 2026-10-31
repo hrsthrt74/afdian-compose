@@ -2,11 +2,14 @@ package com.hrsthrt74.afdian
 
 import com.hrsthrt74.afdian.data.stats.WithdrawalSchedule
 import com.hrsthrt74.afdian.data.stats.estimatedAfterFee
+import com.hrsthrt74.afdian.data.stats.formatCountdown
 import com.hrsthrt74.afdian.data.stats.settlementAmountTexts
 import java.math.BigDecimal
+import java.time.Duration
 import java.time.LocalDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -103,6 +106,54 @@ class WithdrawalScheduleTest {
         // 最后 30 秒：拆到秒只会让文案每秒跳动，统一说「不足一分钟」
         assertEquals("不足一分钟", status.remainingText)
         assertFalse(status.isWithdrawalTimeReached)
+    }
+
+    // ---- 每月最后一天的「距离结算」倒计时 ----
+
+    @Test
+    fun lastDayShowsSettlementCountdown() {
+        // 10/31 20:00：下月 1 日 0:00 开始结算，还有 4 小时；离提现（1 日 10:00）还有 14 小时
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 31, 20, 0))
+
+        assertEquals("4 小时 0 分", status.settlementRemainingText)
+        assertEquals("14 小时 0 分", status.remainingText)
+        assertTrue(status.shouldShowReminder)
+        assertFalse(status.isSettlementWindow)
+    }
+
+    @Test
+    fun settlementCountdownUsesMonthLengthNotFixedDay() {
+        // 9 月只有 30 天：最后一天是 9/30，不能写死 31 号
+        assertEquals(
+            "12 小时 0 分",
+            WithdrawalSchedule.calculate(LocalDateTime.of(2026, 9, 30, 12, 0)).settlementRemainingText,
+        )
+        // 30 号当天已经不是最后一天（9 月里 30 号才是）；10 月的 30 号不是最后一天
+        assertNull(WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 30, 12, 0)).settlementRemainingText)
+    }
+
+    @Test
+    fun settlementCountdownAbsentOutsideLastDay() {
+        // 月末提醒期内但不是最后一天：只说提现，不说结算
+        assertNull(WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 28, 9, 0)).settlementRemainingText)
+        // 1 日结算期同样不展示
+        assertNull(WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 1, 5, 0)).settlementRemainingText)
+    }
+
+    @Test
+    fun lastDayLastMinuteSettlementCountdown() {
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 31, 23, 59))
+
+        assertEquals("1 分", status.settlementRemainingText)
+    }
+
+    @Test
+    fun countdownFormatSharedByBothCountdowns() {
+        // 两个倒计时共用一套格式：≥1 天回到「天 + 小时」，其余按「小时 + 分」递进
+        assertEquals("2 天 3 小时", formatCountdown(Duration.ofDays(2).plusHours(3)))
+        assertEquals("5 小时 30 分", formatCountdown(Duration.ofHours(5).plusMinutes(30)))
+        assertEquals("45 分", formatCountdown(Duration.ofMinutes(45)))
+        assertEquals("不足一分钟", formatCountdown(Duration.ofSeconds(30)))
     }
 
     // ---- 服务端结算信号 ----

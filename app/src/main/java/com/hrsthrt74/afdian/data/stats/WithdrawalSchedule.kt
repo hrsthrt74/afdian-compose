@@ -13,6 +13,13 @@ data class WithdrawalStatus(
     val remainingDays: Long,
     val remainingText: String,
     /**
+     * 「距离结算还有 X」里的 X：本月收入进入结算的倒计时。
+     *
+     * 只有每月**最后一天**非 null —— 结算时间点是下月 1 日 0:00（自然月一翻篇就开始结算），
+     * 其他日子说这句话没有信息量，提醒卡也就不展示。格式与 [remainingText] 共用 [formatCountdown]。
+     */
+    val settlementRemainingText: String?,
+    /**
      * 提现时间点是否已经过去。
      *
      * 正常路径下 withdrawTime 永远在未来；只有「服务端 10:00 之后仍报告结算中」时才会为 true，
@@ -70,22 +77,15 @@ object WithdrawalSchedule {
         val remainingDays = duration.toDays().coerceAtLeast(0L)
         // 服务端 10:00 之后仍报结算中时会走到 duration 为负的分支：
         // 「已到提现日」正好就是「到点了但钱还在结算」该说的话。
-        val remainingText = when {
-            duration.isNegative -> "已到提现日"
-            // 不足一天改用「小时 + 分」：原来的「0 天 N 小时」在最后一天看起来像没在走，
-            // 分钟根本不展示，用户无法判断离提现还有多久。
-            duration.toDays() == 0L -> {
-                val hours = duration.toHours()
-                val minutes = duration.toMinutes() % 60
-                when {
-                    hours > 0L -> "$hours 小时 $minutes 分"
-                    // 不足一小时就别再带「0 小时」，直接说多少分
-                    minutes > 0L -> "$minutes 分"
-                    // 最后一分钟内：再往下拆秒没有意义，也会让文案每秒跳动
-                    else -> "不足一分钟"
-                }
-            }
-            else -> "${duration.toDays()} 天 ${duration.toHours() % 24} 小时"
+        val remainingText = if (duration.isNegative) "已到提现日" else formatCountdown(duration)
+        // 每月最后一天：本月收入的下一个节点是「下月 1 日 0:00 开始结算」。
+        // 这一天文案开头要先说离结算还有多久，用户才知道本月这笔钱什么时候动账。
+        // 只有最后一天才有意义，其余日子返回 null，卡片不出现这一句。
+        val isLastDayOfMonth = today.dayOfMonth == month.lengthOfMonth()
+        val settlementRemainingText = if (isLastDayOfMonth) {
+            formatCountdown(Duration.between(now, month.plusMonths(1).atDay(1).atStartOfDay()))
+        } else {
+            null
         }
         val shouldShowReminder = today.dayOfMonth >= month.lengthOfMonth() - 6 || isSettlementWindow
         return WithdrawalStatus(
@@ -93,9 +93,35 @@ object WithdrawalSchedule {
             withdrawalTime = withdrawalTime,
             remainingDays = remainingDays,
             remainingText = remainingText,
+            settlementRemainingText = settlementRemainingText,
             isWithdrawalTimeReached = duration.isNegative,
             isSettlementWindow = isSettlementWindow,
         )
+    }
+}
+
+/**
+ * 把「还有多久」格式化成倒计时文案。
+ *
+ * - ≥ 1 天：`N 天 M 小时`（几天前的精度里分钟没有意义）
+ * - < 1 天：`n 小时 m 分`（旧的「0 天 N 小时」看不出在走）
+ * - < 1 小时：`m 分`
+ * - < 1 分钟：`不足一分钟`（拆到秒只会让文案每秒跳动）
+ *
+ * 提出独立的纯函数，提现倒计时与「距离结算还有」共用同一套格式，避免两处文案漂移。
+ *
+ * @param duration 非负时长；已经过点的场景（提现时间已到）由调用方先行判断，不走这里
+ */
+internal fun formatCountdown(duration: Duration): String {
+    if (duration.toDays() > 0L) {
+        return "${duration.toDays()} 天 ${duration.toHours() % 24} 小时"
+    }
+    val hours = duration.toHours()
+    val minutes = duration.toMinutes() % 60
+    return when {
+        hours > 0L -> "$hours 小时 $minutes 分"
+        minutes > 0L -> "$minutes 分"
+        else -> "不足一分钟"
     }
 }
 

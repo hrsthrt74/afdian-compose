@@ -73,7 +73,8 @@ private fun rememberWithdrawalStatus(isBalanceSettling: Boolean): WithdrawalStat
                 AppLog.d(
                     TAG,
                     "提现状态更新：withdrawTime=${next.withdrawalTime}, show=${next.shouldShowReminder}, " +
-                        "settlementWindow=${next.isSettlementWindow}, serverSettling=$isBalanceSettling",
+                        "settlementWindow=${next.isSettlementWindow}, serverSettling=$isBalanceSettling, " +
+                        "settlementCountdown=${next.settlementRemainingText}",
                 )
                 value = next
             }
@@ -113,6 +114,11 @@ fun WithdrawalReminderModule(context: HomeModuleContentContext) {
     } else {
         "距离提现还有 ${status.remainingText}，请注意~"
     }
+    // 每月最后一天：本月收入会在下月 1 日 0:00 开始结算，开头先把「距离结算还有 X」说清楚，
+    // 其余日子这个字段为 null，整句不出现（也就不会多出逗号）。
+    val settlementPrefix = status.settlementRemainingText
+        ?.let { "距离结算还有 $it，" }
+        .orEmpty()
 
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 12.dp)) {
         Row(
@@ -128,7 +134,7 @@ fun WithdrawalReminderModule(context: HomeModuleContentContext) {
             Icon(MiuixIcons.Promotions, "提现提醒", tint = MiuixTheme.colorScheme.onPrimaryContainer)
 
             Text(
-                "$countdownText\n" +
+                "$settlementPrefix$countdownText\n" +
                 "${periodLabel}收入 ￥${amounts.income}，" +
                 "到手 ￥${amounts.afterFee}",
                 style = MiuixTheme.textStyles.body2,
