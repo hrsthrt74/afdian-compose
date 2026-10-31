@@ -207,9 +207,16 @@ data class OverviewData(
     val cards: Map<String, DataCardModel>,
     val charts: Map<String, ChartDataItem>,
     /**
-     * dashboard.summary.unconfirmed_amount（未确认金额）。
-     * 平时无展示用途；每月 1 日结算窗口内它等于「上月收入」，供首页提现提醒切换上月口径。
+     * dashboard.summary.unconfirmed_amount（未确认金额，抽成前）。
+     * 平时无展示用途；结算期（每月 1 日 0:00–10:00 或服务端仍在结算）内它就是
+     * 「上月收入」的权威口径，供首页提现提醒卡切换上月口径。
      * dashboard 未返回该字段或尚未到达时为 null。
      */
     val unconfirmedAmount: BigDecimal? = null,
+    /**
+     * 服务端是否报告「结算中」（dashboard.balance 返回「结算中，请耐心等待」这类文案）。
+     * true 表示当前处于每月 1 日的结算期，与本地时钟一起决定提现提醒卡的口径。
+     * 只走内存、不落缓存（见 HomeCacheSnapshot 的注释），因此旧调用点无需改动。
+     */
+    val isBalanceSettling: Boolean = false,
 )

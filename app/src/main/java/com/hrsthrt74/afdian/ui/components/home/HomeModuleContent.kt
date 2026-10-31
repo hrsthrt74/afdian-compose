@@ -20,10 +20,17 @@ data class HomeModuleContentContext(
     val creatorCards: Map<String, DataCardItem>,
     val creatorCharts: Map<String, ChartDataItem>,
     /**
-     * dashboard 的未确认金额；每月 1 日结算窗口内等于「上月收入」，供提现提醒卡切换口径。
+     * dashboard 的未确认金额（抽成前）；结算期（每月 1 日 0:00–10:00 或服务端仍在结算）内
+     * 它就是待结算的「上月收入」的权威口径，供提现提醒卡切换上月口径。
      * null 表示尚未拿到（缓存无该数据或 dashboard 未返回），由模块自行兜底。
      */
     val unconfirmedAmount: BigDecimal? = null,
+    /**
+     * 服务端是否报告「结算中」（dashboard.balance 返回「结算中，请耐心等待」这类文案）。
+     * true 表示当前处于每月 1 日的结算期；与本地时钟一起决定提现提醒卡的口径。
+     * 不落缓存，冷启动由本地时钟 + 缓存的 [unconfirmedAmount] 兜住。
+     */
+    val isBalanceSettling: Boolean = false,
     val markedCreators: List<FavoriteItem>,
     val settingsStore: SettingsStore,
     val onOpenCreator: (AfadianUser) -> Unit,

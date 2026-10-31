@@ -1,13 +1,16 @@
 package com.hrsthrt74.afdian
 
 import com.hrsthrt74.afdian.data.stats.WithdrawalSchedule
+import com.hrsthrt74.afdian.data.stats.estimatedAfterFee
+import com.hrsthrt74.afdian.data.stats.settlementAmountTexts
+import java.math.BigDecimal
 import java.time.LocalDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 提现周期计算的纯逻辑测试。 */
+/** 提现周期计算与结算期金额口径的纯逻辑测试。 */
 class WithdrawalScheduleTest {
     @Test
     fun lastSevenDaysShowReminderAndPointToNextMonth() {
@@ -46,5 +49,105 @@ class WithdrawalScheduleTest {
         assertFalse(status.shouldShowReminder)
         assertFalse(status.isSettlementWindow)
         assertEquals(LocalDateTime.of(2026, 11, 1, 10, 0), status.withdrawalTime)
+    }
+
+    // ---- 跨月边界：结算窗口的进入与退出 ----
+
+    @Test
+    fun lastMinuteOfMonthStaysOutsideSettlementWindow() {
+        // 月末最后一分钟还属于上个月：不该提前切「上月」口径
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 9, 30, 23, 59))
+
+        assertTrue(status.shouldShowReminder)
+        assertFalse(status.isSettlementWindow)
+        assertEquals(LocalDateTime.of(2026, 10, 1, 10, 0), status.withdrawalTime)
+        assertEquals("0 天 10 小时", status.remainingText)
+        assertFalse(status.isWithdrawalTimeReached)
+    }
+
+    @Test
+    fun firstSecondOfMonthEntersSettlementWindow() {
+        // 自然月翻篇的第一秒就进入结算期：提醒卡必须立刻切「上月」口径
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 1, 0, 0))
+
+        assertTrue(status.shouldShowReminder)
+        assertTrue(status.isSettlementWindow)
+        assertEquals(LocalDateTime.of(2026, 10, 1, 10, 0), status.withdrawalTime)
+        assertEquals("0 天 10 小时", status.remainingText)
+        assertFalse(status.isWithdrawalTimeReached)
+    }
+
+    @Test
+    fun lastMinuteBeforeTenStillSettling() {
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 1, 9, 59))
+
+        assertTrue(status.isSettlementWindow)
+        assertEquals("不足一小时", status.remainingText)
+        assertFalse(status.isWithdrawalTimeReached)
+    }
+
+    // ---- 服务端结算信号 ----
+
+    @Test
+    fun serverSettlingKeepsReminderAfterTen() {
+        // 服务端 10:00 后仍报结算中：提醒继续显示，倒计时说「已到提现日」而不是病句
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 1, 10, 30), isBalanceSettling = true)
+
+        assertTrue(status.shouldShowReminder)
+        assertTrue(status.isSettlementWindow)
+        assertEquals(LocalDateTime.of(2026, 10, 1, 10, 0), status.withdrawalTime)
+        assertEquals(0L, status.remainingDays)
+        assertEquals("已到提现日", status.remainingText)
+        assertTrue(status.isWithdrawalTimeReached)
+    }
+
+    @Test
+    fun staleServerSignalIsIgnoredOutsideFirstDay() {
+        // 信号没有时间戳：进程从 1 日活到 5 日且一直没刷新成功时，不能把 5 日误判成结算期
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 5, 10, 0), isBalanceSettling = true)
+
+        assertFalse(status.shouldShowReminder)
+        assertFalse(status.isSettlementWindow)
+        assertEquals(LocalDateTime.of(2026, 11, 1, 10, 0), status.withdrawalTime)
+    }
+
+    // ---- 结算期金额口径 ----
+
+    @Test
+    fun settlementAmountsUseUnconfirmedAndEstimatedAfterFee() {
+        val texts = settlementAmountTexts(BigDecimal("3021.68"))
+
+        assertEquals("3021.68", texts.income)
+        // 3021.68 × 0.94 = 2840.3792，向下取整到分
+        assertEquals("2840.37", texts.afterFee)
+    }
+
+    @Test
+    fun afterFeeRoundsDownInsteadOfHalfUp() {
+        // 100.01 × 0.94 = 94.0094：四舍五入还是 94.01，这里必须是 94.00（宁可少算一分）
+        assertEquals(BigDecimal("94.00"), estimatedAfterFee(BigDecimal("100.01")))
+        assertEquals("94.00", settlementAmountTexts(BigDecimal("100.01")).afterFee)
+    }
+
+    @Test
+    fun zeroUnconfirmedShowsZeroInsteadOfPlaceholder() {
+        // 0 是有效业务值（上月没人发电，或结算已完成转入余额），不能当成「取不到」
+        val texts = settlementAmountTexts(BigDecimal.ZERO)
+
+        assertEquals("0.00", texts.income)
+        assertEquals("0.00", texts.afterFee)
+    }
+
+    @Test
+    fun tinyAmountFloorsToZero() {
+        assertEquals("0.00", settlementAmountTexts(BigDecimal("0.01")).afterFee)
+    }
+
+    @Test
+    fun missingUnconfirmedFallsBackToPlaceholder() {
+        val texts = settlementAmountTexts(null)
+
+        assertEquals("---", texts.income)
+        assertEquals("---", texts.afterFee)
     }
 }

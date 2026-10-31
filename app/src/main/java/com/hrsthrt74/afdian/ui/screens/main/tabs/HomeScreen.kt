@@ -102,8 +102,10 @@ fun HomeScreen(
     val charts by viewModel.creatorCharts.collectAsState()
     // 「近5天收入」模块数据（随首页刷新一起拉取）
     val recentIncomeRecords by viewModel.recentIncomeRecords.collectAsState()
-    // dashboard 的未确认金额：结算窗口内作为「上月收入」供提现提醒卡展示
+    // dashboard 的未确认金额：结算期作为「上月收入」供提现提醒卡展示
     val unconfirmedAmount by viewModel.unconfirmedAmount.collectAsState()
+    // 服务端结算期信号（balance 为「结算中」文案）：本地时钟不准时也能正确切上月口径
+    val isBalanceSettling by viewModel.isBalanceSettling.collectAsState()
     val markedCreators by viewModel.markedCreators.collectAsState()
     val historyEntries by historyViewModel.entries.collectAsState()
     // ── 首页模块形状：启用集合 / 顺序 / 快捷方式入口 ──
@@ -192,6 +194,7 @@ fun HomeScreen(
         sponsoring = sponsoring, loading = loading, creatorCards = creatorCardItems,
         creatorCharts = charts,
         unconfirmedAmount = unconfirmedAmount,
+        isBalanceSettling = isBalanceSettling,
         markedCreators = markedCreators,
         settingsStore = settingsStore,
         onOpenCreator = onOpenCreator, onOpenManagement = onOpenManagement, onOpenFavorites = onOpenFavorites,

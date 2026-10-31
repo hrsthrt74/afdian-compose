@@ -73,10 +73,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // 首页和管理页共用的类型化创作者卡片；ID 使用稳定的 CardKey.storageValue。
     private val _creatorCards = MutableStateFlow<Map<String, DataCardModel>>(emptyMap())
     val creatorCards = _creatorCards.asStateFlow()
-    // dashboard 的未确认金额：结算窗口（每月 1 日 0:00–10:00）内等于上月收入，
-    // 供首页提现提醒卡切换「上月」口径；窗口外不参与任何展示。
+    // dashboard 的未确认金额：结算期（每月 1 日 0:00–10:00 或服务端仍在结算）内它就是
+    // 待结算的上月收入，供首页提现提醒卡切换「上月」口径；窗口外不参与任何展示。
     private val _unconfirmedAmount = MutableStateFlow<BigDecimal?>(null)
     val unconfirmedAmount = _unconfirmedAmount.asStateFlow()
+    // 服务端是否报告「结算中」（dashboard.balance 是「结算中，请耐心等待」文案）。
+    // 本地时钟可能被改、时区也可能不同，这个信号让结算期判定以服务器为准。
+    // 刻意只存在内存里：写进首页缓存的话，非结算日冷启动首帧会用上一天的旧信号误判结算期
+    // （结算日的冷启动由本地时钟兜住，金额靠缓存里的 unconfirmedAmount 提供）。
+    private val _isBalanceSettling = MutableStateFlow(false)
+    val isBalanceSettling = _isBalanceSettling.asStateFlow()
     // 创作者图表卡数据；key 使用 ChartType.storageValue。写入首页快照缓存，
     // 冷启动先用旧图秒显，失败时保留缓存（首次失败才显示加载占位）。
     private val _creatorCharts = MutableStateFlow<Map<String, ChartDataItem>>(emptyMap())
@@ -353,6 +359,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // 未确认金额随帧写入：dashboard 帧之后就有值，后续帧重复同值无副作用。
                     // dashboard 失败时整个流式加载抛异常，回调不执行，旧值得以保留（与卡片容错口径一致）。
                     _unconfirmedAmount.value = partial.unconfirmedAmount
+                    // 结算期信号同理：dashboard 帧写入，后续帧同值；刷新失败时保留上一次的判定
+                    _isBalanceSettling.value = partial.isBalanceSettling
                     // 图表按「本次成功返回的图覆盖、本次缺键的图保留旧值」合并：
                     // 单个数据源临时失败时不会把已拿到过的图抹掉（否则坏数据还会被写进缓存）。
                     // 与卡片的容错口径一致：加载失败保留旧值，而不是退回加载占位。
@@ -397,6 +405,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _creatorCards.value = emptyMap()
         _creatorCharts.value = emptyMap()
         _unconfirmedAmount.value = null
+        // 结算期信号属于上一个账号的 dashboard，切号后必须清掉，
+        // 否则新账号在 1 日会继承旧账号的「结算中」判定
+        _isBalanceSettling.value = false
         _recentIncomeRecords.value = emptyList()
         // 搜索态：结果和错误提示都属于上一个账号的上下文
         searchJob?.cancel()
@@ -433,6 +444,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         creatorCharts = _creatorCharts.value,
                         // 未确认金额以纯文本落盘（BigDecimal 不参与序列化），供缓存帧的提现提醒使用
                         unconfirmedAmount = _unconfirmedAmount.value?.toPlainString(),
+                        // 结算期信号（isBalanceSettling）刻意不落盘，原因见该字段的声明处注释
                     )
                 )
             }
@@ -467,6 +479,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _creatorCharts.value = snapshot.creatorCharts
             // 未确认金额文本回填为数值；旧快照无该字段或格式异常时保持 null，走实时帧兜底
             _unconfirmedAmount.value = snapshot.unconfirmedAmount?.toBigDecimalOrNull()
+            // 结算期信号不回填（缓存里没有）：冷启动首帧的结算期判定交给本地时钟，
+            // 服务端信号等 dashboard 回来后再纠正，避免拿上一天的旧信号误判
             // 标记「首屏已由缓存填好」：MainActivity 的门控据此放行，不必等网络
             _homeRestoredFromCache.value = true
             AppLog.d("Home", "已用缓存回填首页首屏（图表=${snapshot.creatorCharts.size}）")

@@ -22,7 +22,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -86,8 +85,11 @@ class CreatorStatsRepository(
             .toMutableMap()
         val charts = mutableMapOf<String, ChartDataItem>()
         // dashboard.summary.unconfirmed_amount（未确认金额）。只由 dashboard 帧写入一次；
-        // 结算窗口（每月 1 日 0:00–10:00）内它等于上月收入，供首页提现提醒切换口径使用。
+        // 结算期（每月 1 日 0:00–10:00 或服务端仍在结算）内它就是待结算的上月收入，
+        // 供首页提现提醒切「上月」口径。
         var unconfirmedAmount: BigDecimal? = null
+        // dashboard.balance 是否为「结算中」文案（服务端侧的结算期信号）。同样只由 dashboard 帧写入。
+        var isBalanceSettling = false
 
         // 以下三个写入函数都只能在 [publish] 的锁内调用。
         fun set(metric: CardMetric, period: CardPeriod, value: CardValue) {
@@ -103,13 +105,13 @@ class CreatorStatsRepository(
         fun setThisMonthIncome(amount: BigDecimal) {
             set(CardMetric.Income, CardPeriod.ThisMonth, CardValue.Money(amount))
             // 当月「抽成后」取不到官方值：月度账单要等次月初才出账（见 fetchMonthlyIncome），
-            // 因此用平台到手比例折算当月收入。折算结果向下取整到分（3.1490 → 3.14）：
-            // 宁可少算一分，也不把到手钱算多。
+            // 因此用平台到手比例折算当月收入。折算规则与结算期的「到手」共用
+            // [estimatedAfterFee]（向下取整到分：3.1490 → 3.14，宁可少算一分，也不把到手钱算多）。
             // 若月度账单里真的带上了当月，月度账单阶段会用真实 creator_amount 覆盖这个估算值。
             set(
                 CardMetric.IncomeAfterFee,
                 CardPeriod.ThisMonth,
-                CardValue.Money((amount * CREATOR_SHARE_RATIO).setScale(MONEY_SCALE, RoundingMode.FLOOR)),
+                CardValue.Money(estimatedAfterFee(amount)),
             )
         }
 
@@ -119,7 +121,12 @@ class CreatorStatsRepository(
                 val id = definition.key.storageValue
                 id to DataCardModel(id = id, title = definition.title, value = values[id] ?: CardValue.Unavailable)
             }
-            return OverviewData(cards = cards, charts = charts.toMap(), unconfirmedAmount = unconfirmedAmount)
+            return OverviewData(
+                cards = cards,
+                charts = charts.toMap(),
+                unconfirmedAmount = unconfirmedAmount,
+                isBalanceSettling = isBalanceSettling,
+            )
         }
 
         /** 在锁内执行 [block] 的写入并发射一帧；所有数据源阶段的写入都必须经由这个入口。 */
@@ -188,13 +195,31 @@ class CreatorStatsRepository(
                 AppLog.d(TAG, "dashboard.summary 缺少 month_amount，本月收入将由账单聚合兜底")
             }
 
-            // 未确认金额：已发电但尚未结算进余额的钱。窗口外不参与任何卡片展示。
+            // 未确认金额：已发电但尚未结算进余额的钱。结算期内它是待结算的上月收入，
+            // 供首页提现提醒卡展示；窗口外不参与任何卡片展示。
             unconfirmedAmount = summary?.money("unconfirmed_amount")
 
-            dashboard.money("balance")?.let { setSnapshot(CardMetric.Balance, CardValue.Money(it)) }
+            // 可提现余额有两种形态：平时是金额，每月 1 日 0:00–10:00 结算期间是
+            // 「结算中，请耐心等待」这类文案。后者拿不到数字，只保留「正在结算」这个信号：
+            // 余额卡维持不可用（不伪造金额），首页提现提醒据信号切「上月」口径。
+            val balanceText = dashboard.string("balance")
+            val balance = parseDashboardBalance(balanceText)
+            balance.amount?.let { setSnapshot(CardMetric.Balance, CardValue.Money(it)) }
+            isBalanceSettling = balance.isSettling
+            when {
+                balance.isSettling ->
+                    AppLog.d(TAG, "dashboard.balance 为结算期文案：余额卡保持不可用，提现提醒切上月口径")
+                // 字段缺失是常态（未开通创作者等），不值得升级成告警
+                balanceText.isNullOrBlank() -> AppLog.d(TAG, "dashboard 未返回 balance，余额卡保持不可用")
+                // 未知文案只记分类，不把原文写进日志（余额属账号数据）
+                else -> AppLog.w(TAG, "dashboard.balance 既不是金额也不是结算文案，余额卡保持不可用")
+            }
+            // balance_after_tax 不做特殊处理：结算期同样是文案，取不到金额就保持不可用
             dashboard.money("balance_after_tax")?.let { setSnapshot(CardMetric.BalanceAfterTax, CardValue.Money(it)) }
 
-            val withdrawalStatus = WithdrawalSchedule.calculate(now)
+            // 提现倒计时：把服务端结算信号一并传进去，管理页的「距离下次提现还有」卡
+            // 与首页提现提醒保持同一口径（结算没完成时显示 0 天，而不是下月 30 天）。
+            val withdrawalStatus = WithdrawalSchedule.calculate(now, isBalanceSettling = isBalanceSettling)
             setSnapshot(
                 CardMetric.WithdrawalRemainingDays,
                 CardValue.DurationDays(withdrawalStatus.remainingDays),
@@ -420,8 +445,5 @@ class CreatorStatsRepository(
         const val TAG = "CreatorStatsRepository"
         const val AFDIAN_HOST = "https://afdian.com"
         const val MAX_PAGE_COUNT = 100
-
-        /** 金额保留到分；估算值按 [RoundingMode.FLOOR] 向下取整，与卡片展示的小数位保持一致。 */
-        const val MONEY_SCALE = 2
     }
 }

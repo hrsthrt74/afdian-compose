@@ -36,7 +36,8 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
 
 已实现的 7 个模块：
 1. **快捷方式** — 一行最多 4 个自定义入口，预设目录里的条目随便挑、随便换顺序。
-2. **提现提醒** — 月末 7 天自动显示，点击跳转网页提现页。
+2. **提现提醒** — 月末 7 天 + 每月 1 日 0:00–10:00（结算期）自动显示，点击跳转网页提现页。
+   卡内 `now` 每分钟推进一次，进程跨午夜不会停在旧月份；结算期金额口径见下文「创作者数据系统」。
 3. **创作者数据** — 展示今日收入等数据卡片，支持长按进入整页编辑网格。
 4. **近5天收入** — 最近 5 天每日收入明细表，样式照抄收入明细页，标题点击进入收入明细页。**默认关闭**。日期列显示 `月/日 + 星期`（`10/16 五`，`IncomeStatRecord.displayMonthDayWithWeekday`）：5 天窗口里年份没有信息量，省下的宽度留给数值列；收入明细页用短年份 `年/月/日`（`displayShortYearDate`），其中「按日」tab 同样附带星期（`26/10/16 五`，`displayShortYearDateWithWeekday`），按周/按月的日期是周期起始日、不加星期。
 5. **我发电的** — 已发电创作者列表，横滑展示。
@@ -82,6 +83,20 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   （`setScale(2, RoundingMode.FLOOR)`，3.1490 → 3.14，宁可少算不多算）；
   若账单里意外带了当月则以官方值覆盖。
   连带影响：月末提现提醒里的「到手」也走这条估算值，不再是 `---`。
+  该折算规则已抽成 `estimatedAfterFee`（`data/stats/WithdrawalSchedule.kt`），
+  本月抽成后卡与结算期「到手」共用同一份实现。
+- `dashboard.balance` 有两种形态（`parseDashboardBalance`，`DashboardBalanceTest` 覆盖）：
+  金额文本 → 写「可提现（抽成前）」卡；每月 1 日 0:00–10:00 结算期间返回
+  「结算中，请耐心等待」→ **不写卡**（保持 `--`，不伪造金额），同时把「正在结算」作为服务端信号
+  `isBalanceSettling` 透给 UI。`balance_after_tax` 结算期同样落不可用。
+- 结算期提现提醒金额口径（`settlementAmountTexts`）：「收入」直接取
+  `dashboard.summary.unconfirmed_amount`（待结算的上月收入，**不回退**「上月收入」数据卡——
+  那是账单聚合口径，结算期里通常还是空的）；「到手」= 该金额 × `CREATOR_SHARE_RATIO` 向下取整到分。
+  `unconfirmed_amount` 为 null → 两处 `---`；为 0 → 照常 `0.00`（0 是有效值）。
+- `WithdrawalSchedule.calculate(now, isBalanceSettling)`：结算期 = 本地窗口（1 日 0:00–10:00）
+  ‖ 服务端结算中。服务端信号**只在 1 号当天认**——它没有时间戳、dashboard 只在刷新时更新，
+  进程从 1 号挂到 5 号没刷新成功时不能把 5 号误判成结算期。服务端 10:00 后仍报结算中时，
+  倒计时落到「已到提现日」（`isWithdrawalTimeReached`）、`shouldShowReminder` 仍为 true。
 - `CardModel` / `ChartModel` 数据模型。
 - `DataCardGrid` / `ChartDataCard` 数据卡片组件。
 - `DataCard` 公共数据卡：数值右侧支持后导单位 `unit`（`unitStyle` 默认 footnote1、`unitColor` 默认次级灰，与数值基线对齐）。
@@ -97,6 +112,9 @@ UI 写法约定（空状态、占位色、通用组件等）见 `DESIGN.md`，�
   新增字段一律带默认值，旧快照反序列化为空集合而不是解析失败。
   图表刷新是**合并**语义（`_creatorCharts.value + overview.charts`）：数据源临时失败时该图键缺失，
   保留上一份好数据而不抹成加载占位，缓存里也就能留住上次的图。
+  快照还额外存 `unconfirmedAmount`（文本），它是结算期提现提醒的金额来源，冷启动首帧即可按上月口径显示；
+  而结算期信号 `isBalanceSettling` **刻意不入缓存**——缓存 `true` 会让非结算日冷启动首帧误判结算期，
+  结算日的冷启动由本地时钟兜住、金额由 `unconfirmedAmount` 提供。
 - 近5天收入模块（首页）：复用收入明细页的 `IncomeStatRepository.fetch(IncomeStatType.Day, 1)`，
   只取第 1 页前 5 条（接口按日期倒序，前 5 条即最近 5 天），挂在 `MainViewModel.refresh()` 里
   与创作者数据并发加载、共享同一个 `isLoading` 窗口，因此下拉刷新会一并更新。
