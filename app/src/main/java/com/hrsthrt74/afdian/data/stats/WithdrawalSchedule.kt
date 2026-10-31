@@ -72,7 +72,19 @@ object WithdrawalSchedule {
         // 「已到提现日」正好就是「到点了但钱还在结算」该说的话。
         val remainingText = when {
             duration.isNegative -> "已到提现日"
-            duration.toDays() == 0L && duration.toHours() == 0L -> "不足一小时"
+            // 不足一天改用「小时 + 分」：原来的「0 天 N 小时」在最后一天看起来像没在走，
+            // 分钟根本不展示，用户无法判断离提现还有多久。
+            duration.toDays() == 0L -> {
+                val hours = duration.toHours()
+                val minutes = duration.toMinutes() % 60
+                when {
+                    hours > 0L -> "$hours 小时 $minutes 分"
+                    // 不足一小时就别再带「0 小时」，直接说多少分
+                    minutes > 0L -> "$minutes 分"
+                    // 最后一分钟内：再往下拆秒没有意义，也会让文案每秒跳动
+                    else -> "不足一分钟"
+                }
+            }
             else -> "${duration.toDays()} 天 ${duration.toHours() % 24} 小时"
         }
         val shouldShowReminder = today.dayOfMonth >= month.lengthOfMonth() - 6 || isSettlementWindow

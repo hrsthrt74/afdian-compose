@@ -28,17 +28,23 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Promotions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDateTime
-import kotlin.time.Duration.Companion.seconds
 
 private const val TAG = "WithdrawalReminder"
 
+/** 对齐整分后仍兜底的最小间隔（毫秒）：取整误差落到 0 时不至于空转。 */
+private const val MIN_TICK_MILLIS = 200L
+
 /**
- * 提现状态的刷新间隔。
+ * 距离下一分钟整点还有多少毫秒。
  *
- * 文案最细只到「天 + 小时」，每分钟读一次系统时间已经足够：
- * 跨午夜、跨 1 日 10:00 最多滞后一分钟，也不会引入每秒重组。
+ * 倒计时在最后一天精确到分，固定 60 秒的相位漂移会让分钟数最多滞后一分钟
+ * （09:58:40 组合、到 09:59:40 才把「2 分」改成「1 分」）。
+ * 对齐到整分重算，显示值和真实剩余时间始终对得上。
  */
-private val StatusRefreshInterval = 60.seconds
+private fun millisUntilNextMinute(now: LocalDateTime): Long {
+    val elapsedInMinute = now.second * 1_000L + now.nano / 1_000_000L
+    return (60_000L - elapsedInMinute).coerceAtLeast(MIN_TICK_MILLIS)
+}
 
 /**
  * 随时间自动推进的提现状态。
@@ -47,8 +53,9 @@ private val StatusRefreshInterval = 60.seconds
  * 这个模块在月末 7 天常驻，进程跨过午夜后 now 会永远停在「上个月」那一刻，
  * 于是 1 日 0:00–10:00 一直判不出结算期，卡片会照旧显示「本月收入 0.00」。
  *
- * 这里用 [produceState] 每分钟重算一次，并且**只在状态真的变化时**才写回 state：
- * 剩余时长按小时变化，实际重组约每小时一次，不会因为定时器变成每分钟重组。
+ * 这里用 [produceState] 每分钟（对齐整分）重算一次，并且**只在状态真的变化时**才写回 state：
+ * 最后一天按「小时 + 分」倒数，重组频率随之升到每分钟一次；其余时间按小时变化，
+ * 实际重组约每小时一次，不会因为定时器变成每秒重组。
  *
  * @param isBalanceSettling 服务端结算期信号；变化时重启计时循环，立刻按新信号重算
  */
@@ -70,7 +77,7 @@ private fun rememberWithdrawalStatus(isBalanceSettling: Boolean): WithdrawalStat
                 )
                 value = next
             }
-            delay(StatusRefreshInterval)
+            delay(millisUntilNextMinute(LocalDateTime.now()))
         }
     }.value
 

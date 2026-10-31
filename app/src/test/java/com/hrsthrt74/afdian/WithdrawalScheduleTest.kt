@@ -61,7 +61,8 @@ class WithdrawalScheduleTest {
         assertTrue(status.shouldShowReminder)
         assertFalse(status.isSettlementWindow)
         assertEquals(LocalDateTime.of(2026, 10, 1, 10, 0), status.withdrawalTime)
-        assertEquals("0 天 10 小时", status.remainingText)
+        // 23:59 → 10:00 是 10 小时 1 分：不足一天时改按「小时 + 分」显示，不再出现「0 天」
+        assertEquals("10 小时 1 分", status.remainingText)
         assertFalse(status.isWithdrawalTimeReached)
     }
 
@@ -73,7 +74,7 @@ class WithdrawalScheduleTest {
         assertTrue(status.shouldShowReminder)
         assertTrue(status.isSettlementWindow)
         assertEquals(LocalDateTime.of(2026, 10, 1, 10, 0), status.withdrawalTime)
-        assertEquals("0 天 10 小时", status.remainingText)
+        assertEquals("10 小时 0 分", status.remainingText)
         assertFalse(status.isWithdrawalTimeReached)
     }
 
@@ -82,7 +83,25 @@ class WithdrawalScheduleTest {
         val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 1, 9, 59))
 
         assertTrue(status.isSettlementWindow)
-        assertEquals("不足一小时", status.remainingText)
+        // 不足一小时只报分钟，不再出现「0 小时 1 分」
+        assertEquals("1 分", status.remainingText)
+        assertFalse(status.isWithdrawalTimeReached)
+    }
+
+    @Test
+    fun hoursAndMinutesShowTogetherWithinLastDay() {
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 1, 8, 30))
+
+        // 1 小时 30 分：小时与分钟都要露出来，用户才能看出在倒数
+        assertEquals("1 小时 30 分", status.remainingText)
+    }
+
+    @Test
+    fun lastMinuteShowsLessThanOneMinute() {
+        val status = WithdrawalSchedule.calculate(LocalDateTime.of(2026, 10, 1, 9, 59, 30))
+
+        // 最后 30 秒：拆到秒只会让文案每秒跳动，统一说「不足一分钟」
+        assertEquals("不足一分钟", status.remainingText)
         assertFalse(status.isWithdrawalTimeReached)
     }
 
