@@ -1,6 +1,10 @@
 package com.hrsthrt74.afdian.ui.viewmodel
 
 import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hrsthrt74.afdian.AppLog
@@ -121,12 +125,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var searchQuery = ""
     private var searchPage = 0
     private var nextPublishSN = ""
+    // 跨天刷新的计时协程：手改系统时间后旧的一次性 delay 还按旧时钟在等，必须取消重排
+    private var dailyRefreshJob: Job? = null
+    // 时间变化事件的合并协程：改时间常常连带触发时区广播，合并成一次刷新
+    private var timeChangeRefreshJob: Job? = null
+
+    /**
+     * 系统时间被手动调整时的监听。
+     *
+     * 选 ACTION_TIME_CHANGED 而不是定时比对时间：`delay` 走的是单调时钟，
+     * 用户把时间往前调几小时，正在等待的跨天计时不会被唤醒，靠比对时间发现不了这种「跳变」。
+     *
+     * 这两个 action 只能动态注册（清单里声明收不到系统广播），因此跟着 ViewModel 生命周期走：
+     * 会话级 ViewModel 在，监听就在；`onCleared` 里注销。
+     */
+    private val timeChangeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            AppLog.d("Home", "检测到系统时间变化：$action")
+            onSystemTimeChanged()
+        }
+    }
 
     init {
         // 跨天自动刷新：应用一直开着时，每到新的一天刷新一次主页。
         // 放在 ViewModel 而不是首页 Composable 里：ViewModel 活在会话作用域内，
         // 用户切到别的底栏页、甚至把应用退到后台，计时都不会被组合生命周期打断。
         startDailyRefreshTicker()
+        // 手动改时间 / 换时区后，日期口径（今天、本月、提现倒计时）全都变了，需要重排并刷新
+        registerTimeChangeReceiver()
     }
 
     /**
@@ -139,7 +166,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * （例如用户早上点亮屏幕回到应用）时会立刻补上这次刷新，而不是白等一整天。
      */
     private fun startDailyRefreshTicker() {
-        viewModelScope.launch {
+        // 重排前先取消旧的一轮：系统时间被改过之后，旧的 delay 到点时刻已经不对了
+        dailyRefreshJob?.cancel()
+        dailyRefreshJob = viewModelScope.launch {
             while (true) {
                 val waitMillis = millisUntilNextLocalDay(ZonedDateTime.now())
                 AppLog.d("Home", "跨天自动刷新：${waitMillis / 1000} 秒后进入新的一天")
@@ -155,6 +184,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // refresh() 内部自己起协程，这里不等待；下一轮计时从现在开始即可
             }
         }
+    }
+
+    /**
+     * 系统时间变化后的处理：重排跨天计时器，并触发一次主页刷新。
+     *
+     * 延迟一点再执行，把「改时间 + 改时区」这种连着来的两三条广播合并成一次刷新；
+     * 期间又来新事件时直接取消上一次，以最后一次为准。
+     */
+    private fun onSystemTimeChanged() {
+        timeChangeRefreshJob?.cancel()
+        timeChangeRefreshJob = viewModelScope.launch {
+            delay(TIME_CHANGE_DEBOUNCE_MILLIS.milliseconds)
+            // 计时基准换成新时钟：否则「下一天刷新」会落在按旧时钟算出来的时刻
+            startDailyRefreshTicker()
+            // 这里不跳过「正在刷新」的情况：进行中的那一轮可能是按旧时间算出的范围，
+            // 只有改完之后再拉一次，上屏的数据才一定对应新时钟。
+            AppLog.d("Home", "系统时间变化：刷新主页")
+            refresh()
+        }
+    }
+
+    /** 动态注册系统时间变化的广播接收器；注册失败只告警，不影响首页其它能力。 */
+    private fun registerTimeChangeReceiver() {
+        val filter = IntentFilter().apply {
+            // 用户手动设置时间
+            addAction(Intent.ACTION_TIME_CHANGED)
+            // 换时区：会让「今天 / 本月 / 提现倒计时」的边界整体平移
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        }
+        runCatching {
+            // minSdk 34 起必须声明导出性：这里只收系统广播，NOT_EXPORTED 即可（系统广播不受影响）
+            getApplication<Application>()
+                .registerReceiver(timeChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        }.onFailure { AppLog.w("Home", "注册系统时间变化监听失败", it) }
+    }
+
+    /**
+     * ViewModel 结束（登出 / 会话销毁）时注销广播接收器。
+     *
+     * 动态注册的接收器持有 this，不注销会让旧会话的 ViewModel 一直被系统引用。
+     */
+    override fun onCleared() {
+        runCatching { getApplication<Application>().unregisterReceiver(timeChangeReceiver) }
+            .onFailure { AppLog.w("Home", "注销系统时间变化监听失败", it) }
+        super.onCleared()
     }
 
     fun searchCreators(query: String) {
@@ -572,6 +646,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         /** 首页「近5天收入」模块展示的天数；接口按日期倒序返回，第 1 页取前 N 条即为最近 N 天。 */
         const val RECENT_INCOME_RECORD_COUNT = 5
+
+        /**
+         * 系统时间变化事件的合并窗口（毫秒）。
+         *
+         * 用户在设置里改时间时，系统往往连着发「时间已设置」和「时区已变更」两条广播，
+         * 也可能连点几下确认；合并到一次刷新即可，不必每次都拉一遍接口。
+         */
+        const val TIME_CHANGE_DEBOUNCE_MILLIS = 1_500L
     }
 }
 
